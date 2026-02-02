@@ -17,8 +17,9 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList, MovieCandidate } from '../types';
 import { client, verifyAuthStatus } from '../services/amplify';
-import { GET_ROOM, VOTE } from '../services/graphql';
+import { GET_ROOM, VOTE, CHECK_ROOM_MATCH } from '../services/graphql';
 import { logger } from '../services/logger';
+import { useMatchNotification } from '../context/MatchNotificationContext';
 
 type VotingRoomRouteProp = RouteProp<RootStackParamList, 'VotingRoom'>;
 
@@ -30,11 +31,14 @@ export default function VotingRoomScreen() {
   const navigation = useNavigation();
   const route = useRoute<VotingRoomRouteProp>();
   const { roomId, roomCode } = route.params;
+  const { addRoomToCheck, removeRoomFromCheck } = useMatchNotification();
 
   const [candidates, setCandidates] = useState<MovieCandidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isVoting, setIsVoting] = useState(false);
+  const [hasExistingMatch, setHasExistingMatch] = useState(false);
+  const [existingMatch, setExistingMatch] = useState<any>(null);
 
   // Animation values
   const pan = new Animated.ValueXY();
@@ -46,8 +50,100 @@ export default function VotingRoomScreen() {
       roomCode,
       timestamp: new Date().toISOString()
     });
+    
+    // Add this room to global match checking
+    addRoomToCheck(roomId);
+    
     loadRoomData();
+
+    // Cleanup: remove room from checking when leaving
+    return () => {
+      removeRoomFromCheck(roomId);
+    };
   }, []);
+
+  // Verificar matches periódicamente mientras la pantalla esté activa
+  useEffect(() => {
+    if (hasExistingMatch || isLoading) return;
+
+    const interval = setInterval(async () => {
+      logger.room('Periodic match check', { roomId });
+      const hasMatch = await checkForExistingMatch();
+      if (hasMatch) {
+        // If match found, navigate back to home
+        Alert.alert(
+          '🎉 ¡MATCH ENCONTRADO!',
+          'Se ha encontrado una película en común. Serás redirigido al inicio.',
+          [
+            { 
+              text: 'OK', 
+              onPress: () => navigation.navigate('Dashboard' as any)
+            }
+          ]
+        );
+      }
+    }, 5000); // Verificar cada 5 segundos
+
+    return () => clearInterval(interval);
+  }, [hasExistingMatch, isLoading, roomId]);
+
+  const checkForExistingMatch = async (): Promise<boolean> => {
+    try {
+      logger.room('Checking for existing match', { roomId });
+      
+      const authStatus = await verifyAuthStatus();
+      if (!authStatus.isAuthenticated) {
+        logger.authError('User not authenticated for checking match', null);
+        return false;
+      }
+
+      const response = await client.graphql({
+        query: CHECK_ROOM_MATCH,
+        variables: { roomId },
+        authMode: 'userPool',
+      });
+
+      const match = response.data.checkRoomMatch;
+      
+      if (match) {
+        logger.room('Existing match found', {
+          matchId: match.id,
+          movieTitle: match.title,
+          movieId: match.movieId,
+          timestamp: match.timestamp
+        });
+        
+        setHasExistingMatch(true);
+        setExistingMatch(match);
+        
+        // Show match notification to user
+        Alert.alert(
+          '🎉 ¡MATCH ENCONTRADO!',
+          `Ya hay una película seleccionada en esta sala:\n\n${match.title}`,
+          [
+            { 
+              text: 'Ver mis matches', 
+              onPress: () => navigation.navigate('MyMatches' as any)
+            },
+            { 
+              text: 'Salir de la sala', 
+              onPress: () => navigation.goBack()
+            }
+          ]
+        );
+        
+        return true;
+      }
+      
+      logger.room('No existing match found', { roomId });
+      return false;
+      
+    } catch (error) {
+      logger.roomError('Error checking for existing match', error, { roomId });
+      console.error('Error checking for existing match:', error);
+      return false;
+    }
+  };
 
   const loadRoomData = async () => {
     logger.room('Loading room data', { roomId, roomCode });
@@ -68,6 +164,13 @@ export default function VotingRoomScreen() {
         userId: authStatus.user?.userId,
         hasTokens: !!authStatus.session?.tokens
       });
+
+      // Check for existing match BEFORE loading room data
+      const hasMatch = await checkForExistingMatch();
+      if (hasMatch) {
+        setIsLoading(false);
+        return; // Don't load candidates if there's already a match
+      }
 
       logger.apiRequest('getRoom query', { roomId });
 
@@ -110,7 +213,13 @@ export default function VotingRoomScreen() {
   };
 
   const handleVote = async (vote: boolean) => {
-    if (isVoting || currentIndex >= candidates.length) return;
+    if (isVoting || currentIndex >= candidates.length || hasExistingMatch) return;
+
+    // Check for existing match BEFORE voting
+    const hasMatch = await checkForExistingMatch();
+    if (hasMatch) {
+      return; // Stop voting if match exists
+    }
 
     const currentMovie = candidates[currentIndex];
     
@@ -179,32 +288,55 @@ export default function VotingRoomScreen() {
           timestamp: result.match.timestamp
         });
 
-        // Show match notification
+        // Update state to prevent further voting
+        setHasExistingMatch(true);
+        setExistingMatch(result.match);
+
+        // Show match notification with navigation to home
         Alert.alert(
           '🎉 ¡MATCH!',
           `¡Encontraste una película en común!\n\n${result.match.title}`,
-          [{ text: 'Genial!', onPress: () => {} }]
+          [
+            { 
+              text: 'Ver mis matches', 
+              onPress: () => navigation.navigate('MyMatches' as any)
+            },
+            { 
+              text: 'Ir al inicio', 
+              onPress: () => navigation.navigate('Dashboard' as any)
+            }
+          ]
         );
       } else {
         logger.vote('No match - continuing voting', {
           movieTitle: currentMovie.title,
           vote
         });
-      }
 
-      // Move to next card
-      const nextIndex = currentIndex + 1;
-      setCurrentIndex(nextIndex);
-      
-      logger.vote('Moving to next card', {
-        previousIndex: currentIndex,
-        nextIndex,
-        remainingCards: candidates.length - nextIndex
-      });
-      
-      // Reset animation
-      pan.setValue({ x: 0, y: 0 });
-      scale.setValue(1);
+        // Move to next card only if no match
+        const nextIndex = currentIndex + 1;
+        setCurrentIndex(nextIndex);
+        
+        logger.vote('Moving to next card', {
+          previousIndex: currentIndex,
+          nextIndex,
+          remainingCandidates: candidates.length - nextIndex
+        });
+
+        if (nextIndex >= candidates.length) {
+          logger.vote('All candidates voted - no matches found', {
+            totalCandidates: candidates.length,
+            roomId,
+            roomCode
+          });
+          
+          Alert.alert(
+            'Votación Completada',
+            'Has votado todas las películas. Espera a que otros usuarios terminen de votar.',
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          );
+        }
+      }
 
     } catch (error) {
       logger.voteError('Vote failed', error, {
@@ -215,15 +347,16 @@ export default function VotingRoomScreen() {
         roomCode
       });
       console.error('Error voting:', error);
-      Alert.alert('Error', 'No se pudo registrar el voto');
+      Alert.alert('Error', 'No se pudo registrar el voto. Inténtalo de nuevo.');
     } finally {
       setIsVoting(false);
-      logger.vote('Vote process completed', { isVoting: false });
     }
   };
 
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gestureState) => {
+      // Don't allow gestures if there's an existing match
+      if (hasExistingMatch) return false;
       return Math.abs(gestureState.dx) > 20 || Math.abs(gestureState.dy) > 20;
     },
     onPanResponderGrant: () => {
@@ -240,8 +373,25 @@ export default function VotingRoomScreen() {
       const scaleValue = Math.max(0.95, 1 - distance / 1000);
       scale.setValue(scaleValue);
     },
-    onPanResponderRelease: (_, gestureState) => {
+    onPanResponderRelease: async (_, gestureState) => {
       pan.flattenOffset();
+      
+      // Check for existing match before processing swipe
+      const hasMatch = await checkForExistingMatch();
+      if (hasMatch) {
+        // Reset animation and don't process vote
+        Animated.parallel([
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: false,
+          }),
+          Animated.spring(scale, {
+            toValue: 1,
+            useNativeDriver: false,
+          }),
+        ]).start();
+        return;
+      }
       
       const swipeThreshold = 120;
       
@@ -274,6 +424,49 @@ export default function VotingRoomScreen() {
       }
     },
   });
+
+  if (hasExistingMatch && existingMatch) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.roomCode}>{roomCode}</Text>
+          <View style={styles.placeholder} />
+        </View>
+
+        <View style={styles.completedContainer}>
+          <Text style={styles.completedIcon}>🎉</Text>
+          <Text style={styles.completedTitle}>¡MATCH ENCONTRADO!</Text>
+          <Text style={styles.completedDescription}>
+            Ya hay una película seleccionada en esta sala:
+          </Text>
+          <Text style={styles.matchTitle}>{existingMatch.title}</Text>
+          <Text style={styles.matchDescription}>
+            Todos los usuarios han votado positivamente por esta película.
+          </Text>
+          
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.navigate('MyMatches' as any)}
+          >
+            <Text style={styles.backButtonText}>Ver Mis Matches</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.backButton, { backgroundColor: '#666666', marginTop: 15 }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>Salir de la Sala</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -372,17 +565,31 @@ export default function VotingRoomScreen() {
       {/* Action Buttons */}
       <View style={styles.actionButtons}>
         <TouchableOpacity
-          style={[styles.actionButton, styles.dislikeButton]}
-          onPress={() => handleVote(false)}
-          disabled={isVoting}
+          style={[
+            styles.actionButton, 
+            styles.dislikeButton,
+            hasExistingMatch && styles.disabledButton
+          ]}
+          onPress={async () => {
+            const hasMatch = await checkForExistingMatch();
+            if (!hasMatch) handleVote(false);
+          }}
+          disabled={isVoting || hasExistingMatch}
         >
           <Text style={styles.actionButtonText}>👎</Text>
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.actionButton, styles.likeButton]}
-          onPress={() => handleVote(true)}
-          disabled={isVoting}
+          style={[
+            styles.actionButton, 
+            styles.likeButton,
+            hasExistingMatch && styles.disabledButton
+          ]}
+          onPress={async () => {
+            const hasMatch = await checkForExistingMatch();
+            if (!hasMatch) handleVote(true);
+          }}
+          disabled={isVoting || hasExistingMatch}
         >
           <Text style={styles.actionButtonText}>👍</Text>
         </TouchableOpacity>
@@ -510,6 +717,10 @@ const styles = StyleSheet.create({
   likeButton: {
     backgroundColor: '#42c767',
   },
+  disabledButton: {
+    backgroundColor: '#666666',
+    opacity: 0.5,
+  },
   actionButtonText: {
     fontSize: 24,
   },
@@ -552,6 +763,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
     lineHeight: 24,
+  },
+  matchTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#42c767',
+    textAlign: 'center',
+    marginVertical: 15,
+  },
+  matchDescription: {
+    fontSize: 14,
+    color: '#cccccc',
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 20,
   },
   backButton: {
     backgroundColor: '#4CAF50',

@@ -83,3 +83,16 @@ export const GET_MATCHES = `
     }
   }
 `;
+
+export const CHECK_ROOM_MATCH = `
+  query CheckRoomMatch($roomId: String!) {
+    checkRoomMatch(roomId: $roomId) {
+      id
+      roomId
+      movieId
+      title
+      posterPath
+      timestamp
+    }
+  }
+`;

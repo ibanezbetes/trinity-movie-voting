@@ -1,6 +1,6 @@
 import { Handler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 
 // Initialize AWS clients
@@ -260,6 +260,9 @@ class VoteService {
 
     console.log(`Match created: ${matchId} with ${matchedUsers.length} users`);
 
+    // Delete the room since match is found - room is no longer needed
+    await this.deleteRoom(roomId);
+
     // Optionally invoke Match Lambda for notifications (if implemented)
     if (this.matchLambdaArn) {
       try {
@@ -271,6 +274,55 @@ class VoteService {
     }
 
     return match;
+  }
+
+  private async deleteRoom(roomId: string): Promise<void> {
+    try {
+      // Delete the room from DynamoDB
+      await docClient.send(new DeleteCommand({
+        TableName: this.roomsTable,
+        Key: { id: roomId },
+      }));
+
+      console.log(`Room ${roomId} deleted after match creation`);
+
+      // Optionally: Delete all votes for this room to free up space
+      await this.deleteRoomVotes(roomId);
+    } catch (error) {
+      console.error(`Error deleting room ${roomId}:`, error);
+      // Don't fail the match creation if room deletion fails
+    }
+  }
+
+  private async deleteRoomVotes(roomId: string): Promise<void> {
+    try {
+      // Get all votes for this room
+      const votesResult = await docClient.send(new QueryCommand({
+        TableName: this.votesTable,
+        KeyConditionExpression: 'roomId = :roomId',
+        ExpressionAttributeValues: {
+          ':roomId': roomId,
+        },
+      }));
+
+      const votes = votesResult.Items || [];
+      
+      // Delete votes in batches
+      const deletePromises = votes.map(vote => 
+        docClient.send(new DeleteCommand({
+          TableName: this.votesTable,
+          Key: {
+            roomId: vote.roomId,
+            userMovieId: vote.userMovieId,
+          },
+        }))
+      );
+
+      await Promise.allSettled(deletePromises);
+      console.log(`Deleted ${votes.length} votes for room ${roomId}`);
+    } catch (error) {
+      console.error(`Error deleting votes for room ${roomId}:`, error);
+    }
   }
 
   private async notifyMatchCreated(match: Match): Promise<void> {

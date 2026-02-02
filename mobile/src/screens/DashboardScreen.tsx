@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 import { logger } from '../services/logger';
+import { useMatchNotification } from '../context/MatchNotificationContext';
 
 type DashboardNavigationProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;
 
@@ -19,10 +20,16 @@ const { width, height } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const navigation = useNavigation<DashboardNavigationProp>();
+  const { checkForGlobalMatches } = useMatchNotification();
 
-  logger.userAction('Screen loaded: Dashboard', {
-    timestamp: new Date().toISOString()
-  });
+  useEffect(() => {
+    logger.userAction('Screen loaded: Dashboard', {
+      timestamp: new Date().toISOString()
+    });
+
+    // Check for any pending matches when user returns to dashboard
+    checkForGlobalMatches();
+  }, []);
 
   const handleCreateRoom = () => {
     logger.userAction('Dashboard button pressed: Create Room');

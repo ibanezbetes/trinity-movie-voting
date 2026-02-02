@@ -17,11 +17,20 @@ interface GetUserMatchesEvent {
     operation: 'getUserMatches';
     userId: string;
 }
-type MatchEvent = MatchCreatedEvent | GetUserMatchesEvent;
+interface CheckRoomMatchEvent {
+    operation: 'checkRoomMatch';
+    roomId: string;
+}
+interface NotifyMatchEvent {
+    operation: 'notifyMatch';
+    match: Match;
+}
+type MatchEvent = MatchCreatedEvent | GetUserMatchesEvent | CheckRoomMatchEvent | NotifyMatchEvent;
 interface MatchResponse {
     statusCode: number;
     body: {
         matches?: Match[];
+        match?: Match;
         success?: boolean;
         error?: string;
     };

@@ -111,6 +111,15 @@ class Logger {
     this.addLog(LogLevel.ERROR, 'VOTE_ERROR', action, data, error);
   }
 
+  // Match operations
+  match(action: string, data?: any) {
+    this.addLog(LogLevel.INFO, 'MATCH', action, data);
+  }
+
+  matchError(action: string, error: any, data?: any) {
+    this.addLog(LogLevel.ERROR, 'MATCH_ERROR', action, data, error);
+  }
+
   // UI interactions
   ui(action: string, data?: any) {
     this.addLog(LogLevel.DEBUG, 'UI', action, data);

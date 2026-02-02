@@ -42,11 +42,26 @@ type Mutation {
   createRoom(input: CreateRoomInput!): Room!
   joinRoom(code: String!): Room!
   vote(input: VoteInput!): VoteResult!
+  createMatch(input: CreateMatchInput!): Match!
+}
+
+input CreateMatchInput {
+  roomId: String!
+  movieId: Int!
+  title: String!
+  posterPath: String
+  matchedUsers: [String!]!
 }
 
 type Query {
   getRoom(id: String!): Room
   getMyMatches: [Match!]!
+  checkRoomMatch(roomId: String!): Match
+}
+
+type Subscription {
+  onMatchCreated(userId: String!): Match
+    @aws_subscribe(mutations: ["createMatch"])
 }
 
 input CreateRoomInput {

@@ -438,6 +438,32 @@ export class TrinityStack extends cdk.Stack {
       `),
     });
 
+    // checkRoomMatch query
+    matchDataSource.createResolver('CheckRoomMatchResolver', {
+      typeName: 'Query',
+      fieldName: 'checkRoomMatch',
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+        {
+          "version": "2017-02-28",
+          "operation": "Invoke",
+          "payload": {
+            "operation": "checkRoomMatch",
+            "roomId": "$context.arguments.roomId"
+          }
+        }
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.fromString(`
+        #if($context.error)
+          $util.error($context.error.message, $context.error.type)
+        #end
+        #if($context.result.statusCode == 200)
+          $util.toJson($context.result.body.match)
+        #else
+          $util.error($context.result.body.error, "BadRequest")
+        #end
+      `),
+    });
+
     console.log('AppSync resolvers created successfully');
   }
 
