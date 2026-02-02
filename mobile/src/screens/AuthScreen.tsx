@@ -40,7 +40,18 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     logger.auth('Login attempt started', { email });
 
     try {
-      // Try with explicit options to avoid SRP issues
+      // Clear any existing session first
+      try {
+        const currentUser = await getCurrentUser();
+        if (currentUser) {
+          logger.auth('Existing session found, proceeding with login');
+        }
+      } catch (e) {
+        // No existing session, which is fine
+        logger.auth('No existing session found');
+      }
+
+      // Attempt sign in
       const result = await signIn({
         username: email,
         password: password,
@@ -56,7 +67,15 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       });
 
       if (result.isSignedIn) {
-        onAuthSuccess();
+        // Verify we can get the current user and token
+        try {
+          const user = await getCurrentUser();
+          logger.auth('User session verified after login', { userId: user.userId });
+          onAuthSuccess();
+        } catch (tokenError) {
+          logger.authError('Token verification failed after login', tokenError);
+          Alert.alert('Error', 'Problema con la sesión. Por favor intenta de nuevo.');
+        }
       } else {
         logger.auth('Login requires additional steps', { nextStep: result.nextStep });
         Alert.alert('Info', 'Se requieren pasos adicionales para completar el login');
@@ -65,19 +84,31 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       logger.authError('Login failed', error);
       console.error('Login error:', error);
       
-      // Log more detailed error information
+      let errorMessage = 'Email o contraseña incorrectos';
+      
+      // Handle specific error cases
       if (error && typeof error === 'object') {
+        const err = error as any;
         logger.authError('Detailed login error', {
-          name: error.name,
-          message: error.message,
-          code: error.code,
-          statusCode: error.statusCode,
-          retryable: error.retryable,
-          stack: error.stack
+          name: err.name,
+          message: err.message,
+          code: err.code,
+          statusCode: err.statusCode,
+          retryable: err.retryable
         });
+        
+        if (err.name === 'NotAuthorizedException' || err.code === 'NotAuthorizedException') {
+          errorMessage = 'Email o contraseña incorrectos';
+        } else if (err.name === 'UserNotConfirmedException' || err.code === 'UserNotConfirmedException') {
+          errorMessage = 'Tu cuenta no está confirmada. Por favor contacta soporte.';
+        } else if (err.name === 'UserNotFoundException' || err.code === 'UserNotFoundException') {
+          errorMessage = 'No existe una cuenta con este email';
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
       }
       
-      Alert.alert('Error', 'Email o contraseña incorrectos');
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -110,7 +141,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           userAttributes: {
             email: email,
           },
-          autoSignIn: true, // Auto sign in after registration
+          autoSignIn: false, // Don't auto sign in - redirect to login instead
         },
       });
 
@@ -121,53 +152,42 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         nextStep: result.nextStep?.signUpStep
       });
 
-      if (result.isSignUpComplete) {
-        logger.auth('Registration complete, user auto-signed in');
-        onAuthSuccess();
-      } else if (result.nextStep?.signUpStep === 'CONFIRM_SIGN_UP') {
-        logger.auth('Registration requires confirmation, attempting auto-confirmation');
-        
-        // Try to auto-confirm with a dummy code (this will work when Lambda trigger is deployed)
-        try {
-          await confirmSignUp({
-            username: email,
-            confirmationCode: '123456', // Dummy code - Lambda will auto-confirm
-          });
-          
-          logger.auth('Auto-confirmation successful, attempting sign in');
-          
-          // Now try to sign in
-          const signInResult = await signIn({
-            username: email,
-            password: password,
-          });
-          
-          if (signInResult.isSignedIn) {
-            logger.auth('Sign in successful after confirmation');
-            onAuthSuccess();
-          } else {
-            logger.auth('Sign in requires additional steps after confirmation');
-            onAuthSuccess(); // Proceed anyway
+      // Always redirect to login after successful registration
+      // This ensures proper token management
+      Alert.alert(
+        'Registro Exitoso', 
+        'Tu cuenta ha sido creada correctamente. Por favor inicia sesión con tus credenciales.',
+        [{ 
+          text: 'Iniciar Sesión', 
+          onPress: () => {
+            // Clear password fields for security
+            setPassword('');
+            setConfirmPassword('');
+            // Redirect to login
+            setAuthMode('login');
+            logger.auth('User redirected to login after successful registration');
           }
-          
-        } catch (confirmError) {
-          logger.authError('Auto-confirmation failed', confirmError);
-          
-          Alert.alert(
-            'Registro Exitoso', 
-            'Tu cuenta ha sido creada. Por favor inicia sesión con tus credenciales.',
-            [{ text: 'OK', onPress: () => setAuthMode('login') }]
-          );
-        }
-      } else {
-        logger.auth('Registration completed with unknown next step', { nextStep: result.nextStep });
-        onAuthSuccess();
-      }
+        }]
+      );
+
     } catch (error) {
       logger.authError('Registration failed', error);
       console.error('Registration error:', error);
       
-      const errorMessage = (error as any).message || 'Error al crear la cuenta';
+      let errorMessage = 'Error al crear la cuenta';
+      
+      // Handle specific error cases
+      if (error && typeof error === 'object') {
+        const err = error as any;
+        if (err.name === 'UsernameExistsException' || err.code === 'UsernameExistsException') {
+          errorMessage = 'Ya existe una cuenta con este email';
+        } else if (err.name === 'InvalidPasswordException' || err.code === 'InvalidPasswordException') {
+          errorMessage = 'La contraseña no cumple con los requisitos de seguridad';
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
+      }
+      
       Alert.alert('Error', errorMessage);
     } finally {
       setIsLoading(false);

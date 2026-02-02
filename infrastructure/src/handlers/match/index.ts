@@ -1,10 +1,12 @@
 import { Handler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { AppSyncClient, EvaluateCodeCommand } from '@aws-sdk/client-appsync';
 
 // Initialize AWS clients
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
+const appSyncClient = new AppSyncClient({ region: process.env.AWS_REGION });
 
 // Types
 interface Match {
@@ -25,9 +27,15 @@ interface User {
   lastActiveAt: string;
 }
 
-interface MatchCreatedEvent {
-  operation: 'matchCreated';
-  match: Match;
+interface CreateMatchEvent {
+  operation: 'createMatch';
+  input: {
+    roomId: string;
+    movieId: number;
+    title: string;
+    posterPath?: string;
+    matchedUsers: string[];
+  };
 }
 
 interface GetUserMatchesEvent {
@@ -45,7 +53,12 @@ interface NotifyMatchEvent {
   match: Match;
 }
 
-type MatchEvent = MatchCreatedEvent | GetUserMatchesEvent | CheckRoomMatchEvent | NotifyMatchEvent;
+interface MatchCreatedEvent {
+  operation: 'matchCreated';
+  match: Match;
+}
+
+type MatchEvent = CreateMatchEvent | MatchCreatedEvent | GetUserMatchesEvent | CheckRoomMatchEvent | NotifyMatchEvent;
 
 interface MatchResponse {
   statusCode: number;
@@ -277,6 +290,37 @@ export const handler: Handler<MatchEvent, MatchResponse> = async (event) => {
     const matchService = new MatchService();
 
     switch (event.operation) {
+      case 'createMatch': {
+        const { input } = event;
+        
+        // Create the match object
+        const timestamp = new Date().toISOString();
+        const matchId = `${input.roomId}#${input.movieId}`;
+        
+        const match: Match = {
+          id: matchId,
+          roomId: input.roomId,
+          movieId: input.movieId,
+          title: input.title,
+          posterPath: input.posterPath,
+          mediaType: 'MOVIE', // Default, should be passed from input
+          matchedUsers: input.matchedUsers,
+          timestamp,
+        };
+
+        // This mutation is called to trigger AppSync subscriptions
+        // The actual match storage is already done by the Vote Handler
+        console.log(`CreateMatch mutation executed - triggering subscriptions for: ${match.title}`);
+        
+        // The subscription will be automatically triggered by AppSync when this resolver returns
+        // All users subscribed to onMatchCreated will receive this match notification
+
+        return {
+          statusCode: 200,
+          body: { match },
+        };
+      }
+
       case 'matchCreated': {
         const { match } = event;
         

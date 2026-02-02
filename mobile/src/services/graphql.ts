@@ -96,3 +96,16 @@ export const CHECK_ROOM_MATCH = `
     }
   }
 `;
+
+export const GET_MY_ROOMS = `
+  query GetMyRooms {
+    getMyRooms {
+      id
+      code
+      hostId
+      mediaType
+      genreIds
+      createdAt
+    }
+  }
+`;

@@ -19,7 +19,7 @@ import { RootStackParamList, MovieCandidate } from '../types';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { GET_ROOM, VOTE, CHECK_ROOM_MATCH } from '../services/graphql';
 import { logger } from '../services/logger';
-import { useMatchNotification } from '../context/MatchNotificationContext';
+import { useProactiveMatchCheck, ACTION_NAMES } from '../hooks/useProactiveMatchCheck';
 
 type VotingRoomRouteProp = RouteProp<RootStackParamList, 'VotingRoom'>;
 
@@ -31,7 +31,7 @@ export default function VotingRoomScreen() {
   const navigation = useNavigation();
   const route = useRoute<VotingRoomRouteProp>();
   const { roomId, roomCode } = route.params;
-  const { addRoomToCheck, removeRoomFromCheck } = useMatchNotification();
+  const { addActiveRoom, removeActiveRoom, executeWithMatchCheck } = useProactiveMatchCheck();
 
   const [candidates, setCandidates] = useState<MovieCandidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -51,14 +51,14 @@ export default function VotingRoomScreen() {
       timestamp: new Date().toISOString()
     });
     
-    // Add this room to global match checking
-    addRoomToCheck(roomId);
+    // Add this room to active rooms for match checking
+    addActiveRoom(roomId);
     
     loadRoomData();
 
-    // Cleanup: remove room from checking when leaving
+    // Cleanup: remove room from active rooms when leaving
     return () => {
-      removeRoomFromCheck(roomId);
+      removeActiveRoom(roomId);
     };
   }, []);
 
@@ -215,69 +215,65 @@ export default function VotingRoomScreen() {
   const handleVote = async (vote: boolean) => {
     if (isVoting || currentIndex >= candidates.length || hasExistingMatch) return;
 
-    // Check for existing match BEFORE voting
-    const hasMatch = await checkForExistingMatch();
-    if (hasMatch) {
-      return; // Stop voting if match exists
-    }
-
     const currentMovie = candidates[currentIndex];
     
-    logger.vote('Vote initiated', {
-      movieId: currentMovie.id,
-      movieTitle: currentMovie.title,
-      vote,
-      currentIndex,
-      totalCandidates: candidates.length,
-      roomId,
-      roomCode
-    });
-
-    setIsVoting(true);
-
-    try {
-      // Verify authentication status first
-      logger.auth('Verifying authentication before voting');
-      const authStatus = await verifyAuthStatus();
-      
-      if (!authStatus.isAuthenticated) {
-        logger.authError('User not authenticated for voting', null);
-        Alert.alert('Error de Autenticación', 'Por favor inicia sesión nuevamente');
-        return;
-      }
-
-      logger.auth('Authentication verified for voting', {
-        userId: authStatus.user?.userId,
-        hasTokens: !!authStatus.session?.tokens
+    // Use proactive match check before voting
+    await executeWithMatchCheck(async () => {
+      logger.vote('Vote initiated', {
+        movieId: currentMovie.id,
+        movieTitle: currentMovie.title,
+        vote,
+        currentIndex,
+        totalCandidates: candidates.length,
+        roomId,
+        roomCode
       });
 
-      logger.apiRequest('vote mutation', {
-        input: {
-          roomId,
-          movieId: currentMovie.id,
-          vote,
-        },
-      });
+      setIsVoting(true);
 
-      const response = await client.graphql({
-        query: VOTE,
-        variables: {
+      try {
+        // Verify authentication status first
+        logger.auth('Verifying authentication before voting');
+        const authStatus = await verifyAuthStatus();
+        
+        if (!authStatus.isAuthenticated) {
+          logger.authError('User not authenticated for voting', null);
+          Alert.alert('Error de Autenticación', 'Por favor inicia sesión nuevamente');
+          return;
+        }
+
+        logger.auth('Authentication verified for voting', {
+          userId: authStatus.user?.userId,
+          hasTokens: !!authStatus.session?.tokens
+        });
+
+        logger.apiRequest('vote mutation', {
           input: {
             roomId,
             movieId: currentMovie.id,
             vote,
           },
-        },
-        authMode: 'userPool', // Explicitly specify auth mode
-      });
+        });
 
-      logger.apiResponse('vote mutation success', {
-        success: response.data.vote?.success,
-        hasMatch: !!response.data.vote?.match,
-        matchTitle: response.data.vote?.match?.title
-      });
+        const response = await client.graphql({
+          query: VOTE,
+          variables: {
+            input: {
+              roomId,
+              movieId: currentMovie.id,
+              vote,
+            },
+          },
+          authMode: 'userPool', // Explicitly specify auth mode
+        });
 
-      const result = response.data.vote;
+        logger.apiResponse('vote mutation success', {
+          success: response.data.vote?.success,
+          hasMatch: !!response.data.vote?.match,
+          matchTitle: response.data.vote?.match?.title
+        });
+
+        const result = response.data.vote;
       
       if (result.match) {
         logger.vote('MATCH DETECTED!', {
@@ -351,6 +347,7 @@ export default function VotingRoomScreen() {
     } finally {
       setIsVoting(false);
     }
+    }, ACTION_NAMES.SUBMIT_VOTE);
   };
 
   const panResponder = PanResponder.create({

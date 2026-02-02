@@ -1,0 +1,404 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../types';
+import { client, verifyAuthStatus } from '../services/amplify';
+import { GET_MY_ROOMS } from '../services/graphql';
+import { logger } from '../services/logger';
+
+type MyRoomsNavigationProp = StackNavigationProp<RootStackParamList, 'MyRooms'>;
+
+interface Room {
+  id: string;
+  code: string;
+  hostId: string;
+  mediaType: string;
+  genreIds: number[];
+  createdAt: string;
+  isHost: boolean;
+  participantCount?: number;
+}
+
+// GraphQL query to get user's rooms - imported from graphql service
+
+export default function MyRoomsScreen() {
+  const navigation = useNavigation<MyRoomsNavigationProp>();
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    logger.userAction('Screen loaded: My Rooms');
+    loadMyRooms();
+  }, []);
+
+  const loadMyRooms = async () => {
+    try {
+      const authStatus = await verifyAuthStatus();
+      if (!authStatus.isAuthenticated) {
+        logger.authError('User not authenticated for rooms', null);
+        Alert.alert('Error', 'Debes iniciar sesión para ver tus salas');
+        return;
+      }
+
+      logger.room('Loading user rooms');
+
+      const response = await client.graphql({
+        query: GET_MY_ROOMS,
+        authMode: 'userPool',
+      });
+
+      const userRooms = response.data.getMyRooms || [];
+      const currentUserId = authStatus.user?.userId;
+
+      // Mark which rooms the user is host of
+      const roomsWithHostInfo = userRooms.map((room: any) => ({
+        ...room,
+        isHost: room.hostId === currentUserId,
+      }));
+
+      setRooms(roomsWithHostInfo);
+      logger.room('User rooms loaded', { roomCount: roomsWithHostInfo.length });
+
+    } catch (error) {
+      logger.roomError('Failed to load user rooms', error);
+      console.error('Error loading rooms:', error);
+      Alert.alert('Error', 'No se pudieron cargar tus salas');
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadMyRooms();
+  };
+
+  const handleJoinRoom = (room: Room) => {
+    logger.userAction('Join room from My Rooms', { roomId: room.id, roomCode: room.code });
+    navigation.navigate('VotingRoom', { roomId: room.id });
+  };
+
+  const getMediaTypeText = (mediaType: string) => {
+    return mediaType === 'movie' ? 'Películas' : 'Series';
+  };
+
+  const getGenreText = (genreIds: number[]) => {
+    // Simple genre mapping - in a real app you'd have a proper genre service
+    const genreMap: { [key: number]: string } = {
+      28: 'Acción',
+      12: 'Aventura',
+      16: 'Animación',
+      35: 'Comedia',
+      80: 'Crimen',
+      99: 'Documental',
+      18: 'Drama',
+      10751: 'Familiar',
+      14: 'Fantasía',
+      36: 'Historia',
+      27: 'Terror',
+      10402: 'Música',
+      9648: 'Misterio',
+      10749: 'Romance',
+      878: 'Ciencia Ficción',
+      10770: 'TV Movie',
+      53: 'Thriller',
+      10752: 'Guerra',
+      37: 'Western'
+    };
+
+    return genreIds.map(id => genreMap[id] || 'Desconocido').join(', ');
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const renderRoomItem = ({ item }: { item: Room }) => (
+    <TouchableOpacity
+      style={styles.roomCard}
+      onPress={() => handleJoinRoom(item)}
+      activeOpacity={0.8}
+    >
+      <View style={styles.roomHeader}>
+        <View style={styles.roomCodeContainer}>
+          <Text style={styles.roomCode}>{item.code}</Text>
+          <View style={styles.badgeContainer}>
+            {item.isHost && <Text style={styles.hostBadge}>HOST</Text>}
+            {!item.isHost && <Text style={styles.participantBadge}>PARTICIPANTE</Text>}
+          </View>
+        </View>
+        <Text style={styles.roomDate}>{formatDate(item.createdAt)}</Text>
+      </View>
+      
+      <View style={styles.roomDetails}>
+        <Text style={styles.mediaType}>{getMediaTypeText(item.mediaType)}</Text>
+        <Text style={styles.genres}>{getGenreText(item.genreIds)}</Text>
+      </View>
+
+      <View style={styles.roomFooter}>
+        <Text style={styles.statusText}>
+          {item.isHost ? '🏠 Sala creada por ti' : '🚪 Te uniste a esta sala'}
+        </Text>
+        <Text style={styles.joinText}>Tocar para entrar →</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyIcon}>🏠</Text>
+      <Text style={styles.emptyTitle}>No tienes salas activas</Text>
+      <Text style={styles.emptySubtitle}>
+        Las salas aparecen aquí cuando las creas o te unes a ellas. 
+        Una vez que se produce un match, la sala se cierra automáticamente.
+      </Text>
+      <TouchableOpacity
+        style={styles.createRoomButton}
+        onPress={() => navigation.navigate('CreateRoom')}
+      >
+        <Text style={styles.createRoomButtonText}>Crear Nueva Sala</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Mis Salas</Text>
+        <TouchableOpacity
+          style={styles.refreshButton}
+          onPress={handleRefresh}
+        >
+          <Text style={styles.refreshButtonText}>🔄</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Content */}
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>Cargando tus salas...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={rooms}
+          renderItem={renderRoomItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={renderEmptyState}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={['#4CAF50']}
+              tintColor="#4CAF50"
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#333333',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButtonText: {
+    fontSize: 20,
+    color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    letterSpacing: 1,
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#333333',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refreshButtonText: {
+    fontSize: 18,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#888888',
+    marginTop: 15,
+  },
+  listContainer: {
+    padding: 20,
+    flexGrow: 1,
+  },
+  roomCard: {
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  roomHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  roomCodeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  roomCode: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    letterSpacing: 2,
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    marginLeft: 8,
+    gap: 4,
+  },
+  hostBadge: {
+    fontSize: 10,
+    color: '#ffffff',
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    fontWeight: 'bold',
+  },
+  participantBadge: {
+    fontSize: 10,
+    color: '#ffffff',
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    fontWeight: 'bold',
+  },
+  roomDate: {
+    fontSize: 12,
+    color: '#888888',
+  },
+  roomDetails: {
+    marginBottom: 10,
+  },
+  mediaType: {
+    fontSize: 16,
+    color: '#ffffff',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  genres: {
+    fontSize: 14,
+    color: '#cccccc',
+  },
+  roomFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statusText: {
+    fontSize: 12,
+    color: '#888888',
+    flex: 1,
+  },
+  joinText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    fontSize: 80,
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#888888',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 30,
+  },
+  createRoomButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 12,
+  },
+  createRoomButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+});

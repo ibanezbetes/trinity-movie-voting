@@ -68,6 +68,19 @@ export class TrinityStack extends cdk.Stack {
       },
     });
 
+    // Global Secondary Index for host-based room queries
+    this.roomsTable.addGlobalSecondaryIndex({
+      indexName: 'hostId-createdAt-index',
+      partitionKey: {
+        name: 'hostId',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'createdAt',
+        type: dynamodb.AttributeType.STRING,
+      },
+    });
+
     // TrinityVotes Table
     this.votesTable = new dynamodb.Table(this, 'TrinityVotes', {
       tableName: 'TrinityVotes',
@@ -82,6 +95,19 @@ export class TrinityStack extends cdk.Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       pointInTimeRecovery: true,
+    });
+
+    // Global Secondary Index for user-based vote queries
+    this.votesTable.addGlobalSecondaryIndex({
+      indexName: 'userId-timestamp-index',
+      partitionKey: {
+        name: 'userId',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'timestamp',
+        type: dynamodb.AttributeType.STRING,
+      },
     });
 
     // TrinityMatches Table
@@ -224,6 +250,7 @@ export class TrinityStack extends cdk.Stack {
         VOTES_TABLE: this.votesTable.tableName,
         MATCHES_TABLE: this.matchesTable.tableName,
         USERS_TABLE: this.usersTable.tableName,
+        GRAPHQL_ENDPOINT: '', // Will be set after API creation
       },
     };
 
@@ -266,6 +293,9 @@ export class TrinityStack extends cdk.Stack {
     // Update Lambda environment variables with cross-references
     this.roomLambda.addEnvironment('TMDB_LAMBDA_ARN', this.tmdbLambda.functionArn);
     this.voteLambda.addEnvironment('MATCH_LAMBDA_ARN', this.matchLambda.functionArn);
+    
+    // Add GraphQL endpoint to Vote Lambda for subscription notifications
+    this.voteLambda.addEnvironment('GRAPHQL_ENDPOINT', this.api.graphqlUrl);
 
     // Grant DynamoDB permissions
     this.grantDynamoDBPermissions();
@@ -412,6 +442,32 @@ export class TrinityStack extends cdk.Stack {
       `),
     });
 
+    // getMyRooms query
+    roomDataSource.createResolver('GetMyRoomsResolver', {
+      typeName: 'Query',
+      fieldName: 'getMyRooms',
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+        {
+          "version": "2017-02-28",
+          "operation": "Invoke",
+          "payload": {
+            "operation": "getMyRooms",
+            "userId": "$context.identity.sub"
+          }
+        }
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.fromString(`
+        #if($context.error)
+          $util.error($context.error.message, $context.error.type)
+        #end
+        #if($context.result.statusCode == 200)
+          $util.toJson($context.result.body)
+        #else
+          $util.error($context.result.body.error, "BadRequest")
+        #end
+      `),
+    });
+
     // getMyMatches query
     matchDataSource.createResolver('GetMyMatchesResolver', {
       typeName: 'Query',
@@ -449,6 +505,32 @@ export class TrinityStack extends cdk.Stack {
           "payload": {
             "operation": "checkRoomMatch",
             "roomId": "$context.arguments.roomId"
+          }
+        }
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.fromString(`
+        #if($context.error)
+          $util.error($context.error.message, $context.error.type)
+        #end
+        #if($context.result.statusCode == 200)
+          $util.toJson($context.result.body.match)
+        #else
+          $util.error($context.result.body.error, "BadRequest")
+        #end
+      `),
+    });
+
+    // createMatch mutation
+    matchDataSource.createResolver('CreateMatchResolver', {
+      typeName: 'Mutation',
+      fieldName: 'createMatch',
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+        {
+          "version": "2017-02-28",
+          "operation": "Invoke",
+          "payload": {
+            "operation": "createMatch",
+            "input": $util.toJson($context.arguments.input)
           }
         }
       `),

@@ -28,13 +28,23 @@ export default function App() {
     
     try {
       const user = await getCurrentUser();
-      logger.auth('User is authenticated', {
-        userId: user.userId,
-        username: user.username
-      });
-      setIsAuthenticated(true);
+      
+      // Also verify we have valid tokens
+      const { verifyAuthStatus } = await import('./src/services/amplify');
+      const authStatus = await verifyAuthStatus();
+      
+      if (authStatus.isAuthenticated) {
+        logger.auth('User is authenticated with valid tokens', {
+          userId: user.userId,
+          username: user.username
+        });
+        setIsAuthenticated(true);
+      } else {
+        logger.auth('User found but tokens are invalid, signing out');
+        setIsAuthenticated(false);
+      }
     } catch (error) {
-      logger.auth('User is not authenticated');
+      logger.auth('User is not authenticated', { error: error.message });
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
@@ -42,14 +52,40 @@ export default function App() {
     }
   };
 
-  const handleAuthSuccess = () => {
-    logger.auth('Authentication successful, updating app state');
-    setIsAuthenticated(true);
+  const handleAuthSuccess = async () => {
+    logger.auth('Authentication successful, verifying tokens');
+    
+    // Double-check that we have valid tokens before proceeding
+    try {
+      const { verifyAuthStatus } = await import('./src/services/amplify');
+      const authStatus = await verifyAuthStatus();
+      
+      if (authStatus.isAuthenticated) {
+        logger.auth('Tokens verified, updating app state');
+        setIsAuthenticated(true);
+      } else {
+        logger.authError('Token verification failed after auth success');
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      logger.authError('Failed to verify tokens after auth success', error);
+      setIsAuthenticated(false);
+    }
   };
 
-  const handleSignOut = () => {
-    logger.auth('User signed out, updating app state');
-    setIsAuthenticated(false);
+  const handleSignOut = async () => {
+    logger.auth('User signing out');
+    
+    try {
+      const { signOut } = await import('aws-amplify/auth');
+      await signOut();
+      logger.auth('User signed out successfully');
+    } catch (error) {
+      logger.authError('Error during sign out', error);
+    } finally {
+      setIsAuthenticated(false);
+      logger.auth('App state updated to unauthenticated');
+    }
   };
 
   if (isLoading) {

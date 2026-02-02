@@ -2,11 +2,13 @@ import { Handler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { AppSyncClient, EvaluateMappingTemplateCommand } from '@aws-sdk/client-appsync';
 
 // Initialize AWS clients
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION });
+const appSyncClient = new AppSyncClient({ region: process.env.AWS_REGION });
 
 // Types
 interface Vote {
@@ -263,6 +265,9 @@ class VoteService {
     // Delete the room since match is found - room is no longer needed
     await this.deleteRoom(roomId);
 
+    // Trigger AppSync subscription for all matched users
+    await this.triggerMatchSubscriptions(match);
+
     // Optionally invoke Match Lambda for notifications (if implemented)
     if (this.matchLambdaArn) {
       try {
@@ -325,7 +330,41 @@ class VoteService {
     }
   }
 
-  private async notifyMatchCreated(match: Match): Promise<void> {
+  private async triggerMatchSubscriptions(match: Match): Promise<void> {
+    try {
+      console.log(`Triggering match subscriptions for ${match.matchedUsers.length} users`);
+      
+      // Instead of calling AppSync directly, we'll use the Match Lambda to trigger subscriptions
+      // The Match Lambda will handle the createMatch mutation which triggers subscriptions
+      
+      if (this.matchLambdaArn) {
+        const payload = {
+          operation: 'createMatch',
+          input: {
+            roomId: match.roomId,
+            movieId: match.movieId,
+            title: match.title,
+            posterPath: match.posterPath,
+            matchedUsers: match.matchedUsers,
+          },
+        };
+
+        const command = new InvokeCommand({
+          FunctionName: this.matchLambdaArn,
+          InvocationType: 'Event', // Async invocation
+          Payload: JSON.stringify(payload),
+        });
+
+        await lambdaClient.send(command);
+        console.log('Match subscription trigger sent to Match Lambda');
+      } else {
+        console.warn('MATCH_LAMBDA_ARN not configured, skipping subscription notifications');
+      }
+    } catch (error) {
+      console.error('Error triggering match subscriptions:', error);
+      // Don't fail the match creation if subscription fails
+    }
+  }
     try {
       const payload = {
         operation: 'matchCreated',
@@ -394,3 +433,23 @@ export const handler: Handler<VoteEvent, VoteResponse> = async (event) => {
     };
   }
 };
+  private async notifyMatchCreated(match: Match): Promise<void> {
+    try {
+      const payload = {
+        operation: 'matchCreated',
+        match,
+      };
+
+      const command = new InvokeCommand({
+        FunctionName: this.matchLambdaArn,
+        InvocationType: 'Event', // Async invocation
+        Payload: JSON.stringify(payload),
+      });
+
+      await lambdaClient.send(command);
+      console.log('Match notification sent to Match Lambda');
+    } catch (error) {
+      console.error('Failed to notify Match Lambda:', error);
+      throw error;
+    }
+  }

@@ -44,13 +44,27 @@ export const verifyAuthStatus = async () => {
     const user = await getCurrentUser();
     const session = await fetchAuthSession();
     
+    // Verify that we have valid tokens
+    const hasValidTokens = !!(
+      session.tokens?.accessToken && 
+      session.tokens?.idToken &&
+      session.tokens.accessToken.toString() &&
+      session.tokens.idToken.toString()
+    );
+    
     logger.auth('Auth status verified', {
       userId: user.userId,
       username: user.username,
       hasTokens: !!session.tokens,
       hasAccessToken: !!session.tokens?.accessToken,
       hasIdToken: !!session.tokens?.idToken,
+      hasValidTokens,
     });
+    
+    if (!hasValidTokens) {
+      logger.authError('Invalid or missing tokens', { session: session.tokens });
+      throw new Error('Invalid authentication tokens');
+    }
     
     return {
       isAuthenticated: true,
@@ -64,5 +78,30 @@ export const verifyAuthStatus = async () => {
       user: null,
       session: null,
     };
+  }
+};
+
+// Helper function to refresh authentication session
+export const refreshAuthSession = async () => {
+  try {
+    logger.auth('Refreshing auth session');
+    const session = await fetchAuthSession({ forceRefresh: true });
+    
+    const hasValidTokens = !!(
+      session.tokens?.accessToken && 
+      session.tokens?.idToken &&
+      session.tokens.accessToken.toString() &&
+      session.tokens.idToken.toString()
+    );
+    
+    if (!hasValidTokens) {
+      throw new Error('Failed to refresh tokens');
+    }
+    
+    logger.auth('Auth session refreshed successfully');
+    return session;
+  } catch (error) {
+    logger.authError('Failed to refresh auth session', error);
+    throw error;
   }
 };

@@ -1,4 +1,4 @@
-# Trinity App - Production Build Notes
+# Trinity App - Production Build Guide
 
 ## Cambios Realizados para Compilación de Producción
 

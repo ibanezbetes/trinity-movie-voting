@@ -51,11 +51,16 @@ interface GetRoomEvent {
   roomId: string;
 }
 
-type RoomEvent = CreateRoomEvent | JoinRoomEvent | GetRoomEvent;
+interface GetMyRoomsEvent {
+  operation: 'getMyRooms';
+  userId: string;
+}
+
+type RoomEvent = CreateRoomEvent | JoinRoomEvent | GetRoomEvent | GetMyRoomsEvent;
 
 interface RoomResponse {
   statusCode: number;
-  body: Room | { error: string };
+  body: Room | Room[] | { error: string };
 }
 
 // Room code generator
@@ -248,6 +253,115 @@ class RoomService {
     return room;
   }
 
+  async getMyRooms(userId: string): Promise<Room[]> {
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    try {
+      const allRooms: Room[] = [];
+
+      // 1. Get rooms where user is the host
+      const hostRoomsResult = await docClient.send(new QueryCommand({
+        TableName: this.tableName,
+        IndexName: 'hostId-createdAt-index',
+        KeyConditionExpression: 'hostId = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId,
+        },
+        ScanIndexForward: false, // Most recent first
+      }));
+
+      const hostRooms = hostRoomsResult.Items || [];
+      allRooms.push(...(hostRooms as Room[]));
+
+      // 2. Get rooms where user has voted (participated)
+      const votesTable = process.env.VOTES_TABLE || '';
+      if (votesTable) {
+        // Get all votes by this user
+        const userVotesResult = await docClient.send(new QueryCommand({
+          TableName: votesTable,
+          IndexName: 'userId-timestamp-index', // We'll need to add this GSI
+          KeyConditionExpression: 'userId = :userId',
+          ExpressionAttributeValues: {
+            ':userId': userId,
+          },
+        }));
+
+        const userVotes = userVotesResult.Items || [];
+        
+        // Get unique room IDs from votes
+        const participatedRoomIds = new Set(userVotes.map(vote => vote.roomId));
+        
+        // Get room details for participated rooms (excluding already fetched host rooms)
+        const hostRoomIds = new Set(hostRooms.map(room => room.id));
+        const newRoomIds = Array.from(participatedRoomIds).filter(roomId => !hostRoomIds.has(roomId));
+        
+        // Fetch room details for participated rooms
+        const participatedRoomsPromises = newRoomIds.map(async (roomId) => {
+          try {
+            const roomResult = await docClient.send(new GetCommand({
+              TableName: this.tableName,
+              Key: { id: roomId },
+            }));
+            return roomResult.Item as Room;
+          } catch (error) {
+            console.error(`Error fetching room ${roomId}:`, error);
+            return null;
+          }
+        });
+
+        const participatedRooms = (await Promise.all(participatedRoomsPromises))
+          .filter(room => room !== null) as Room[];
+        
+        allRooms.push(...participatedRooms);
+      }
+
+      // 3. Filter out expired rooms and rooms with matches
+      const now = Math.floor(Date.now() / 1000);
+      const activeRooms = allRooms.filter(room => !room.ttl || room.ttl >= now);
+
+      // 4. Check for matches and filter out rooms with matches
+      const matchesTable = process.env.MATCHES_TABLE || '';
+      if (matchesTable) {
+        const roomsWithoutMatches = [];
+        
+        for (const room of activeRooms) {
+          try {
+            // Check if room has any matches
+            const matchResult = await docClient.send(new QueryCommand({
+              TableName: matchesTable,
+              KeyConditionExpression: 'roomId = :roomId',
+              ExpressionAttributeValues: {
+                ':roomId': room.id,
+              },
+              Limit: 1, // We only need to know if any match exists
+            }));
+
+            // If no matches found, include the room
+            if (!matchResult.Items || matchResult.Items.length === 0) {
+              roomsWithoutMatches.push(room);
+            }
+          } catch (error) {
+            console.error(`Error checking matches for room ${room.id}:`, error);
+            // Include room if we can't check matches (fail safe)
+            roomsWithoutMatches.push(room);
+          }
+        }
+
+        console.log(`Found ${roomsWithoutMatches.length} active rooms without matches for user ${userId}`);
+        return roomsWithoutMatches.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      }
+
+      console.log(`Found ${activeRooms.length} active rooms for user ${userId}`);
+      return activeRooms.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    } catch (error) {
+      console.error('Error fetching user rooms:', error);
+      throw new Error('Failed to fetch user rooms');
+    }
+  }
+
   async getRoom(roomId: string): Promise<Room | null> {
     const result = await docClient.send(new GetCommand({
       TableName: this.tableName,
@@ -302,6 +416,21 @@ export const handler: Handler<RoomEvent, RoomResponse> = async (event) => {
         return {
           statusCode: 200,
           body: room,
+        };
+      }
+
+      case 'getMyRooms': {
+        const { userId } = event;
+        
+        if (!userId) {
+          throw new Error('User ID is required');
+        }
+
+        const rooms = await roomService.getMyRooms(userId);
+        
+        return {
+          statusCode: 200,
+          body: rooms,
         };
       }
 

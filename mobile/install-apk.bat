@@ -33,7 +33,15 @@ if %errorlevel% equ 0 (
     echo - Differentiated notifications (in-room vs out-of-room)
     echo - Match saved to all participants' profiles
     echo.
+    echo 🔐 Authentication Flow:
+    echo - Register: Creates account and redirects to login
+    echo - Login: Proper token management and verification
+    echo - Session: Robust token validation and refresh
+    echo.
     echo 📱 You can now launch Trinity on your device!
+    echo.
+    echo 💡 Important: After registering, you'll be redirected to login
+    echo    to ensure proper token management. This is normal behavior.
 ) else (
     echo.
     echo ❌ Installation failed!

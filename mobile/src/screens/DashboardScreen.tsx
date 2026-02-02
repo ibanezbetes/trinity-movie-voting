@@ -12,7 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 import { logger } from '../services/logger';
-import { useMatchNotification } from '../context/MatchNotificationContext';
+import { useProactiveMatchCheck, ACTION_NAMES } from '../hooks/useProactiveMatchCheck';
 
 type DashboardNavigationProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;
 
@@ -20,35 +20,52 @@ const { width, height } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const navigation = useNavigation<DashboardNavigationProp>();
-  const { checkForGlobalMatches } = useMatchNotification();
+  const { navigateWithMatchCheck } = useProactiveMatchCheck();
 
   useEffect(() => {
     logger.userAction('Screen loaded: Dashboard', {
       timestamp: new Date().toISOString()
     });
-
-    // Check for any pending matches when user returns to dashboard
-    checkForGlobalMatches();
   }, []);
 
-  const handleCreateRoom = () => {
+  const handleCreateRoom = async () => {
     logger.userAction('Dashboard button pressed: Create Room');
-    navigation.navigate('CreateRoom');
+    await navigateWithMatchCheck(
+      () => navigation.navigate('CreateRoom'),
+      ACTION_NAMES.NAVIGATE_TO_CREATE_ROOM
+    );
   };
 
-  const handleJoinRoom = () => {
+  const handleJoinRoom = async () => {
     logger.userAction('Dashboard button pressed: Join Room');
-    navigation.navigate('JoinRoom');
+    await navigateWithMatchCheck(
+      () => navigation.navigate('JoinRoom'),
+      ACTION_NAMES.NAVIGATE_TO_JOIN_ROOM
+    );
   };
 
-  const handleMyMatches = () => {
-    logger.userAction('Dashboard button pressed: My Matches');
-    navigation.navigate('MyMatches');
+  const handleMyRooms = async () => {
+    logger.userAction('Dashboard button pressed: My Rooms');
+    await navigateWithMatchCheck(
+      () => navigation.navigate('MyRooms'),
+      ACTION_NAMES.NAVIGATE_TO_MY_ROOMS
+    );
   };
 
-  const handleRecommendations = () => {
+  const handleRecommendations = async () => {
     logger.userAction('Dashboard button pressed: Recommendations');
-    navigation.navigate('Recommendations');
+    await navigateWithMatchCheck(
+      () => navigation.navigate('Recommendations'),
+      ACTION_NAMES.NAVIGATE_TO_RECOMMENDATIONS
+    );
+  };
+
+  const handleProfile = async () => {
+    logger.userAction('Dashboard button pressed: Profile');
+    await navigateWithMatchCheck(
+      () => navigation.navigate('Profile'),
+      ACTION_NAMES.NAVIGATE_TO_PROFILE
+    );
   };
 
   return (
@@ -61,10 +78,7 @@ export default function DashboardScreen() {
         <Text style={styles.subtitle}>Movie Voting</Text>
         <TouchableOpacity
           style={styles.profileButton}
-          onPress={() => {
-            logger.userAction('Dashboard button pressed: Profile');
-            navigation.navigate('Profile');
-          }}
+          onPress={handleProfile}
         >
           <Text style={styles.profileButtonText}>👤</Text>
         </TouchableOpacity>
@@ -94,15 +108,15 @@ export default function DashboardScreen() {
           <Text style={styles.buttonSubtitle}>Join Room</Text>
         </TouchableOpacity>
 
-        {/* My Matches Button */}
+        {/* My Rooms Button */}
         <TouchableOpacity 
-          style={[styles.button, styles.matchesButton]} 
-          onPress={handleMyMatches}
+          style={[styles.button, styles.roomsButton]} 
+          onPress={handleMyRooms}
           activeOpacity={0.8}
         >
-          <Text style={styles.buttonIcon}>❤️</Text>
-          <Text style={styles.buttonTitle}>MIS MATCHES</Text>
-          <Text style={styles.buttonSubtitle}>My Matches</Text>
+          <Text style={styles.buttonIcon}>📋</Text>
+          <Text style={styles.buttonTitle}>MIS SALAS</Text>
+          <Text style={styles.buttonSubtitle}>My Rooms</Text>
         </TouchableOpacity>
 
         {/* Recommendations Button */}
@@ -190,8 +204,8 @@ const styles = StyleSheet.create({
   joinButton: {
     backgroundColor: '#2196F3',
   },
-  matchesButton: {
-    backgroundColor: '#E91E63',
+  roomsButton: {
+    backgroundColor: '#9C27B0',
   },
   recommendationsButton: {
     backgroundColor: '#FF9800',

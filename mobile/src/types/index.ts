@@ -50,6 +50,7 @@ export type RootStackParamList = {
   CreateRoom: undefined;
   JoinRoom: undefined;
   VotingRoom: { roomId: string; roomCode: string };
+  MyRooms: undefined;
   MyMatches: undefined;
   Recommendations: undefined;
   Profile: undefined;

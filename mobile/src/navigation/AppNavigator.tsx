@@ -11,6 +11,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import CreateRoomScreen from '../screens/CreateRoomScreen';
 import JoinRoomScreen from '../screens/JoinRoomScreen';
 import VotingRoomScreen from '../screens/VotingRoomScreen';
+import MyRoomsScreen from '../screens/MyRoomsScreen';
 import MyMatchesScreen from '../screens/MyMatchesScreen';
 import RecommendationsScreen from '../screens/RecommendationsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -92,6 +93,10 @@ export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
             <Stack.Screen 
               name="VotingRoom" 
               component={VotingRoomScreen}
+            />
+            <Stack.Screen 
+              name="MyRooms" 
+              component={MyRoomsScreen}
             />
             <Stack.Screen 
               name="MyMatches" 

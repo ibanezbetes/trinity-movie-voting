@@ -55,6 +55,7 @@ input CreateMatchInput {
 
 type Query {
   getRoom(id: String!): Room
+  getMyRooms: [Room!]!
   getMyMatches: [Match!]!
   checkRoomMatch(roomId: String!): Match
 }
@@ -83,4 +84,5 @@ type VoteResult {
 schema {
   query: Query
   mutation: Mutation
+  subscription: Subscription
 }

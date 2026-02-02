@@ -16,6 +16,7 @@ import { client, verifyAuthStatus } from '../services/amplify';
 import { GET_MATCHES } from '../services/graphql';
 import { logger } from '../services/logger';
 import { useAuth } from '../context/AuthContext';
+import { useProactiveMatchCheck, ACTION_NAMES } from '../hooks/useProactiveMatchCheck';
 
 interface Match {
   id: string;
@@ -29,6 +30,7 @@ interface Match {
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const { onSignOut } = useAuth();
+  const { navigateWithMatchCheck } = useProactiveMatchCheck();
   const [userInfo, setUserInfo] = useState<any>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -267,13 +269,27 @@ export default function ProfileScreen() {
 
       {/* Matches Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Mis Matches ({matches.length})
-        </Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>
+            Mis Matches ({matches.length})
+          </Text>
+          <TouchableOpacity
+            style={styles.viewAllButton}
+            onPress={async () => {
+              logger.userAction('View all matches from profile');
+              await navigateWithMatchCheck(
+                () => navigation.navigate('MyMatches'),
+                ACTION_NAMES.NAVIGATE_TO_MY_MATCHES
+              );
+            }}
+          >
+            <Text style={styles.viewAllText}>Ver Todos →</Text>
+          </TouchableOpacity>
+        </View>
         
         {matches.length > 0 ? (
           <FlatList
-            data={matches}
+            data={matches.slice(0, 3)} // Show only first 3 matches
             renderItem={renderMatchItem}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
@@ -384,11 +400,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 20,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#ffffff',
-    marginBottom: 15,
+  },
+  viewAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#333333',
+    borderRadius: 8,
+  },
+  viewAllText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '600',
   },
   matchesList: {
     paddingBottom: 20,

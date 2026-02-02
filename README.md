@@ -12,6 +12,7 @@ Una aplicación serverless de votación de películas que permite a los usuarios
 - 🏠 **Creación de Salas**: Genera códigos únicos de 6 caracteres para salas privadas
 - 🎭 **Filtrado por Género**: Selecciona hasta 2 géneros para personalizar recomendaciones
 - 👆 **Votación por Deslizamiento**: Interfaz intuitiva tipo Tinder para votar películas
+- 📋 **Mis Salas**: Gestión de salas creadas y participadas por el usuario
 - 🎯 **Sistema de Matches Mejorado**: Verificación proactiva y notificaciones universales
 - 🌍 **Contenido Occidental**: Filtrado automático de scripts latinos únicamente
 - 🔐 **Autenticación Segura**: AWS Cognito con auto-confirmación
@@ -19,11 +20,11 @@ Una aplicación serverless de votación de películas que permite a los usuarios
 
 ## 🎯 Sistema de Matches Mejorado - IMPLEMENTADO
 
-### **🔍 Verificación Proactiva Global**
-- ✅ **Antes de cada acción**: Match checking antes de cualquier interacción del usuario
-- ✅ **Contexto global**: `MatchNotificationContext` monitorea todas las salas activas
-- ✅ **Monitoreo automático**: Verificación cada 3 segundos en salas activas
-- ✅ **Detección inmediata**: Notificación instantánea cuando ocurre un match
+### **🔍 Verificación Proactiva Inteligente**
+- ✅ **Antes de cada acción del usuario**: Match checking solo cuando el usuario realiza una acción
+- ✅ **Optimización de peticiones**: No más monitoreo constante, solo verificación bajo demanda
+- ✅ **Contexto inteligente**: Sistema que registra salas activas y verifica solo cuando es necesario
+- ✅ **Bloqueo de acciones**: Si se detecta match, se bloquea la acción y se notifica al usuario
 
 ### **🚨 Notificaciones Universales**
 
@@ -177,14 +178,15 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 ### Frontend Móvil
 - **React Native** (Expo SDK 50+) con TypeScript 100%
-- **7 Pantallas** completamente implementadas:
+- **8 Pantallas** completamente implementadas:
   - `AuthScreen`: Login/Registro con auto-confirmación
-  - `DashboardScreen`: Layout principal con 4 botones
+  - `DashboardScreen`: Layout principal con 4 botones (Crear Sala, Unirse, Mis Salas, Recomendaciones)
   - `CreateRoomScreen`: Creación de salas con selección de género
   - `JoinRoomScreen`: Unión a salas con código de 6 caracteres
   - `VotingRoomScreen`: Interfaz de votación por deslizamiento + verificación proactiva
-  - `MyMatchesScreen`: Historial de coincidencias del usuario
-  - `ProfileScreen`: Gestión de perfil y configuración
+  - `MyRoomsScreen`: Gestión de salas del usuario (creadas y participadas)
+  - `MyMatchesScreen`: Historial de coincidencias del usuario (accesible desde perfil)
+  - `ProfileScreen`: Gestión de perfil, matches y configuración
   - `RecommendationsScreen`: Recomendaciones estáticas curadas
 - **React Navigation** para transiciones fluidas
 - **AWS Amplify** para integración con backend
@@ -197,7 +199,8 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 trinity-movie-voting/
 ├── docs/                          # 📚 Documentación técnica
 │   ├── DEPLOYMENT_GUIDE.md        # Guía detallada de despliegue
-│   └── TRINITY_MASTER_SPEC.md     # Especificación técnica completa
+│   ├── TRINITY_MASTER_SPEC.md     # Especificación técnica completa
+│   └── PRODUCTION_BUILD_GUIDE.md  # Guía de compilación APK
 ├── infrastructure/                # 🏗️ Infraestructura AWS CDK
 │   ├── bin/trinity-app.ts         # Punto de entrada CDK
 │   ├── lib/trinity-stack.ts       # Stack principal de infraestructura
@@ -212,7 +215,16 @@ trinity-movie-voting/
 │   └── package.json               # Dependencias CDK
 ├── mobile/                        # 📱 Aplicación React Native
 │   ├── src/
-│   │   ├── screens/               # 7 pantallas de la aplicación
+│   │   ├── screens/               # 8 pantallas de la aplicación
+│   │   │   ├── AuthScreen.tsx           # Login/Registro
+│   │   │   ├── DashboardScreen.tsx      # Pantalla principal (4 botones)
+│   │   │   ├── CreateRoomScreen.tsx     # Crear sala
+│   │   │   ├── JoinRoomScreen.tsx       # Unirse a sala
+│   │   │   ├── VotingRoomScreen.tsx     # Votación + verificación proactiva
+│   │   │   ├── MyRoomsScreen.tsx        # Mis salas (nueva)
+│   │   │   ├── MyMatchesScreen.tsx      # Mis matches (desde perfil)
+│   │   │   ├── ProfileScreen.tsx        # Perfil + matches
+│   │   │   └── RecommendationsScreen.tsx # Recomendaciones
 │   │   ├── services/              # AWS Amplify + GraphQL
 │   │   ├── navigation/            # React Navigation + match handling
 │   │   ├── context/               # Contextos React (MatchNotificationContext)
@@ -286,13 +298,15 @@ cd android
 | Componente | Estado | Descripción |
 |------------|--------|-------------|
 | 🏗️ **Backend AWS** | ✅ Desplegado | 4 Lambdas + DynamoDB + AppSync |
-| 📱 **App Móvil** | ✅ Funcional | 7 pantallas implementadas |
+| 📱 **App Móvil** | ✅ Funcional | 8 pantallas implementadas |
 | 🎬 **Integración TMDB** | ✅ Activa | API real con filtrado |
 | 🔐 **Autenticación** | ✅ Configurada | Cognito + auto-confirmación |
 | 📦 **APK Android** | ✅ Compilado | Listo para instalación (129 MB) |
 | 🎯 **Sistema de Matches** | ✅ Mejorado | Verificación proactiva + notificaciones universales |
 | 🗑️ **Gestión de Salas** | ✅ Automática | Eliminación post-match + limpieza |
-| 📊 **Logging** | ✅ Integral | Backend + Frontend |
+| � **Mis Salas** | ✅ Implementado | Gestión de salas del usuario |
+| ❤️ **Mis Matches** | ✅ En Perfil | Accesible desde menú de perfil |
+| �📊 **Logging** | ✅ Integral | Backend + Frontend |
 
 ### Métricas de Rendimiento
 - **Lambda Cold Start**: ~2-3 segundos
@@ -308,29 +322,19 @@ Usuario abre Trinity
     ↓
 Inicia sesión con Cognito
     ↓
-VERIFICACIÓN PROACTIVA antes de cada acción
+Usuario realiza cualquier acción (navegar, votar, etc.)
     ↓
-Crea/Une a sala
+VERIFICACIÓN PROACTIVA antes de ejecutar la acción
     ↓
-¿Hay match existente?
-    ├─ SÍ → Popup + opciones (Ver matches/Ir inicio)
-    └─ NO → Cargar películas para votar
+¿Hay match en salas activas?
+    ├─ SÍ → Popup + bloquear acción original + opciones (Ver matches/Continuar)
+    └─ NO → Ejecutar acción original normalmente
               ↓
-          Usuario intenta votar
-              ↓
-          VERIFICACIÓN PROACTIVA antes del voto
-              ↓
-          ¿Se creó match?
-              ├─ SÍ → NOTIFICAR A TODOS + ELIMINAR SALA
-              │       ├─ En sala: Popup + redirect Dashboard
-              │       └─ Fuera sala: Popup + mantener ubicación
-              └─ NO → Procesar voto + continuar
-                        ↓
-                   Monitoreo automático cada 3s
-                        ↓
-                   ¿Match detectado?
-                        ├─ SÍ → Notificar + eliminar sala
-                        └─ NO → Continuar
+          ¿La acción fue votar?
+              ├─ SÍ → Procesar voto + verificar si se creó match
+              │       ├─ Match creado → NOTIFICAR A TODOS + ELIMINAR SALA
+              │       └─ No match → Continuar votación
+              └─ NO → Continuar con la acción (navegar, etc.)
 ```
 
 ## 🏛️ Recursos AWS Desplegados
@@ -467,6 +471,7 @@ Crea/Une a sala
 - � **[Especificación Maestra](docs/TRINITY_MASTER_SPEC.md)** - Arquitectura y decisiones técnicas
 
 ### Recursos Externos
+- 📦 **[Guía de Compilación](docs/PRODUCTION_BUILD_GUIDE.md)** - Compilación de APK y configuración de producción
 - 🎬 **[TMDB API Docs](https://developers.themoviedb.org/3)** - Documentación oficial TMDB
 - ⚡ **[AWS CDK Guide](https://docs.aws.amazon.com/cdk/)** - Guía oficial AWS CDK
 - 📱 **[Expo Documentation](https://docs.expo.dev/)** - Documentación Expo/React Native
