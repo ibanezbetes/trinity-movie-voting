@@ -1,0 +1,71 @@
+type Room {
+  id: ID!
+  code: String!
+  hostId: String!
+  mediaType: MediaType!
+  genreIds: [Int!]!
+  candidates: [MovieCandidate!]!
+  createdAt: AWSDateTime!
+}
+
+type MovieCandidate {
+  id: Int!
+  title: String!
+  overview: String!
+  posterPath: String
+  releaseDate: String
+  mediaType: MediaType!
+}
+
+type Match {
+  id: ID!
+  roomId: String!
+  movieId: Int!
+  title: String!
+  posterPath: String
+  timestamp: AWSDateTime!
+}
+
+type Vote {
+  roomId: String!
+  userId: String!
+  movieId: Int!
+  vote: Boolean!
+}
+
+enum MediaType {
+  MOVIE
+  TV
+}
+
+type Mutation {
+  createRoom(input: CreateRoomInput!): Room!
+  joinRoom(code: String!): Room!
+  vote(input: VoteInput!): VoteResult!
+}
+
+type Query {
+  getRoom(id: String!): Room
+  getMyMatches: [Match!]!
+}
+
+input CreateRoomInput {
+  mediaType: MediaType!
+  genreIds: [Int!]!
+}
+
+input VoteInput {
+  roomId: String!
+  movieId: Int!
+  vote: Boolean!
+}
+
+type VoteResult {
+  success: Boolean!
+  match: Match
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+}

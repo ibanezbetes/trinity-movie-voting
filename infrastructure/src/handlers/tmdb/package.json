@@ -1,0 +1,8 @@
+{
+  "name": "trinity-tmdb-handler",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^1.13.4"
+  }
+}

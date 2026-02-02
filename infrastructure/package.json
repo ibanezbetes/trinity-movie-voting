@@ -1,0 +1,43 @@
+{
+  "name": "trinity-infrastructure",
+  "version": "1.0.0",
+  "description": "Trinity Movie Voting App - AWS CDK Infrastructure",
+  "main": "lib/trinity-stack.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "deploy:all": "node deploy-script.js",
+    "deploy:manual": "cdk deploy --require-approval never",
+    "destroy": "cdk destroy",
+    "diff": "cdk diff",
+    "synth": "cdk synth",
+    "generate-config": "node scripts/generate-mobile-config.js"
+  },
+  "keywords": [
+    "aws",
+    "cdk",
+    "trinity",
+    "movie-voting"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-cloudformation": "^3.980.0",
+    "@aws-sdk/client-dynamodb": "^3.980.0",
+    "@aws-sdk/client-lambda": "^3.980.0",
+    "@aws-sdk/lib-dynamodb": "^3.980.0",
+    "@types/aws-lambda": "^8.10.160",
+    "@types/node": "^25.2.0",
+    "@types/uuid": "^10.0.0",
+    "aws-cdk-lib": "^2.236.0",
+    "axios": "^1.13.4",
+    "constructs": "^10.4.5",
+    "dotenv": "^17.2.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "uuid": "^13.0.0"
+  }
+}
