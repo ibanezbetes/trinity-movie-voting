@@ -24,6 +24,7 @@ type Match {
   title: String!
   posterPath: String
   timestamp: AWSDateTime!
+  matchedUsers: [String!]!
 }
 
 type Vote {
@@ -58,10 +59,11 @@ type Query {
   getMyRooms: [Room!]!
   getMyMatches: [Match!]!
   checkRoomMatch(roomId: String!): Match
+  checkUserMatches: [Match!]!
 }
 
 type Subscription {
-  onMatchCreated(userId: String!): Match
+  onMatchCreated: Match
     @aws_subscribe(mutations: ["createMatch"])
 }
 

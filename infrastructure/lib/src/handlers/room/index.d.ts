@@ -35,10 +35,14 @@ interface GetRoomEvent {
     userId: string;
     roomId: string;
 }
-type RoomEvent = CreateRoomEvent | JoinRoomEvent | GetRoomEvent;
+interface GetMyRoomsEvent {
+    operation: 'getMyRooms';
+    userId: string;
+}
+type RoomEvent = CreateRoomEvent | JoinRoomEvent | GetRoomEvent | GetMyRoomsEvent;
 interface RoomResponse {
     statusCode: number;
-    body: Room | {
+    body: Room | Room[] | {
         error: string;
     };
 }

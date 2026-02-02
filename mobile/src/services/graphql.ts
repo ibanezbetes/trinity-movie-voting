@@ -97,6 +97,20 @@ export const CHECK_ROOM_MATCH = `
   }
 `;
 
+export const CHECK_USER_MATCHES = `
+  query CheckUserMatches {
+    checkUserMatches {
+      id
+      roomId
+      movieId
+      title
+      posterPath
+      timestamp
+      matchedUsers
+    }
+  }
+`;
+
 export const GET_MY_ROOMS = `
   query GetMyRooms {
     getMyRooms {

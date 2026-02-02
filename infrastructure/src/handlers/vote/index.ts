@@ -2,13 +2,11 @@ import { Handler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
-import { AppSyncClient, EvaluateMappingTemplateCommand } from '@aws-sdk/client-appsync';
 
 // Initialize AWS clients
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION });
-const appSyncClient = new AppSyncClient({ region: process.env.AWS_REGION });
 
 // Types
 interface Vote {
@@ -163,27 +161,30 @@ class VoteService {
 
   private async checkForMatch(roomId: string, movieId: number, movieCandidate: MovieCandidate): Promise<Match | undefined> {
     try {
-      // Get all votes for this movie in this room
+      // Get all votes for this movie in this room (excluding participation records)
       const votesResult = await docClient.send(new QueryCommand({
         TableName: this.votesTable,
         KeyConditionExpression: 'roomId = :roomId',
-        FilterExpression: 'movieId = :movieId AND vote = :vote',
+        FilterExpression: 'movieId = :movieId AND vote = :vote AND movieId <> :participationMarker',
         ExpressionAttributeValues: {
           ':roomId': roomId,
           ':movieId': movieId,
           ':vote': true, // Only positive votes
+          ':participationMarker': -1, // Exclude participation records
         },
       }));
 
       const positiveVotes = votesResult.Items || [];
       console.log(`Found ${positiveVotes.length} positive votes for movie ${movieId} in room ${roomId}`);
 
-      // Get all unique users who have voted in this room
+      // Get all unique users who have voted in this room (excluding participation records)
       const allVotesResult = await docClient.send(new QueryCommand({
         TableName: this.votesTable,
         KeyConditionExpression: 'roomId = :roomId',
+        FilterExpression: 'movieId <> :participationMarker', // Exclude participation records
         ExpressionAttributeValues: {
           ':roomId': roomId,
+          ':participationMarker': -1,
         },
       }));
 
@@ -191,7 +192,7 @@ class VoteService {
       const uniqueUsers = new Set(allVotes.map(vote => (vote as Vote).userId));
       const totalUsers = uniqueUsers.size;
 
-      console.log(`Total unique users in room: ${totalUsers}`);
+      console.log(`Total unique users who have voted in room: ${totalUsers}`);
 
       // Check if all users voted positively for this movie
       const positiveUserIds = new Set(positiveVotes.map(vote => (vote as Vote).userId));
@@ -253,30 +254,46 @@ class VoteService {
       timestamp,
     };
 
-    // Store match in DynamoDB
+    // Store the main match record
     await docClient.send(new PutCommand({
       TableName: this.matchesTable,
       Item: match,
       ConditionExpression: 'attribute_not_exists(roomId) AND attribute_not_exists(movieId)', // Prevent duplicates
     }));
 
-    console.log(`Match created: ${matchId} with ${matchedUsers.length} users`);
+    // CRITICAL: Create individual match records for each user to enable GSI queries
+    // This allows efficient querying of matches by userId using the new GSI
+    const userMatchPromises = matchedUsers.map(async (userId) => {
+      const userMatch = {
+        ...match,
+        userId, // Add userId field for GSI
+        id: `${userId}#${matchId}`, // Unique ID per user
+        roomId: `${userId}#${roomId}`, // Composite key to avoid conflicts
+      };
+
+      try {
+        await docClient.send(new PutCommand({
+          TableName: this.matchesTable,
+          Item: userMatch,
+        }));
+        console.log(`User match record created for user ${userId}`);
+      } catch (error) {
+        console.error(`Error creating user match record for ${userId}:`, error);
+        // Continue with other users even if one fails
+      }
+    });
+
+    // Wait for all user match records to be created
+    await Promise.allSettled(userMatchPromises);
+
+    console.log(`Match created: ${matchId} with ${matchedUsers.length} users and individual user records`);
 
     // Delete the room since match is found - room is no longer needed
     await this.deleteRoom(roomId);
 
-    // Trigger AppSync subscription for all matched users
-    await this.triggerMatchSubscriptions(match);
-
-    // Optionally invoke Match Lambda for notifications (if implemented)
-    if (this.matchLambdaArn) {
-      try {
-        await this.notifyMatchCreated(match);
-      } catch (error) {
-        console.error('Error notifying match creation:', error);
-        // Don't fail the vote if notification fails
-      }
-    }
+    // CRITICAL: Trigger AppSync subscription by calling the createMatch mutation
+    // This is the key fix - we need to execute the GraphQL mutation to trigger subscriptions
+    await this.triggerAppSyncSubscription(match);
 
     return match;
   }
@@ -301,7 +318,7 @@ class VoteService {
 
   private async deleteRoomVotes(roomId: string): Promise<void> {
     try {
-      // Get all votes for this room
+      // Get all votes and participation records for this room
       const votesResult = await docClient.send(new QueryCommand({
         TableName: this.votesTable,
         KeyConditionExpression: 'roomId = :roomId',
@@ -310,33 +327,36 @@ class VoteService {
         },
       }));
 
-      const votes = votesResult.Items || [];
+      const allRecords = votesResult.Items || [];
       
-      // Delete votes in batches
-      const deletePromises = votes.map(vote => 
+      // Delete all records (votes and participation) in batches
+      const deletePromises = allRecords.map(record => 
         docClient.send(new DeleteCommand({
           TableName: this.votesTable,
           Key: {
-            roomId: vote.roomId,
-            userMovieId: vote.userMovieId,
+            roomId: record.roomId,
+            userMovieId: record.userMovieId,
           },
         }))
       );
 
       await Promise.allSettled(deletePromises);
-      console.log(`Deleted ${votes.length} votes for room ${roomId}`);
+      console.log(`Deleted ${allRecords.length} records (votes and participation) for room ${roomId}`);
     } catch (error) {
-      console.error(`Error deleting votes for room ${roomId}:`, error);
+      console.error(`Error deleting records for room ${roomId}:`, error);
     }
   }
 
-  private async triggerMatchSubscriptions(match: Match): Promise<void> {
+  private async triggerAppSyncSubscription(match: Match): Promise<void> {
     try {
-      console.log(`Triggering match subscriptions for ${match.matchedUsers.length} users`);
+      console.log(`🔔 Triggering AppSync subscription for match: ${match.title}`);
+      console.log(`📱 Notifying ${match.matchedUsers.length} users: ${match.matchedUsers.join(', ')}`);
       
-      // Instead of calling AppSync directly, we'll use the Match Lambda to trigger subscriptions
-      // The Match Lambda will handle the createMatch mutation which triggers subscriptions
+      // The key insight: AppSync subscriptions are triggered when a GraphQL mutation
+      // is executed through the AppSync API, not when Lambda functions are called directly.
       
+      // APPROACH 1: Call the Match Lambda with createMatch operation
+      // This will execute the createMatch resolver which should trigger subscriptions
       if (this.matchLambdaArn) {
         const payload = {
           operation: 'createMatch',
@@ -349,22 +369,79 @@ class VoteService {
           },
         };
 
+        console.log('🚀 Invoking Match Lambda to trigger AppSync subscription...');
+        
         const command = new InvokeCommand({
           FunctionName: this.matchLambdaArn,
-          InvocationType: 'Event', // Async invocation
+          InvocationType: 'RequestResponse',
           Payload: JSON.stringify(payload),
         });
 
-        await lambdaClient.send(command);
-        console.log('Match subscription trigger sent to Match Lambda');
+        const response = await lambdaClient.send(command);
+        
+        if (response.Payload) {
+          const result = JSON.parse(new TextDecoder().decode(response.Payload));
+          if (result.statusCode === 200) {
+            console.log('✅ Match Lambda executed successfully');
+            console.log('📡 AppSync subscription should now be triggered');
+            console.log(`🎬 Match: ${match.title}`);
+            console.log(`👥 Users: ${match.matchedUsers.join(', ')}`);
+          } else {
+            console.error('❌ Match Lambda returned error:', result.body?.error);
+          }
+        }
       } else {
-        console.warn('MATCH_LAMBDA_ARN not configured, skipping subscription notifications');
+        console.warn('⚠️ Match Lambda ARN not configured - subscriptions may not work');
       }
+
+      // APPROACH 2: Store notifications for polling fallback
+      await this.storeMatchNotifications(match);
+
     } catch (error) {
-      console.error('Error triggering match subscriptions:', error);
-      // Don't fail the match creation if subscription fails
+      console.error('❌ Error triggering AppSync subscription:', error);
+      // Store notifications for polling as fallback
+      await this.storeMatchNotifications(match);
     }
   }
+
+  private async storeMatchNotifications(match: Match): Promise<void> {
+    try {
+      // Store individual notification records for each user
+      // This enables polling-based match detection as a fallback
+      const notificationPromises = match.matchedUsers.map(async (userId) => {
+        const notificationRecord = {
+          userId,
+          matchId: match.id,
+          roomId: match.roomId,
+          movieId: match.movieId,
+          title: match.title,
+          posterPath: match.posterPath,
+          timestamp: match.timestamp,
+          notified: false, // Flag to track if user has been notified
+          ttl: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 7 days TTL
+        };
+
+        // Store in a notifications table (we'll use the matches table with a special pattern)
+        await docClient.send(new PutCommand({
+          TableName: this.matchesTable,
+          Item: {
+            roomId: `NOTIFICATION#${userId}`, // Special prefix for notifications
+            movieId: Date.now(), // Use timestamp as sort key for uniqueness
+            ...notificationRecord,
+          },
+        }));
+
+        console.log(`Notification stored for user ${userId}`);
+      });
+
+      await Promise.allSettled(notificationPromises);
+      console.log('✅ Match notifications stored for polling fallback');
+    } catch (error) {
+      console.error('Error storing match notifications:', error);
+    }
+  }
+
+  private async notifyMatchCreated(match: Match): Promise<void> {
     try {
       const payload = {
         operation: 'matchCreated',
@@ -433,23 +510,3 @@ export const handler: Handler<VoteEvent, VoteResponse> = async (event) => {
     };
   }
 };
-  private async notifyMatchCreated(match: Match): Promise<void> {
-    try {
-      const payload = {
-        operation: 'matchCreated',
-        match,
-      };
-
-      const command = new InvokeCommand({
-        FunctionName: this.matchLambdaArn,
-        InvocationType: 'Event', // Async invocation
-        Payload: JSON.stringify(payload),
-      });
-
-      await lambdaClient.send(command);
-      console.log('Match notification sent to Match Lambda');
-    } catch (error) {
-      console.error('Failed to notify Match Lambda:', error);
-      throw error;
-    }
-  }

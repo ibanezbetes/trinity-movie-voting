@@ -135,6 +135,20 @@ export class TrinityStack extends cdk.Stack {
       },
     });
 
+    // CRITICAL: Add Global Secondary Index for user-based match queries
+    // This allows efficient querying of matches by user ID
+    this.matchesTable.addGlobalSecondaryIndex({
+      indexName: 'userId-timestamp-index',
+      partitionKey: {
+        name: 'userId',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'timestamp',
+        type: dynamodb.AttributeType.STRING,
+      },
+    });
+
     // TrinityUsers Table
     this.usersTable = new dynamodb.Table(this, 'TrinityUsers', {
       tableName: 'TrinityUsers',
@@ -478,6 +492,32 @@ export class TrinityStack extends cdk.Stack {
           "operation": "Invoke",
           "payload": {
             "operation": "getUserMatches",
+            "userId": "$context.identity.sub"
+          }
+        }
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.fromString(`
+        #if($context.error)
+          $util.error($context.error.message, $context.error.type)
+        #end
+        #if($context.result.statusCode == 200)
+          $util.toJson($context.result.body.matches)
+        #else
+          $util.error($context.result.body.error, "BadRequest")
+        #end
+      `),
+    });
+
+    // checkUserMatches query
+    matchDataSource.createResolver('CheckUserMatchesResolver', {
+      typeName: 'Query',
+      fieldName: 'checkUserMatches',
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+        {
+          "version": "2017-02-28",
+          "operation": "Invoke",
+          "payload": {
+            "operation": "checkUserMatches",
             "userId": "$context.identity.sub"
           }
         }

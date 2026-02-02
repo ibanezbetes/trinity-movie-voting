@@ -217,9 +217,13 @@ class RoomService {
     return room;
   }
 
-  async joinRoom(code: string): Promise<Room> {
+  async joinRoom(userId: string, code: string): Promise<Room> {
     if (!code || code.trim() === '') {
       throw new Error('Room code is required');
+    }
+
+    if (!userId) {
+      throw new Error('User ID is required');
     }
 
     // Query by room code using GSI
@@ -249,8 +253,45 @@ class RoomService {
       throw new Error('Room has expired. Please create a new room.');
     }
 
-    console.log(`User joined room: ${room.id} with code: ${code}`);
+    // CRITICAL FIX: Record user participation when joining room
+    // This ensures the room appears in "Mis Salas" even if user hasn't voted yet
+    await this.recordRoomParticipation(userId, room.id);
+
+    console.log(`User ${userId} joined room: ${room.id} with code: ${code}`);
     return room;
+  }
+
+  private async recordRoomParticipation(userId: string, roomId: string): Promise<void> {
+    try {
+      const votesTable = process.env.VOTES_TABLE || '';
+      if (!votesTable) {
+        console.warn('VOTES_TABLE not configured, skipping participation tracking');
+        return;
+      }
+
+      // Create a special "participation" record in VOTES table
+      // This allows the room to appear in getMyRooms() even without actual votes
+      const participationRecord = {
+        roomId,
+        userMovieId: `${userId}#JOINED`, // Special marker for room participation
+        userId,
+        movieId: -1, // Special value indicating this is a participation record, not a vote
+        vote: false, // Not a real vote
+        timestamp: new Date().toISOString(),
+        isParticipation: true, // Flag to distinguish from real votes
+      };
+
+      await docClient.send(new PutCommand({
+        TableName: votesTable,
+        Item: participationRecord,
+        // Allow overwriting if user joins the same room multiple times
+      }));
+
+      console.log(`Participation recorded for user ${userId} in room ${roomId}`);
+    } catch (error) {
+      console.error(`Error recording participation for user ${userId} in room ${roomId}:`, error);
+      // Don't fail the join operation if participation tracking fails
+    }
   }
 
   async getMyRooms(userId: string): Promise<Room[]> {
@@ -275,23 +316,23 @@ class RoomService {
       const hostRooms = hostRoomsResult.Items || [];
       allRooms.push(...(hostRooms as Room[]));
 
-      // 2. Get rooms where user has voted (participated)
+      // 2. Get rooms where user has participated (joined or voted)
       const votesTable = process.env.VOTES_TABLE || '';
       if (votesTable) {
-        // Get all votes by this user
-        const userVotesResult = await docClient.send(new QueryCommand({
+        // Get all participation records by this user
+        const userParticipationResult = await docClient.send(new QueryCommand({
           TableName: votesTable,
-          IndexName: 'userId-timestamp-index', // We'll need to add this GSI
+          IndexName: 'userId-timestamp-index',
           KeyConditionExpression: 'userId = :userId',
           ExpressionAttributeValues: {
             ':userId': userId,
           },
         }));
 
-        const userVotes = userVotesResult.Items || [];
+        const userParticipation = userParticipationResult.Items || [];
         
-        // Get unique room IDs from votes
-        const participatedRoomIds = new Set(userVotes.map(vote => vote.roomId));
+        // Get unique room IDs from participation records (both votes and joins)
+        const participatedRoomIds = new Set(userParticipation.map(record => record.roomId));
         
         // Get room details for participated rooms (excluding already fetched host rooms)
         const hostRoomIds = new Set(hostRooms.map(room => room.id));
@@ -409,9 +450,13 @@ export const handler: Handler<RoomEvent, RoomResponse> = async (event) => {
       }
 
       case 'joinRoom': {
-        const { code } = event;
+        const { userId, code } = event;
         
-        const room = await roomService.joinRoom(code);
+        if (!userId) {
+          throw new Error('User ID is required');
+        }
+        
+        const room = await roomService.joinRoom(userId, code);
         
         return {
           statusCode: 200,

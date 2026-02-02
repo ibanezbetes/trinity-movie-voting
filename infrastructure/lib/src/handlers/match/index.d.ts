@@ -9,9 +9,15 @@ interface Match {
     matchedUsers: string[];
     timestamp: string;
 }
-interface MatchCreatedEvent {
-    operation: 'matchCreated';
-    match: Match;
+interface CreateMatchEvent {
+    operation: 'createMatch';
+    input: {
+        roomId: string;
+        movieId: number;
+        title: string;
+        posterPath?: string;
+        matchedUsers: string[];
+    };
 }
 interface GetUserMatchesEvent {
     operation: 'getUserMatches';
@@ -25,7 +31,11 @@ interface NotifyMatchEvent {
     operation: 'notifyMatch';
     match: Match;
 }
-type MatchEvent = MatchCreatedEvent | GetUserMatchesEvent | CheckRoomMatchEvent | NotifyMatchEvent;
+interface MatchCreatedEvent {
+    operation: 'matchCreated';
+    match: Match;
+}
+type MatchEvent = CreateMatchEvent | MatchCreatedEvent | GetUserMatchesEvent | CheckRoomMatchEvent | NotifyMatchEvent;
 interface MatchResponse {
     statusCode: number;
     body: {

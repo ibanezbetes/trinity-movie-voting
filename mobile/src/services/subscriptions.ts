@@ -3,14 +3,15 @@ import { logger } from './logger';
 
 // GraphQL subscription for match notifications
 export const MATCH_SUBSCRIPTION = `
-  subscription OnMatchCreated($userId: String!) {
-    onMatchCreated(userId: $userId) {
+  subscription OnMatchCreated {
+    onMatchCreated {
       id
       roomId
       movieId
       title
       posterPath
       timestamp
+      matchedUsers
     }
   }
 `;
@@ -22,6 +23,7 @@ interface Match {
   title: string;
   posterPath?: string;
   timestamp: string;
+  matchedUsers: string[];
 }
 
 interface MatchSubscriptionService {
@@ -40,39 +42,60 @@ class MatchSubscriptionManager implements MatchSubscriptionService {
     }
 
     try {
-      logger.match('Subscribing to match notifications', { userId });
+      logger.match('🔔 Subscribing to AppSync match notifications', { userId });
 
       this.subscription = client.graphql({
         query: MATCH_SUBSCRIPTION,
-        variables: { userId },
         authMode: 'userPool',
       }).subscribe({
         next: ({ data }) => {
           if (data?.onMatchCreated) {
             const match = data.onMatchCreated;
-            logger.match('Match notification received via subscription', {
+            
+            logger.match('📡 Match notification received from AppSync', {
               matchId: match.id,
               title: match.title,
               roomId: match.roomId,
+              matchedUsers: match.matchedUsers,
+              currentUserId: userId,
             });
             
-            onMatch(match);
+            // CRITICAL: Filter matches on the client side
+            // Only process matches where the current user is involved
+            if (match.matchedUsers && match.matchedUsers.includes(userId)) {
+              logger.match('✅ Match notification is for current user - processing', {
+                matchId: match.id,
+                title: match.title,
+                roomId: match.roomId,
+                currentUserId: userId,
+                matchedUsers: match.matchedUsers,
+              });
+              
+              onMatch(match);
+            } else {
+              logger.match('ℹ️ Match notification not for current user - ignoring', {
+                matchId: match.id,
+                title: match.title,
+                currentUserId: userId,
+                matchedUsers: match.matchedUsers,
+              });
+            }
           }
         },
         error: (error) => {
-          logger.matchError('Match subscription error', error);
+          logger.matchError('❌ AppSync match subscription error', error);
           console.error('Match subscription error:', error);
         },
       });
 
       this.isSubscribed = true;
-      logger.match('Successfully subscribed to match notifications');
+      logger.match('✅ Successfully subscribed to AppSync match notifications');
 
       // Return unsubscribe function
       return () => this.unsubscribe();
 
     } catch (error) {
-      logger.matchError('Failed to subscribe to match notifications', error);
+      logger.matchError('❌ Failed to subscribe to match notifications', error);
       console.error('Failed to subscribe to match notifications:', error);
       return () => {};
     }

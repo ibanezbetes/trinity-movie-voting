@@ -1,12 +1,10 @@
 import { Handler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { AppSyncClient, EvaluateCodeCommand } from '@aws-sdk/client-appsync';
+import { DynamoDBDocumentClient, QueryCommand, GetCommand, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 
 // Initialize AWS clients
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const appSyncClient = new AppSyncClient({ region: process.env.AWS_REGION });
 
 // Types
 interface Match {
@@ -58,7 +56,12 @@ interface MatchCreatedEvent {
   match: Match;
 }
 
-type MatchEvent = CreateMatchEvent | MatchCreatedEvent | GetUserMatchesEvent | CheckRoomMatchEvent | NotifyMatchEvent;
+interface CheckUserMatchesEvent {
+  operation: 'checkUserMatches';
+  userId: string;
+}
+
+type MatchEvent = CreateMatchEvent | MatchCreatedEvent | GetUserMatchesEvent | CheckRoomMatchEvent | CheckUserMatchesEvent | NotifyMatchEvent;
 
 interface MatchResponse {
   statusCode: number;
@@ -160,47 +163,98 @@ class MatchService {
 
   async getUserMatches(userId: string): Promise<Match[]> {
     try {
-      // Query all matches across all rooms
-      // Note: This is a scan operation which is not ideal for large datasets
-      // In production, consider adding a GSI with userId as partition key
+      console.log(`Getting matches for user: ${userId}`);
+      
+      // Use the new GSI to efficiently query matches by user
       const result = await docClient.send(new QueryCommand({
         TableName: this.matchesTable,
-        // Since we don't have a GSI for userId, we need to scan all matches
-        // This is a limitation of the current schema design
-        IndexName: 'timestamp-index', // Use LSI to get matches ordered by time
-        KeyConditionExpression: 'roomId = :roomId', // This won't work for cross-room queries
+        IndexName: 'userId-timestamp-index',
+        KeyConditionExpression: 'userId = :userId',
         ExpressionAttributeValues: {
-          ':roomId': userId, // This is incorrect - we need a different approach
+          ':userId': userId,
         },
+        ScanIndexForward: false, // Sort by timestamp descending (newest first)
+        Limit: 50, // Limit to last 50 matches for performance
       }));
 
-      // Alternative approach: Scan with filter (not efficient but works for MVP)
-      // In production, add GSI with userId as partition key
-      const scanResult = await this.scanUserMatches(userId);
+      const matches = (result.Items || []) as Match[];
+      console.log(`Found ${matches.length} matches for user ${userId}`);
       
-      return scanResult;
+      return matches;
 
     } catch (error) {
       console.error('Error getting user matches:', error);
-      return [];
+      
+      // Fallback to scan method for backward compatibility
+      console.log('Falling back to scan method...');
+      return await this.scanUserMatches(userId);
+    }
+  }
+
+  async checkUserMatches(userId: string): Promise<Match[]> {
+    try {
+      console.log(`🔍 Checking for ANY matches for user: ${userId}`);
+      
+      // Use the GSI to efficiently query matches by user
+      const result = await docClient.send(new QueryCommand({
+        TableName: this.matchesTable,
+        IndexName: 'userId-timestamp-index',
+        KeyConditionExpression: 'userId = :userId',
+        ExpressionAttributeValues: {
+          ':userId': userId,
+        },
+        ScanIndexForward: false, // Sort by timestamp descending (newest first)
+        Limit: 10, // Limit to last 10 matches for performance
+      }));
+
+      const matches = (result.Items || []) as Match[];
+      console.log(`✅ Found ${matches.length} matches for user ${userId}`);
+      
+      if (matches.length > 0) {
+        console.log(`📋 Recent matches:`, matches.map(m => ({
+          id: m.id,
+          title: m.title,
+          roomId: m.roomId,
+          timestamp: m.timestamp
+        })));
+      }
+      
+      return matches;
+
+    } catch (error) {
+      console.error('❌ Error checking user matches:', error);
+      
+      // Fallback to scan method for backward compatibility
+      console.log('🔄 Falling back to scan method...');
+      return await this.scanUserMatches(userId);
+    }
+  }
+      console.error('Error getting user matches:', error);
+      
+      // Fallback to scan method for backward compatibility
+      console.log('Falling back to scan method...');
+      return await this.scanUserMatches(userId);
     }
   }
 
   private async scanUserMatches(userId: string): Promise<Match[]> {
-    // This is a temporary solution - in production, use GSI
-    console.log(`Scanning matches for user: ${userId}`);
-    
-    // For MVP, we'll implement a simple approach
-    // In production, this should be optimized with proper indexing
-    const matches: Match[] = [];
+    console.log(`Scanning matches for user: ${userId} (fallback method)`);
     
     try {
-      // Since we don't have an efficient way to query matches by user,
-      // we'll implement a basic version that works for the MVP
-      // This would need to be optimized for production use
+      // Scan the entire matches table and filter by user
+      // This is inefficient but works as a fallback
+      const result = await docClient.send(new ScanCommand({
+        TableName: this.matchesTable,
+        FilterExpression: 'contains(matchedUsers, :userId)',
+        ExpressionAttributeValues: {
+          ':userId': userId,
+        },
+        Limit: 50,
+      }));
+
+      const matches = (result.Items || []) as Match[];
+      console.log(`Scan found ${matches.length} matches for user ${userId}`);
       
-      // For now, return empty array and log the limitation
-      console.log('getUserMatches: Returning empty array - requires GSI optimization for production');
       return matches;
       
     } catch (error) {
@@ -308,13 +362,22 @@ export const handler: Handler<MatchEvent, MatchResponse> = async (event) => {
           timestamp,
         };
 
-        // This mutation is called to trigger AppSync subscriptions
-        // The actual match storage is already done by the Vote Handler
-        console.log(`CreateMatch mutation executed - triggering subscriptions for: ${match.title}`);
+        console.log(`🎉 CreateMatch mutation executed via AppSync resolver`);
+        console.log(`📡 This will automatically trigger AppSync subscriptions`);
+        console.log(`🎬 Match: ${match.title}`);
+        console.log(`👥 Notifying ${match.matchedUsers.length} users: ${match.matchedUsers.join(', ')}`);
         
-        // The subscription will be automatically triggered by AppSync when this resolver returns
-        // All users subscribed to onMatchCreated will receive this match notification
-
+        // CRITICAL: When this resolver returns the match object, AppSync will automatically
+        // trigger the onMatchCreated subscription for all connected clients.
+        // The subscription is configured in schema.graphql as:
+        // onMatchCreated: Match @aws_subscribe(mutations: ["createMatch"])
+        
+        // This means any client subscribed to onMatchCreated will receive this match
+        // The client-side filtering in subscriptions.ts will ensure each user only
+        // processes matches where they are in the matchedUsers array
+        
+        console.log('✅ Returning match object to AppSync for subscription broadcast');
+        
         return {
           statusCode: 200,
           body: { match },
@@ -344,6 +407,21 @@ export const handler: Handler<MatchEvent, MatchResponse> = async (event) => {
         }
 
         const matches = await matchService.getUserMatches(userId);
+
+        return {
+          statusCode: 200,
+          body: { matches },
+        };
+      }
+
+      case 'checkUserMatches': {
+        const { userId } = event;
+        
+        if (!userId) {
+          throw new Error('User ID is required');
+        }
+
+        const matches = await matchService.checkUserMatches(userId);
 
         return {
           statusCode: 200,

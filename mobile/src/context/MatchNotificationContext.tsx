@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import { client, verifyAuthStatus } from '../services/amplify';
-import { CHECK_ROOM_MATCH } from '../services/graphql';
+import { GET_MATCHES } from '../services/graphql';
 import { matchSubscriptionService } from '../services/subscriptions';
+import { useMatchPolling, useGlobalMatchPolling } from '../hooks/useMatchPolling';
 import { logger } from '../services/logger';
 
 interface Match {
@@ -41,16 +42,34 @@ export function MatchNotificationProvider({
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  // Set up match subscriptions when user is authenticated
+  // Global match polling for background detection
+  const { startGlobalPolling, stopGlobalPolling } = useGlobalMatchPolling((match) => {
+    logger.match('New match detected via global polling', {
+      matchId: match.id,
+      title: match.title,
+    });
+
+    const wasInRoom = match.roomId === currentRoomId;
+    showMatchNotification(match, wasInRoom);
+    
+    // Remove room from active rooms since it has a match
+    removeActiveRoom(match.roomId);
+
+    if (onMatchFound) {
+      onMatchFound(match, wasInRoom);
+    }
+  });
+
+  // Set up match subscriptions and polling when user is authenticated
   useEffect(() => {
-    const setupSubscriptions = async () => {
+    const setupNotifications = async () => {
       try {
         const authStatus = await verifyAuthStatus();
         if (authStatus.isAuthenticated && authStatus.user?.userId) {
           const userId = authStatus.user.userId;
           setCurrentUserId(userId);
 
-          // Subscribe to match notifications
+          // APPROACH 1: Subscribe to real-time notifications
           matchSubscriptionService.subscribe(userId, (match) => {
             logger.match('Match received via subscription', {
               matchId: match.id,
@@ -73,24 +92,29 @@ export function MatchNotificationProvider({
             }
           });
 
-          logger.match('Match subscriptions set up for user', { userId });
+          // APPROACH 2: Start global polling as backup
+          startGlobalPolling();
+
+          logger.match('Match notifications set up for user', { userId });
         }
       } catch (error) {
-        logger.matchError('Failed to set up match subscriptions', error);
+        logger.matchError('Failed to set up match notifications', error);
       }
     };
 
-    setupSubscriptions();
+    setupNotifications();
 
-    // Cleanup subscriptions on unmount
+    // Cleanup subscriptions and polling on unmount
     return () => {
       matchSubscriptionService.unsubscribe();
+      stopGlobalPolling();
     };
   }, [currentRoomId, onMatchFound]);
 
   const addActiveRoom = (roomId: string) => {
     setActiveRooms(prev => new Set([...prev, roomId]));
     setCurrentRoomId(roomId);
+    logger.match('Added active room', { roomId, totalActiveRooms: activeRooms.size + 1 });
   };
 
   const removeActiveRoom = (roomId: string) => {
@@ -102,22 +126,18 @@ export function MatchNotificationProvider({
     if (currentRoomId === roomId) {
       setCurrentRoomId(null);
     }
+    logger.match('Removed active room', { roomId, totalActiveRooms: activeRooms.size - 1 });
   };
 
   const clearActiveRooms = () => {
     setActiveRooms(new Set());
     setCurrentRoomId(null);
+    logger.match('Cleared all active rooms');
   };
 
   const checkForMatchesBeforeAction = async (action: () => void, actionName: string = 'user action') => {
     if (isCheckingMatches) {
       // Si ya estamos verificando, ejecutar la acción directamente
-      action();
-      return;
-    }
-
-    if (activeRooms.size === 0) {
-      // No hay salas activas, ejecutar la acción directamente
       action();
       return;
     }
@@ -132,72 +152,135 @@ export function MatchNotificationProvider({
         return;
       }
 
-      logger.match('Checking for matches before user action', { 
+      logger.match('🔍 Checking for matches in ALL user rooms before action', { 
         actionName,
-        activeRooms: Array.from(activeRooms),
-        roomCount: activeRooms.size 
+        userId: authStatus.user?.userId
       });
 
-      // Verificar matches en todas las salas activas
-      const checkPromises = Array.from(activeRooms).map(async (roomId) => {
-        try {
-          const response = await client.graphql({
-            query: CHECK_ROOM_MATCH,
-            variables: { roomId },
-            authMode: 'userPool',
-          });
-
-          const match = response.data.checkRoomMatch;
-          
-          if (match) {
-            logger.match('Match detected before user action', {
-              actionName,
-              matchId: match.id,
-              roomId: match.roomId,
-              movieTitle: match.title,
-              wasInCurrentRoom: roomId === currentRoomId
-            });
-
-            return { roomId, match, wasInRoom: roomId === currentRoomId };
-          }
-
-          return null;
-        } catch (error) {
-          logger.matchError('Error checking room for match before action', error, { roomId, actionName });
-          return null;
-        }
-      });
-
-      const results = await Promise.allSettled(checkPromises);
-      const matches = results
-        .filter(r => r.status === 'fulfilled' && r.value)
-        .map(r => r.status === 'fulfilled' ? r.value : null)
-        .filter(Boolean);
-
-      if (matches.length > 0) {
-        // Se encontraron matches, mostrar notificaciones y no ejecutar la acción original
-        logger.match('Matches found before user action - blocking action', { 
-          actionName,
-          matchCount: matches.length,
-          matches: matches.map(m => ({ roomId: m?.roomId, title: m?.match?.title }))
+      // NUEVA LÓGICA SIMPLIFICADA: Usar getMyMatches que ya funciona
+      // Esta query obtiene todos los matches del usuario
+      try {
+        const response = await client.graphql({
+          query: `
+            query GetMatches {
+              getMyMatches {
+                id
+                roomId
+                movieId
+                title
+                posterPath
+                timestamp
+                matchedUsers
+              }
+            }
+          `,
+          authMode: 'userPool',
         });
 
-        // Mostrar notificación del primer match encontrado
-        const firstMatch = matches[0];
-        if (firstMatch) {
-          showMatchNotification(firstMatch.match, firstMatch.wasInRoom, action);
+        const userMatches = response.data.getMyMatches || [];
+        
+        if (userMatches.length > 0) {
+          // Verificar si hay matches nuevos comparando con un timestamp guardado
+          const latestMatch = userMatches[0]; // El más reciente
+          const lastCheckedTimestamp = localStorage.getItem('lastCheckedMatchTimestamp') || '0';
           
-          // Remover la sala de las activas ya que tiene match
-          removeActiveRoom(firstMatch.roomId);
+          if (latestMatch.timestamp > lastCheckedTimestamp) {
+            // Hay matches nuevos
+            logger.match('🎉 New matches found before user action - showing notification', { 
+              actionName,
+              matchCount: userMatches.length,
+              latestMatch: {
+                id: latestMatch.id,
+                title: latestMatch.title,
+                roomId: latestMatch.roomId,
+                timestamp: latestMatch.timestamp
+              }
+            });
 
-          // Llamar callback si se proporciona
-          if (onMatchFound) {
-            onMatchFound(firstMatch.match, firstMatch.wasInRoom);
+            // Actualizar el timestamp de la última verificación
+            localStorage.setItem('lastCheckedMatchTimestamp', latestMatch.timestamp);
+
+            // Mostrar notificación del match más reciente
+            const wasInCurrentRoom = latestMatch.roomId === currentRoomId;
+            showMatchNotification(latestMatch, wasInCurrentRoom, action);
+            
+            // Remover la sala de las activas ya que tiene match
+            if (wasInCurrentRoom) {
+              removeActiveRoom(latestMatch.roomId);
+            }
+
+            // Llamar callback si se proporciona
+            if (onMatchFound) {
+              onMatchFound(latestMatch, wasInCurrentRoom);
+            }
+            
+            return; // No ejecutar la acción original
           }
         }
-      } else {
+
+        // Si no hay matches nuevos, verificar matches específicos de salas activas como fallback
+        if (activeRooms.size > 0) {
+          const checkPromises = Array.from(activeRooms).map(async (roomId) => {
+            try {
+              // Usar getMyMatches y filtrar por roomId
+              const roomMatches = userMatches.filter(match => match.roomId === roomId);
+              
+              if (roomMatches.length > 0) {
+                const match = roomMatches[0];
+                logger.match('Match detected in specific room before user action', {
+                  actionName,
+                  matchId: match.id,
+                  roomId: match.roomId,
+                  movieTitle: match.title,
+                  wasInCurrentRoom: roomId === currentRoomId
+                });
+
+                return { roomId, match, wasInRoom: roomId === currentRoomId };
+              }
+
+              return null;
+            } catch (error) {
+              logger.matchError('Error checking room for match before action', error, { roomId, actionName });
+              return null;
+            }
+          });
+
+          const results = await Promise.allSettled(checkPromises);
+          const matches = results
+            .filter(r => r.status === 'fulfilled' && r.value)
+            .map(r => r.status === 'fulfilled' ? r.value : null)
+            .filter(Boolean);
+
+          if (matches.length > 0) {
+            // Se encontraron matches en salas específicas
+            const firstMatch = matches[0];
+            if (firstMatch) {
+              logger.match('Match found in specific room before user action', { 
+                actionName,
+                matchId: firstMatch.match.id,
+                roomId: firstMatch.roomId,
+                title: firstMatch.match.title
+              });
+
+              showMatchNotification(firstMatch.match, firstMatch.wasInRoom, action);
+              removeActiveRoom(firstMatch.roomId);
+
+              if (onMatchFound) {
+                onMatchFound(firstMatch.match, firstMatch.wasInRoom);
+              }
+              
+              return; // No ejecutar la acción original
+            }
+          }
+        }
+
         // No se encontraron matches, ejecutar la acción original
-        logger.match('No matches found before user action - proceeding', { actionName });
+        logger.match('✅ No matches found before user action - proceeding', { actionName });
+        action();
+
+      } catch (error) {
+        logger.matchError('Error checking for user matches before action', error, { actionName });
+        // En caso de error, ejecutar la acción de todos modos
         action();
       }
 
