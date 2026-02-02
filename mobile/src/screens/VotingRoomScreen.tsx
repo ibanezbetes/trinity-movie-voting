@@ -17,9 +17,10 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList, MovieCandidate } from '../types';
 import { client, verifyAuthStatus } from '../services/amplify';
-import { GET_ROOM, VOTE, CHECK_ROOM_MATCH } from '../services/graphql';
+import { GET_ROOM, VOTE } from '../services/graphql';
 import { logger } from '../services/logger';
 import { useProactiveMatchCheck, ACTION_NAMES } from '../hooks/useProactiveMatchCheck';
+import { roomSubscriptionService } from '../services/subscriptions';
 
 type VotingRoomRouteProp = RouteProp<RootStackParamList, 'VotingRoom'>;
 
@@ -39,6 +40,7 @@ export default function VotingRoomScreen() {
   const [isVoting, setIsVoting] = useState(false);
   const [hasExistingMatch, setHasExistingMatch] = useState(false);
   const [existingMatch, setExistingMatch] = useState<any>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Animation values
   const pan = new Animated.ValueXY();
@@ -56,9 +58,13 @@ export default function VotingRoomScreen() {
     
     loadRoomData();
 
-    // Cleanup: remove room from active rooms when leaving
+    // Set up room-based subscription for real-time match notifications
+    setupRoomSubscription();
+
+    // Cleanup: remove room from active rooms and unsubscribe when leaving
     return () => {
       removeActiveRoom(roomId);
+      roomSubscriptionService.unsubscribeFromRoom(roomId);
     };
   }, []);
 
@@ -87,9 +93,66 @@ export default function VotingRoomScreen() {
     return () => clearInterval(interval);
   }, [hasExistingMatch, isLoading, roomId]);
 
+  const setupRoomSubscription = async () => {
+    try {
+      const authStatus = await verifyAuthStatus();
+      if (!authStatus.isAuthenticated || !authStatus.user?.userId) {
+        logger.authError('User not authenticated for room subscription setup', null);
+        return;
+      }
+
+      const userId = authStatus.user.userId;
+      setCurrentUserId(userId);
+
+      logger.room('Setting up room-based subscription', { roomId, userId });
+
+      // Subscribe to room-based match notifications
+      roomSubscriptionService.subscribeToRoom(roomId, userId, (roomMatchEvent) => {
+        logger.room('🎉 Room match notification received in VotingRoom', {
+          roomId: roomMatchEvent.roomId,
+          matchId: roomMatchEvent.matchId,
+          movieTitle: roomMatchEvent.movieTitle,
+          matchedUsers: roomMatchEvent.matchedUsers,
+          currentUserId: userId,
+        });
+
+        // Update state to show match found
+        setHasExistingMatch(true);
+        setExistingMatch({
+          id: roomMatchEvent.matchId,
+          title: roomMatchEvent.movieTitle,
+          movieId: roomMatchEvent.movieId,
+          roomId: roomMatchEvent.roomId,
+          timestamp: roomMatchEvent.timestamp,
+          posterPath: roomMatchEvent.posterPath,
+        });
+
+        // Show match notification
+        Alert.alert(
+          '🎉 ¡MATCH EN TIEMPO REAL!',
+          `¡Se encontró una película en común en tu sala!\n\n${roomMatchEvent.movieTitle}`,
+          [
+            { 
+              text: 'Ver mis matches', 
+              onPress: () => navigation.navigate('MyMatches' as any)
+            },
+            { 
+              text: 'Ir al inicio', 
+              onPress: () => navigation.navigate('Dashboard' as any)
+            }
+          ]
+        );
+      });
+
+    } catch (error) {
+      logger.roomError('Failed to setup room subscription', error, { roomId });
+      console.error('Failed to setup room subscription:', error);
+    }
+  };
+
   const checkForExistingMatch = async (): Promise<boolean> => {
     try {
-      logger.room('Checking for existing match', { roomId });
+      logger.room('Checking for existing match using getMyMatches', { roomId });
       
       const authStatus = await verifyAuthStatus();
       if (!authStatus.isAuthenticated) {
@@ -98,28 +161,39 @@ export default function VotingRoomScreen() {
       }
 
       const response = await client.graphql({
-        query: CHECK_ROOM_MATCH,
-        variables: { roomId },
+        query: `
+          query GetMatches {
+            getMyMatches {
+              id
+              roomId
+              movieId
+              title
+              posterPath
+              timestamp
+            }
+          }
+        `,
         authMode: 'userPool',
       });
 
-      const match = response.data.checkRoomMatch;
+      const matches = response.data.getMyMatches || [];
+      const roomMatch = matches.find(match => match.roomId === roomId);
       
-      if (match) {
+      if (roomMatch) {
         logger.room('Existing match found', {
-          matchId: match.id,
-          movieTitle: match.title,
-          movieId: match.movieId,
-          timestamp: match.timestamp
+          matchId: roomMatch.id,
+          movieTitle: roomMatch.title,
+          movieId: roomMatch.movieId,
+          timestamp: roomMatch.timestamp
         });
         
         setHasExistingMatch(true);
-        setExistingMatch(match);
+        setExistingMatch(roomMatch);
         
         // Show match notification to user
         Alert.alert(
           '🎉 ¡MATCH ENCONTRADO!',
-          `Ya hay una película seleccionada en esta sala:\n\n${match.title}`,
+          `Ya hay una película seleccionada en esta sala:\n\n${roomMatch.title}`,
           [
             { 
               text: 'Ver mis matches', 

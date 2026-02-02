@@ -61,7 +61,24 @@ interface CheckUserMatchesEvent {
   userId: string;
 }
 
-type MatchEvent = CreateMatchEvent | MatchCreatedEvent | GetUserMatchesEvent | CheckRoomMatchEvent | CheckUserMatchesEvent | NotifyMatchEvent;
+interface PublishRoomMatchEvent {
+  operation: 'publishRoomMatch';
+  roomId: string;
+  matchData: {
+    matchId: string;
+    movieId: string;
+    movieTitle: string;
+    posterPath?: string;
+    matchedUsers: string[];
+    matchDetails: {
+      voteCount: number;
+      requiredVotes: number;
+      matchType: string;
+    };
+  };
+}
+
+type MatchEvent = CreateMatchEvent | MatchCreatedEvent | GetUserMatchesEvent | CheckRoomMatchEvent | CheckUserMatchesEvent | NotifyMatchEvent | PublishRoomMatchEvent;
 
 interface MatchResponse {
   statusCode: number;
@@ -229,13 +246,6 @@ class MatchService {
       return await this.scanUserMatches(userId);
     }
   }
-      console.error('Error getting user matches:', error);
-      
-      // Fallback to scan method for backward compatibility
-      console.log('Falling back to scan method...');
-      return await this.scanUserMatches(userId);
-    }
-  }
 
   private async scanUserMatches(userId: string): Promise<Match[]> {
     console.log(`Scanning matches for user: ${userId} (fallback method)`);
@@ -344,6 +354,42 @@ export const handler: Handler<MatchEvent, MatchResponse> = async (event) => {
     const matchService = new MatchService();
 
     switch (event.operation) {
+      case 'publishRoomMatch': {
+        const { roomId, matchData } = event;
+        
+        console.log(`🚀 CRITICAL FIX: Processing publishRoomMatch for room: ${roomId}`);
+        console.log(`🎬 Movie: ${matchData.movieTitle}`);
+        console.log(`👥 Matched users: ${matchData.matchedUsers.join(', ')}`);
+        
+        // CRITICAL FIX: Return the correct roomMatchEvent structure that AppSync expects
+        // The AppSync resolver will use this to trigger the roomMatch subscription
+        
+        const roomMatchEvent = {
+          roomId: roomId,
+          matchId: matchData.matchId,
+          movieId: matchData.movieId,
+          movieTitle: matchData.movieTitle,
+          posterPath: matchData.posterPath || null,
+          matchedUsers: matchData.matchedUsers,
+          timestamp: new Date().toISOString(),
+          matchDetails: matchData.matchDetails
+        };
+
+        console.log('📡 Returning roomMatchEvent for AppSync subscription trigger');
+        console.log('✅ AppSync will broadcast this to all roomMatch subscribers');
+        console.log(`🔔 All users subscribed to roomMatch(${roomId}) will be notified`);
+        
+        // CRITICAL: Return the roomMatchEvent in the body so AppSync resolver can use it
+        return {
+          statusCode: 200,
+          body: { 
+            success: true,
+            roomMatchEvent: roomMatchEvent,
+            message: 'Room match event prepared for AppSync subscription broadcast'
+          },
+        };
+      }
+
       case 'createMatch': {
         const { input } = event;
         

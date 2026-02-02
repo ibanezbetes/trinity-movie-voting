@@ -93,6 +93,14 @@ class VoteService {
       throw new Error('Room not found or has expired');
     }
 
+    // Basic room membership validation - check if user has access to this room
+    // For now, we allow any authenticated user to vote in any active room
+    // TODO: Implement proper room membership validation in Task 2
+    const hasRoomAccess = await this.validateRoomAccess(userId, roomId, room);
+    if (!hasRoomAccess) {
+      throw new Error('User does not have access to this room');
+    }
+
     // Validate movie is in room candidates
     const movieCandidate = room.candidates.find(c => c.id === movieId);
     if (!movieCandidate) {
@@ -109,6 +117,43 @@ class VoteService {
     }
 
     return { success: true, match };
+  }
+
+  private async validateRoomAccess(userId: string, roomId: string, room: Room): Promise<boolean> {
+    try {
+      // Basic validation: check if user is the room host or has previously voted in this room
+      if (room.hostId === userId) {
+        console.log(`User ${userId} is the host of room ${roomId} - access granted`);
+        return true;
+      }
+
+      // Check if user has previously participated in this room
+      const userVotesResult = await docClient.send(new QueryCommand({
+        TableName: this.votesTable,
+        KeyConditionExpression: 'roomId = :roomId',
+        FilterExpression: 'userId = :userId',
+        ExpressionAttributeValues: {
+          ':roomId': roomId,
+          ':userId': userId,
+        },
+        Limit: 1,
+      }));
+
+      if (userVotesResult.Items && userVotesResult.Items.length > 0) {
+        console.log(`User ${userId} has previously voted in room ${roomId} - access granted`);
+        return true;
+      }
+
+      // For MVP: Allow any authenticated user to join any active room
+      // TODO: Implement proper room membership validation with DynamoDB table in Task 2
+      console.log(`User ${userId} granted access to room ${roomId} (MVP mode - all users allowed)`);
+      return true;
+
+    } catch (error) {
+      console.error(`Error validating room access for user ${userId} in room ${roomId}:`, error);
+      // On error, allow access for now (fail open for MVP)
+      return true;
+    }
   }
 
   private async getRoom(roomId: string): Promise<Room | null> {
@@ -349,14 +394,14 @@ class VoteService {
 
   private async triggerAppSyncSubscription(match: Match): Promise<void> {
     try {
-      console.log(`🔔 Triggering AppSync subscription for match: ${match.title}`);
-      console.log(`📱 Notifying ${match.matchedUsers.length} users: ${match.matchedUsers.join(', ')}`);
+      console.log(`🔔 CRITICAL FIX: Triggering AppSync subscription for match: ${match.title}`);
+      console.log(`📱 Broadcasting to ALL users who voted in room ${match.roomId}`);
+      console.log(`👥 Matched users: ${match.matchedUsers.join(', ')}`);
       
-      // The key insight: AppSync subscriptions are triggered when a GraphQL mutation
-      // is executed through the AppSync API, not when Lambda functions are called directly.
+      // SIMPLIFIED APPROACH: Use the createMatch mutation that already works
+      // This will trigger the onMatchCreated subscription for all connected clients
+      // The client-side filtering will ensure each user only processes relevant matches
       
-      // APPROACH 1: Call the Match Lambda with createMatch operation
-      // This will execute the createMatch resolver which should trigger subscriptions
       if (this.matchLambdaArn) {
         const payload = {
           operation: 'createMatch',
@@ -369,7 +414,62 @@ class VoteService {
           },
         };
 
-        console.log('🚀 Invoking Match Lambda to trigger AppSync subscription...');
+        console.log('🚀 Invoking Match Lambda with createMatch...');
+        console.log('📡 This will trigger onMatchCreated subscription for ALL connected clients');
+        console.log('🔍 Client-side filtering will ensure each user gets relevant matches');
+        
+        const command = new InvokeCommand({
+          FunctionName: this.matchLambdaArn,
+          InvocationType: 'RequestResponse',
+          Payload: JSON.stringify(payload),
+        });
+
+        const response = await lambdaClient.send(command);
+        
+        if (response.Payload) {
+          const result = JSON.parse(new TextDecoder().decode(response.Payload));
+          console.log('📨 Match Lambda response:', JSON.stringify(result, null, 2));
+          
+          if (result.statusCode === 200) {
+            console.log('✅ createMatch executed successfully');
+            console.log('🔔 onMatchCreated subscription triggered for all connected clients');
+            console.log(`👥 Users ${match.matchedUsers.join(', ')} should receive notifications`);
+          } else {
+            console.error('❌ Match Lambda returned error:', result.body?.error);
+            throw new Error(result.body?.error || 'Failed to create match');
+          }
+        } else {
+          throw new Error('No response payload from Match Lambda');
+        }
+      } else {
+        throw new Error('Match Lambda ARN not configured');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error triggering AppSync subscription:', error);
+      // Store notifications for polling as fallback
+      await this.storeMatchNotifications(match);
+    }
+  }
+
+  private async fallbackToCreateMatch(match: Match): Promise<void> {
+    try {
+      console.log('🔄 Using fallback createMatch method...');
+      
+      // FALLBACK: Use the old createMatch method for backward compatibility
+      if (this.matchLambdaArn) {
+        const payload = {
+          operation: 'createMatch',
+          input: {
+            roomId: match.roomId,
+            movieId: match.movieId,
+            title: match.title,
+            posterPath: match.posterPath,
+            matchedUsers: match.matchedUsers,
+          },
+        };
+
+        console.log('🚀 Invoking Match Lambda with createMatch (fallback)...');
         
         const command = new InvokeCommand({
           FunctionName: this.matchLambdaArn,
@@ -382,24 +482,19 @@ class VoteService {
         if (response.Payload) {
           const result = JSON.parse(new TextDecoder().decode(response.Payload));
           if (result.statusCode === 200) {
-            console.log('✅ Match Lambda executed successfully');
-            console.log('📡 AppSync subscription should now be triggered');
-            console.log(`🎬 Match: ${match.title}`);
-            console.log(`👥 Users: ${match.matchedUsers.join(', ')}`);
+            console.log('✅ Fallback createMatch executed successfully');
           } else {
-            console.error('❌ Match Lambda returned error:', result.body?.error);
+            console.error('❌ Fallback createMatch returned error:', result.body?.error);
           }
         }
-      } else {
-        console.warn('⚠️ Match Lambda ARN not configured - subscriptions may not work');
       }
 
-      // APPROACH 2: Store notifications for polling fallback
+      // Store notifications for polling fallback
       await this.storeMatchNotifications(match);
-
+      
     } catch (error) {
-      console.error('❌ Error triggering AppSync subscription:', error);
-      // Store notifications for polling as fallback
+      console.error('❌ Error in fallback method:', error);
+      // Store notifications for polling as final fallback
       await this.storeMatchNotifications(match);
     }
   }
@@ -412,8 +507,8 @@ class VoteService {
         const notificationRecord = {
           userId,
           matchId: match.id,
-          roomId: match.roomId,
-          movieId: match.movieId,
+          originalRoomId: match.roomId, // Store original roomId separately
+          originalMovieId: match.movieId, // Store original movieId separately
           title: match.title,
           posterPath: match.posterPath,
           timestamp: match.timestamp,

@@ -44,6 +44,10 @@ type Mutation {
   joinRoom(code: String!): Room!
   vote(input: VoteInput!): VoteResult!
   createMatch(input: CreateMatchInput!): Match!
+  publishRoomMatch(roomId: ID!, matchData: RoomMatchInput!): RoomMatchEvent!
+  addRoomMember(roomId: ID!, userId: String!): RoomMembership!
+  removeRoomMember(roomId: ID!, userId: String!): Boolean!
+  leaveRoom(roomId: ID!): Boolean!
 }
 
 input CreateMatchInput {
@@ -60,11 +64,15 @@ type Query {
   getMyMatches: [Match!]!
   checkRoomMatch(roomId: String!): Match
   checkUserMatches: [Match!]!
+  getRoomMembers(roomId: ID!): [RoomMembership!]!
+  getUserRooms(userId: String!): [RoomMembership!]!
 }
 
 type Subscription {
   onMatchCreated: Match
     @aws_subscribe(mutations: ["createMatch"])
+  roomMatch(roomId: ID!): RoomMatchEvent
+    @aws_subscribe(mutations: ["publishRoomMatch"])
 }
 
 input CreateRoomInput {
@@ -81,6 +89,46 @@ input VoteInput {
 type VoteResult {
   success: Boolean!
   match: Match
+}
+
+type RoomMatchEvent {
+  roomId: ID!
+  matchId: ID!
+  movieId: ID!
+  movieTitle: String!
+  posterPath: String
+  matchedUsers: [String!]!
+  timestamp: AWSDateTime!
+  matchDetails: MatchDetails
+}
+
+type MatchDetails {
+  voteCount: Int!
+  requiredVotes: Int!
+  matchType: String!
+}
+
+type RoomMembership {
+  roomId: ID!
+  userId: String!
+  joinedAt: AWSDateTime!
+  isActive: Boolean!
+  role: String!
+}
+
+input RoomMatchInput {
+  matchId: ID!
+  movieId: ID!
+  movieTitle: String!
+  posterPath: String
+  matchedUsers: [String!]!
+  matchDetails: MatchDetailsInput
+}
+
+input MatchDetailsInput {
+  voteCount: Int!
+  requiredVotes: Int!
+  matchType: String!
 }
 
 schema {

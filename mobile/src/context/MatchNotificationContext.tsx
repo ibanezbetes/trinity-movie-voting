@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Alert } from 'react-native';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { GET_MATCHES } from '../services/graphql';
-import { matchSubscriptionService } from '../services/subscriptions';
+import { matchSubscriptionService, roomSubscriptionService } from '../services/subscriptions';
 import { useMatchPolling, useGlobalMatchPolling } from '../hooks/useMatchPolling';
 import { logger } from '../services/logger';
 
@@ -22,6 +22,8 @@ interface MatchNotificationContextType {
   addActiveRoom: (roomId: string) => void;
   removeActiveRoom: (roomId: string) => void;
   clearActiveRooms: () => void;
+  subscribeToRoom: (roomId: string) => void;
+  unsubscribeFromRoom: (roomId: string) => void;
 }
 
 const MatchNotificationContext = createContext<MatchNotificationContextType | undefined>(undefined);
@@ -69,9 +71,11 @@ export function MatchNotificationProvider({
           const userId = authStatus.user.userId;
           setCurrentUserId(userId);
 
-          // APPROACH 1: Subscribe to real-time notifications
+          // CRITICAL FIX: Use BOTH legacy and room-based subscriptions for maximum coverage
+          
+          // 1. Legacy subscription for backward compatibility
           matchSubscriptionService.subscribe(userId, (match) => {
-            logger.match('Match received via subscription', {
+            logger.match('Match received via legacy subscription', {
               matchId: match.id,
               title: match.title,
               roomId: match.roomId,
@@ -92,10 +96,45 @@ export function MatchNotificationProvider({
             }
           });
 
-          // APPROACH 2: Start global polling as backup
+          // 2. CRITICAL: Also subscribe to room-based notifications for current room
+          if (currentRoomId) {
+            logger.match('Setting up room-based subscription for current room', { roomId: currentRoomId, userId });
+            
+            roomSubscriptionService.subscribeToRoom(currentRoomId, userId, (roomMatchEvent) => {
+              logger.match('Room match received via room subscription in context', {
+                roomId: roomMatchEvent.roomId,
+                matchId: roomMatchEvent.matchId,
+                movieTitle: roomMatchEvent.movieTitle,
+                matchedUsers: roomMatchEvent.matchedUsers,
+                currentUserId: userId,
+              });
+
+              // Convert room match event to legacy match format for compatibility
+              const match: Match = {
+                id: roomMatchEvent.matchId,
+                roomId: roomMatchEvent.roomId,
+                movieId: parseInt(roomMatchEvent.movieId),
+                title: roomMatchEvent.movieTitle,
+                posterPath: roomMatchEvent.posterPath,
+                timestamp: roomMatchEvent.timestamp,
+              };
+
+              const wasInRoom = roomMatchEvent.roomId === currentRoomId;
+              showMatchNotification(match, wasInRoom);
+              
+              // Remove room from active rooms since it has a match
+              removeActiveRoom(roomMatchEvent.roomId);
+
+              if (onMatchFound) {
+                onMatchFound(match, wasInRoom);
+              }
+            });
+          }
+
+          // Start global polling as backup
           startGlobalPolling();
 
-          logger.match('Match notifications set up for user', { userId });
+          logger.match('Match notifications set up for user with BOTH legacy and room-based subscriptions', { userId, currentRoomId });
         }
       } catch (error) {
         logger.matchError('Failed to set up match notifications', error);
@@ -107,6 +146,7 @@ export function MatchNotificationProvider({
     // Cleanup subscriptions and polling on unmount
     return () => {
       matchSubscriptionService.unsubscribe();
+      roomSubscriptionService.unsubscribeFromAllRooms();
       stopGlobalPolling();
     };
   }, [currentRoomId, onMatchFound]);
@@ -115,6 +155,9 @@ export function MatchNotificationProvider({
     setActiveRooms(prev => new Set([...prev, roomId]));
     setCurrentRoomId(roomId);
     logger.match('Added active room', { roomId, totalActiveRooms: activeRooms.size + 1 });
+    
+    // DO NOT automatically subscribe here - let VotingRoomScreen handle room subscriptions
+    // This prevents conflicts between multiple subscription setups
   };
 
   const removeActiveRoom = (roomId: string) => {
@@ -127,6 +170,9 @@ export function MatchNotificationProvider({
       setCurrentRoomId(null);
     }
     logger.match('Removed active room', { roomId, totalActiveRooms: activeRooms.size - 1 });
+    
+    // DO NOT automatically unsubscribe here - let VotingRoomScreen handle cleanup
+    // This prevents conflicts with manual subscription management
   };
 
   const clearActiveRooms = () => {
@@ -340,6 +386,50 @@ export function MatchNotificationProvider({
     Alert.alert(title, message, buttons);
   };
 
+  const subscribeToRoom = (roomId: string) => {
+    if (!currentUserId) {
+      logger.matchError('Cannot subscribe to room - no current user ID', null, { roomId });
+      return;
+    }
+
+    logger.match('Subscribing to room from context', { roomId, userId: currentUserId });
+    
+    roomSubscriptionService.subscribeToRoom(roomId, currentUserId, (roomMatchEvent) => {
+      logger.match('Room match received in context', {
+        roomId: roomMatchEvent.roomId,
+        matchId: roomMatchEvent.matchId,
+        movieTitle: roomMatchEvent.movieTitle,
+        matchedUsers: roomMatchEvent.matchedUsers,
+        currentUserId,
+      });
+
+      // Convert room match event to legacy match format for compatibility
+      const match: Match = {
+        id: roomMatchEvent.matchId,
+        roomId: roomMatchEvent.roomId,
+        movieId: parseInt(roomMatchEvent.movieId),
+        title: roomMatchEvent.movieTitle,
+        posterPath: roomMatchEvent.posterPath,
+        timestamp: roomMatchEvent.timestamp,
+      };
+
+      const wasInRoom = roomMatchEvent.roomId === currentRoomId;
+      showMatchNotification(match, wasInRoom);
+      
+      // Remove room from active rooms since it has a match
+      removeActiveRoom(roomMatchEvent.roomId);
+
+      if (onMatchFound) {
+        onMatchFound(match, wasInRoom);
+      }
+    });
+  };
+
+  const unsubscribeFromRoom = (roomId: string) => {
+    logger.match('Unsubscribing from room from context', { roomId });
+    roomSubscriptionService.unsubscribeFromRoom(roomId);
+  };
+
   const contextValue: MatchNotificationContextType = {
     checkForMatchesBeforeAction,
     isCheckingMatches,
@@ -347,6 +437,8 @@ export function MatchNotificationProvider({
     addActiveRoom,
     removeActiveRoom,
     clearActiveRooms,
+    subscribeToRoom,
+    unsubscribeFromRoom,
   };
 
   return (

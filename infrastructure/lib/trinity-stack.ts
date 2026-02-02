@@ -310,6 +310,23 @@ export class TrinityStack extends cdk.Stack {
     
     // Add GraphQL endpoint to Vote Lambda for subscription notifications
     this.voteLambda.addEnvironment('GRAPHQL_ENDPOINT', this.api.graphqlUrl);
+    
+    // Grant AppSync invoke permissions to Vote Lambda for publishing room matches
+    this.voteLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['appsync:GraphQL'],
+      resources: [this.api.arn + '/*'],
+    }));
+
+    // CRITICAL: Grant AppSync invoke permissions to Match Lambda for executing GraphQL mutations
+    this.matchLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['appsync:GraphQL'],
+      resources: [this.api.arn + '/*'],
+    }));
+
+    // Add GraphQL endpoint to Match Lambda for direct AppSync calls
+    this.matchLambda.addEnvironment('GRAPHQL_ENDPOINT', this.api.graphqlUrl);
 
     // Grant DynamoDB permissions
     this.grantDynamoDBPermissions();
@@ -343,6 +360,9 @@ export class TrinityStack extends cdk.Stack {
     const roomDataSource = this.api.addLambdaDataSource('RoomDataSource', this.roomLambda);
     const voteDataSource = this.api.addLambdaDataSource('VoteDataSource', this.voteLambda);
     const matchDataSource = this.api.addLambdaDataSource('MatchDataSource', this.matchLambda);
+
+    // Create NONE data source for publishRoomMatch (subscription trigger)
+    const noneDataSource = this.api.addNoneDataSource('NoneDataSource');
 
     // Mutation Resolvers
     
@@ -427,6 +447,129 @@ export class TrinityStack extends cdk.Stack {
       `),
     });
 
+    // publishRoomMatch mutation - triggers room-based subscription
+    matchDataSource.createResolver('PublishRoomMatchResolver', {
+      typeName: 'Mutation',
+      fieldName: 'publishRoomMatch',
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+        {
+          "version": "2017-02-28",
+          "operation": "Invoke",
+          "payload": {
+            "operation": "publishRoomMatch",
+            "roomId": "$context.arguments.roomId",
+            "matchData": $util.toJson($context.arguments.matchData)
+          }
+        }
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.fromString(`
+        #if($context.error)
+          $util.error($context.error.message, $context.error.type)
+        #end
+        #if($context.result.statusCode == 200)
+          ## Return the room match event from the Lambda response
+          #if($context.result.body.roomMatchEvent)
+            $util.toJson($context.result.body.roomMatchEvent)
+          #else
+            ## Fallback: construct the event from input arguments
+            {
+              "roomId": "$context.arguments.roomId",
+              "matchId": "$context.arguments.matchData.matchId",
+              "movieId": "$context.arguments.matchData.movieId",
+              "movieTitle": "$context.arguments.matchData.movieTitle",
+              "posterPath": $util.toJson($context.arguments.matchData.posterPath),
+              "matchedUsers": $util.toJson($context.arguments.matchData.matchedUsers),
+              "timestamp": "$util.time.nowISO8601()",
+              "matchDetails": $util.toJson($context.arguments.matchData.matchDetails)
+            }
+          #end
+        #else
+          $util.error($context.result.body.error, "BadRequest")
+        #end
+      `),
+    });
+
+    // Room membership mutations
+    roomDataSource.createResolver('AddRoomMemberResolver', {
+      typeName: 'Mutation',
+      fieldName: 'addRoomMember',
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+        {
+          "version": "2017-02-28",
+          "operation": "Invoke",
+          "payload": {
+            "operation": "addRoomMember",
+            "roomId": "$context.arguments.roomId",
+            "userId": "$context.arguments.userId",
+            "requesterId": "$context.identity.sub"
+          }
+        }
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.fromString(`
+        #if($context.error)
+          $util.error($context.error.message, $context.error.type)
+        #end
+        #if($context.result.statusCode == 200)
+          $util.toJson($context.result.body)
+        #else
+          $util.error($context.result.body.error, "BadRequest")
+        #end
+      `),
+    });
+
+    roomDataSource.createResolver('RemoveRoomMemberResolver', {
+      typeName: 'Mutation',
+      fieldName: 'removeRoomMember',
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+        {
+          "version": "2017-02-28",
+          "operation": "Invoke",
+          "payload": {
+            "operation": "removeRoomMember",
+            "roomId": "$context.arguments.roomId",
+            "userId": "$context.arguments.userId",
+            "requesterId": "$context.identity.sub"
+          }
+        }
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.fromString(`
+        #if($context.error)
+          $util.error($context.error.message, $context.error.type)
+        #end
+        #if($context.result.statusCode == 200)
+          $util.toJson($context.result.body.success)
+        #else
+          $util.error($context.result.body.error, "BadRequest")
+        #end
+      `),
+    });
+
+    roomDataSource.createResolver('LeaveRoomResolver', {
+      typeName: 'Mutation',
+      fieldName: 'leaveRoom',
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+        {
+          "version": "2017-02-28",
+          "operation": "Invoke",
+          "payload": {
+            "operation": "leaveRoom",
+            "roomId": "$context.arguments.roomId",
+            "userId": "$context.identity.sub"
+          }
+        }
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.fromString(`
+        #if($context.error)
+          $util.error($context.error.message, $context.error.type)
+        #end
+        #if($context.result.statusCode == 200)
+          $util.toJson($context.result.body.success)
+        #else
+          $util.error($context.result.body.error, "BadRequest")
+        #end
+      `),
+    });
+
     // Query Resolvers
 
     // getRoom query - reuse room data source
@@ -476,6 +619,59 @@ export class TrinityStack extends cdk.Stack {
         #end
         #if($context.result.statusCode == 200)
           $util.toJson($context.result.body)
+        #else
+          $util.error($context.result.body.error, "BadRequest")
+        #end
+      `),
+    });
+
+    // Room membership queries
+    roomDataSource.createResolver('GetRoomMembersResolver', {
+      typeName: 'Query',
+      fieldName: 'getRoomMembers',
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+        {
+          "version": "2017-02-28",
+          "operation": "Invoke",
+          "payload": {
+            "operation": "getRoomMembers",
+            "roomId": "$context.arguments.roomId",
+            "requesterId": "$context.identity.sub"
+          }
+        }
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.fromString(`
+        #if($context.error)
+          $util.error($context.error.message, $context.error.type)
+        #end
+        #if($context.result.statusCode == 200)
+          $util.toJson($context.result.body.members)
+        #else
+          $util.error($context.result.body.error, "BadRequest")
+        #end
+      `),
+    });
+
+    roomDataSource.createResolver('GetUserRoomsResolver', {
+      typeName: 'Query',
+      fieldName: 'getUserRooms',
+      requestMappingTemplate: appsync.MappingTemplate.fromString(`
+        {
+          "version": "2017-02-28",
+          "operation": "Invoke",
+          "payload": {
+            "operation": "getUserRooms",
+            "userId": "$context.arguments.userId",
+            "requesterId": "$context.identity.sub"
+          }
+        }
+      `),
+      responseMappingTemplate: appsync.MappingTemplate.fromString(`
+        #if($context.error)
+          $util.error($context.error.message, $context.error.type)
+        #end
+        #if($context.result.statusCode == 200)
+          $util.toJson($context.result.body.rooms)
         #else
           $util.error($context.result.body.error, "BadRequest")
         #end

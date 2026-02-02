@@ -35,7 +35,27 @@ interface MatchCreatedEvent {
     operation: 'matchCreated';
     match: Match;
 }
-type MatchEvent = CreateMatchEvent | MatchCreatedEvent | GetUserMatchesEvent | CheckRoomMatchEvent | NotifyMatchEvent;
+interface CheckUserMatchesEvent {
+    operation: 'checkUserMatches';
+    userId: string;
+}
+interface PublishRoomMatchEvent {
+    operation: 'publishRoomMatch';
+    roomId: string;
+    matchData: {
+        matchId: string;
+        movieId: string;
+        movieTitle: string;
+        posterPath?: string;
+        matchedUsers: string[];
+        matchDetails: {
+            voteCount: number;
+            requiredVotes: number;
+            matchType: string;
+        };
+    };
+}
+type MatchEvent = CreateMatchEvent | MatchCreatedEvent | GetUserMatchesEvent | CheckRoomMatchEvent | CheckUserMatchesEvent | NotifyMatchEvent | PublishRoomMatchEvent;
 interface MatchResponse {
     statusCode: number;
     body: {
