@@ -16,6 +16,7 @@
     "@react-navigation/stack": "^7.6.16",
     "aws-amplify": "^6.16.0",
     "expo": "~54.0.33",
+    "expo-constants": "^18.0.13",
     "expo-linear-gradient": "~15.0.8",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
@@ -26,6 +27,9 @@
     "react-native-screens": "~4.16.0"
   },
   "devDependencies": {
+    "@expo/metro-config": "^54.0.14",
+    "@react-native-community/cli": "^20.1.1",
+    "@react-native/metro-config": "^0.83.1",
     "@types/react": "~19.1.0",
     "typescript": "~5.9.2"
   },

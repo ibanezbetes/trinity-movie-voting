@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Trinity",
+    "slug": "trinity-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -26,6 +26,16 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "EXPO_PUBLIC_AWS_REGION": "eu-west-1",
+      "EXPO_PUBLIC_USER_POOL_ID": "eu-west-1_RPkdnO7Ju",
+      "EXPO_PUBLIC_USER_POOL_CLIENT_ID": "61nf41i2bff1c4oc4qo9g36m1k",
+      "EXPO_PUBLIC_GRAPHQL_ENDPOINT": "https://nvokqs473bbfdizeq4n5oosjpy.appsync-api.eu-west-1.amazonaws.com/graphql",
+      "EXPO_PUBLIC_AUTH_TYPE": "AMAZON_COGNITO_USER_POOLS",
+      "eas": {
+        "projectId": "175789a5-9869-4ca2-88af-33641d5a845a"
+      }
     }
   }
 }
