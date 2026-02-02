@@ -1,5 +1,5 @@
 // Auto-generated AWS configuration
-// Generated on: 2026-02-02T19:03:26.222Z
+// Generated on: 2026-02-02T23:49:47.025Z
 // Stack: TrinityStack
 
 export interface AWSConfig {

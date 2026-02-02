@@ -1,0 +1,22 @@
+{
+  "syncedAt": "2026-02-02T23:49:29.804Z",
+  "stack": "TrinityStack",
+  "region": "eu-west-1",
+  "resources": {
+    "userPool": "eu-west-1_RPkdnO7Ju",
+    "userPoolClient": "61nf41i2bff1c4oc4qo9g36m1k",
+    "graphqlEndpoint": "https://nvokqs473bbfdizeq4n5oosjpy.appsync-api.eu-west-1.amazonaws.com/graphql",
+    "tables": {
+      "rooms": "TrinityRooms",
+      "votes": "TrinityVotes",
+      "matches": "TrinityMatches",
+      "users": "TrinityUsers"
+    }
+  },
+  "filesUpdated": [
+    "mobile/src/config/aws-config.ts",
+    "mobile/app.json",
+    "infrastructure/schema-from-aws.graphql",
+    "infrastructure/sync-summary.json"
+  ]
+}
