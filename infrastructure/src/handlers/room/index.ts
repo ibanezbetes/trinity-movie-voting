@@ -1,6 +1,6 @@
 import { Handler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, GetCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, GetCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { randomUUID } from 'crypto';
 
@@ -213,6 +213,9 @@ class RoomService {
       ConditionExpression: 'attribute_not_exists(id)', // Ensure no duplicate IDs
     }));
 
+    // Record user participation when creating room (host automatically participates)
+    await this.recordRoomParticipation(userId, roomId);
+
     console.log(`Room created successfully: ${roomId} with code: ${code}`);
     return room;
   }
@@ -330,68 +333,87 @@ class RoomService {
 
   async getMyRooms(userId: string): Promise<Room[]> {
     if (!userId) {
-      throw new Error('User ID is required');
+      console.error('getMyRooms called without userId');
+      return []; // Return empty array instead of throwing
     }
 
     try {
+      console.log(`Getting rooms for user: ${userId}`);
       const allRooms: Room[] = [];
 
       // 1. Get rooms where user is the host - use scan for now since GSI might not be ready
-      const hostRoomsResult = await docClient.send(new ScanCommand({
-        TableName: this.tableName,
-        FilterExpression: 'hostId = :userId',
-        ExpressionAttributeValues: {
-          ':userId': userId,
-        },
-      }));
-
-      const hostRooms = hostRoomsResult.Items || [];
-      allRooms.push(...(hostRooms as Room[]));
-
-      // 2. Get rooms where user has participated (joined or voted)
-      const votesTable = process.env.VOTES_TABLE || '';
-      if (votesTable) {
-        // Get all participation records by this user - use scan for now
-        const userParticipationResult = await docClient.send(new ScanCommand({
-          TableName: votesTable,
-          FilterExpression: 'userId = :userId',
+      try {
+        const hostRoomsResult = await docClient.send(new ScanCommand({
+          TableName: this.tableName,
+          FilterExpression: 'hostId = :userId',
           ExpressionAttributeValues: {
             ':userId': userId,
           },
         }));
 
-        const userParticipation = userParticipationResult.Items || [];
-        
-        // Get unique room IDs from participation records (both votes and joins)
-        const participatedRoomIds = new Set(userParticipation.map(record => record.roomId));
-        
-        // Get room details for participated rooms (excluding already fetched host rooms)
-        const hostRoomIds = new Set(hostRooms.map(room => room.id));
-        const newRoomIds = Array.from(participatedRoomIds).filter(roomId => !hostRoomIds.has(roomId));
-        
-        // Fetch room details for participated rooms
-        const participatedRoomsPromises = newRoomIds.map(async (roomId) => {
-          try {
-            const roomResult = await docClient.send(new GetCommand({
-              TableName: this.tableName,
-              Key: { id: roomId },
-            }));
-            return roomResult.Item as Room;
-          } catch (error) {
-            console.error(`Error fetching room ${roomId}:`, error);
-            return null;
-          }
-        });
+        const hostRooms = hostRoomsResult.Items || [];
+        console.log(`Found ${hostRooms.length} rooms where user is host`);
+        allRooms.push(...(hostRooms as Room[]));
+      } catch (error) {
+        console.error('Error fetching host rooms:', error);
+        // Continue with empty host rooms
+      }
 
-        const participatedRooms = (await Promise.all(participatedRoomsPromises))
-          .filter(room => room !== null) as Room[];
-        
-        allRooms.push(...participatedRooms);
+      // 2. Get rooms where user has participated (joined or voted)
+      const votesTable = process.env.VOTES_TABLE || '';
+      if (votesTable) {
+        try {
+          // Get all participation records by this user - use scan for now
+          const userParticipationResult = await docClient.send(new ScanCommand({
+            TableName: votesTable,
+            FilterExpression: 'userId = :userId',
+            ExpressionAttributeValues: {
+              ':userId': userId,
+            },
+          }));
+
+          const userParticipation = userParticipationResult.Items || [];
+          console.log(`Found ${userParticipation.length} participation records for user`);
+          
+          // Get unique room IDs from participation records (both votes and joins)
+          const participatedRoomIds = new Set(userParticipation.map(record => record.roomId));
+          
+          // Get room details for participated rooms (excluding already fetched host rooms)
+          const hostRoomIds = new Set(allRooms.map(room => room.id));
+          const newRoomIds = Array.from(participatedRoomIds).filter(roomId => !hostRoomIds.has(roomId));
+          
+          console.log(`Found ${newRoomIds.length} additional rooms where user participated`);
+          
+          // Fetch room details for participated rooms
+          const participatedRoomsPromises = newRoomIds.map(async (roomId) => {
+            try {
+              const roomResult = await docClient.send(new GetCommand({
+                TableName: this.tableName,
+                Key: { id: roomId },
+              }));
+              return roomResult.Item as Room;
+            } catch (error) {
+              console.error(`Error fetching room ${roomId}:`, error);
+              return null;
+            }
+          });
+
+          const participatedRooms = (await Promise.all(participatedRoomsPromises))
+            .filter(room => room !== null) as Room[];
+          
+          allRooms.push(...participatedRooms);
+        } catch (error) {
+          console.error('Error fetching participated rooms:', error);
+          // Continue with only host rooms
+        }
+      } else {
+        console.warn('VOTES_TABLE not configured, only showing hosted rooms');
       }
 
       // 3. Filter out expired rooms and rooms with matches
       const now = Math.floor(Date.now() / 1000);
       const activeRooms = allRooms.filter(room => !room.ttl || room.ttl >= now);
+      console.log(`Found ${activeRooms.length} active rooms after filtering expired`);
 
       // 4. Check for matches and filter out rooms with matches
       const matchesTable = process.env.MATCHES_TABLE || '';
@@ -413,6 +435,8 @@ class RoomService {
             // If no matches found, include the room
             if (!matchResult.Items || matchResult.Items.length === 0) {
               roomsWithoutMatches.push(room);
+            } else {
+              console.log(`Room ${room.id} has matches, excluding from results`);
             }
           } catch (error) {
             console.error(`Error checking matches for room ${room.id}:`, error);
@@ -425,12 +449,13 @@ class RoomService {
         return roomsWithoutMatches.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       }
 
-      console.log(`Found ${activeRooms.length} active rooms for user ${userId}`);
+      console.log(`Found ${activeRooms.length} active rooms for user ${userId} (matches table not configured)`);
       return activeRooms.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     } catch (error) {
       console.error('Error fetching user rooms:', error);
-      throw new Error('Failed to fetch user rooms');
+      // Return empty array instead of throwing to prevent GraphQL null error
+      return [];
     }
   }
 
@@ -492,8 +517,15 @@ export const handler: Handler = async (event) => {
 
       case 'getMyRooms': {
         console.log('Processing getMyRooms query');
-        const rooms = await roomService.getMyRooms(userId);
-        return rooms;
+        try {
+          const rooms = await roomService.getMyRooms(userId);
+          console.log(`Returning ${rooms.length} rooms for user ${userId}`);
+          return rooms;
+        } catch (error) {
+          console.error('Error in getMyRooms handler:', error);
+          // Return empty array to prevent GraphQL null error
+          return [];
+        }
       }
 
       case 'getRoom': {

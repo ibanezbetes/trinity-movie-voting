@@ -113,6 +113,7 @@ export class TrinityStack extends cdk.Stack {
       environment: {
         ROOMS_TABLE: roomsTable.tableName,
         VOTES_TABLE: votesTable.tableName,
+        MATCHES_TABLE: matchesTable.tableName,
         TMDB_LAMBDA_ARN: tmdbHandler.functionArn,
       },
       timeout: cdk.Duration.seconds(30),
@@ -145,6 +146,7 @@ export class TrinityStack extends cdk.Stack {
     // Grant permissions
     roomsTable.grantReadWriteData(roomHandler);
     votesTable.grantReadWriteData(roomHandler);
+    matchesTable.grantReadData(roomHandler);
     votesTable.grantReadWriteData(voteHandler);
     matchesTable.grantReadWriteData(voteHandler);
     matchesTable.grantReadWriteData(matchHandler);
@@ -178,6 +180,11 @@ export class TrinityStack extends cdk.Stack {
     roomDataSource.createResolver('GetRoomResolver', {
       typeName: 'Query',
       fieldName: 'getRoom',
+    });
+
+    roomDataSource.createResolver('GetMyRoomsResolver', {
+      typeName: 'Query',
+      fieldName: 'getMyRooms',
     });
 
     voteDataSource.createResolver('VoteResolver', {
