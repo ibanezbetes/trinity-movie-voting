@@ -452,7 +452,8 @@ export class TrinityStack extends cdk.Stack {
     });
 
     // publishRoomMatch mutation - triggers room-based subscription
-    noneDataSource.createResolver('PublishRoomMatchResolver', {
+    // CRITICAL: This resolver must accept IAM authorization for Lambda calls
+    const publishRoomMatchResolver = noneDataSource.createResolver('PublishRoomMatchResolver', {
       typeName: 'Mutation',
       fieldName: 'publishRoomMatch',
       requestMappingTemplate: appsync.MappingTemplate.fromString(`

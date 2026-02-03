@@ -203,8 +203,8 @@ export function MatchNotificationProvider({
         userId: authStatus.user?.userId
       });
 
-      // NUEVA LÓGICA SIMPLIFICADA: Usar getMyMatches que ya funciona
-      // Esta query obtiene todos los matches del usuario
+      // NUEVA LÓGICA MEJORADA: Verificación activa de matches
+      // Esta query obtiene todos los matches del usuario directamente del backend
       try {
         const response = await client.graphql({
           query: `
@@ -226,15 +226,22 @@ export function MatchNotificationProvider({
         const userMatches = response.data.getMyMatches || [];
         
         if (userMatches.length > 0) {
-          // Verificar si hay matches nuevos comparando con un timestamp guardado
-          const latestMatch = userMatches[0]; // El más reciente
-          const lastCheckedTimestamp = localStorage.getItem('lastCheckedMatchTimestamp') || '0';
+          // Verificar si hay matches en salas activas (más recientes que hace 30 segundos)
+          const now = new Date().getTime();
+          const thirtySecondsAgo = now - (30 * 1000);
           
-          if (latestMatch.timestamp > lastCheckedTimestamp) {
-            // Hay matches nuevos
-            logger.match('🎉 New matches found before user action - showing notification', { 
+          const recentMatches = userMatches.filter(match => {
+            const matchTime = new Date(match.timestamp).getTime();
+            return matchTime > thirtySecondsAgo;
+          });
+          
+          if (recentMatches.length > 0) {
+            // Hay matches recientes - mostrar el más nuevo
+            const latestMatch = recentMatches[0];
+            
+            logger.match('🎉 Recent match found before user action - showing notification', { 
               actionName,
-              matchCount: userMatches.length,
+              matchCount: recentMatches.length,
               latestMatch: {
                 id: latestMatch.id,
                 title: latestMatch.title,
@@ -242,9 +249,6 @@ export function MatchNotificationProvider({
                 timestamp: latestMatch.timestamp
               }
             });
-
-            // Actualizar el timestamp de la última verificación
-            localStorage.setItem('lastCheckedMatchTimestamp', latestMatch.timestamp);
 
             // Mostrar notificación del match más reciente
             const wasInCurrentRoom = latestMatch.roomId === currentRoomId;
@@ -264,7 +268,7 @@ export function MatchNotificationProvider({
           }
         }
 
-        // Si no hay matches nuevos, verificar matches específicos de salas activas como fallback
+        // Si no hay matches recientes, verificar matches específicos de salas activas
         if (activeRooms.size > 0) {
           const checkPromises = Array.from(activeRooms).map(async (roomId) => {
             try {

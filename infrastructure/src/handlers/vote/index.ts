@@ -337,12 +337,16 @@ class VoteService {
 
     console.log(`Match created: ${matchId} with ${matchedUsers.length} users and individual user records`);
 
+    // CRITICAL: Trigger AppSync subscription FIRST before deleting room
+    // This ensures all users get notified before the room becomes unavailable
+    await this.triggerAppSyncSubscription(match);
+
+    // Wait a moment to ensure notifications are sent before deleting room
+    // This prevents "Room not found" errors for concurrent votes
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+
     // Delete the room since match is found - room is no longer needed
     await this.deleteRoom(roomId);
-
-    // CRITICAL: Trigger AppSync subscription by calling the createMatch mutation
-    // This is the key fix - we need to execute the GraphQL mutation to trigger subscriptions
-    await this.triggerAppSyncSubscription(match);
 
     return match;
   }
@@ -397,16 +401,16 @@ class VoteService {
   }
 
   private async triggerAppSyncSubscription(match: Match): Promise<void> {
-    console.log(`🔔 BROADCASTING REAL: Llamando a AppSync API para sala ${match.roomId}`);
-    console.log(`🚀 NUEVA IMPLEMENTACION: Usando llamada HTTP directa a AppSync`);
+    console.log(`🔔 INICIANDO BROADCAST REAL para sala: ${match.roomId}`);
+    console.log(`🚀 NUEVA IMPLEMENTACION v2: Usando llamada HTTP directa a AppSync`);
     
     const endpoint = process.env.GRAPHQL_ENDPOINT;
     if (!endpoint) {
-      console.error('❌ GRAPHQL_ENDPOINT no está definido');
-      throw new Error('GRAPHQL_ENDPOINT no está definido');
+      console.error('❌ FATAL: GRAPHQL_ENDPOINT no está definido');
+      return;
     }
 
-    // La mutación que dispara la suscripción "NoneDataSource"
+    // Usamos la mutación EXACTA que definimos en el schema para activar la suscripción
     const mutation = `
       mutation PublishRoomMatch($roomId: ID!, $matchData: RoomMatchInput!) {
         publishRoomMatch(roomId: $roomId, matchData: $matchData) {
@@ -422,7 +426,7 @@ class VoteService {
       roomId: match.roomId,
       matchData: {
         matchId: match.id,
-        movieId: match.movieId, // Keep as number, GraphQL ID can handle it
+        movieId: match.movieId,
         movieTitle: match.title,
         posterPath: match.posterPath,
         matchedUsers: match.matchedUsers,
@@ -434,30 +438,30 @@ class VoteService {
       }
     };
 
-    // Preparamos la petición HTTP
-    const request = new HttpRequest({
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        host: new URL(endpoint).hostname,
-      },
-      hostname: new URL(endpoint).hostname,
-      path: '/graphql',
-      body: JSON.stringify({ query: mutation, variables }),
-    });
-
-    // Firmamos la petición con credenciales IAM de la Lambda
-    const signer = new SignatureV4({
-      credentials: defaultProvider(),
-      region: process.env.AWS_REGION || 'us-east-1',
-      service: 'appsync',
-      sha256: Sha256,
-    });
-
     try {
+      const url = new URL(endpoint);
+      const request = new HttpRequest({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          host: url.hostname,
+        },
+        hostname: url.hostname,
+        path: '/graphql',
+        body: JSON.stringify({ query: mutation, variables }),
+      });
+
+      // Firmamos la petición con las credenciales IAM de la Lambda
+      const signer = new SignatureV4({
+        credentials: defaultProvider(),
+        region: process.env.AWS_REGION || 'us-east-1',
+        service: 'appsync',
+        sha256: Sha256,
+      });
+
       const signedRequest = await signer.sign(request);
-      
-      // Usamos fetch nativo (Node 18+)
+
+      // Enviamos la petición HTTP (Node 18/20 ya tiene fetch nativo)
       const response = await fetch(endpoint, {
         method: signedRequest.method,
         headers: signedRequest.headers as any,
@@ -468,17 +472,11 @@ class VoteService {
       
       if (result.errors) {
         console.error('❌ Error de AppSync:', JSON.stringify(result.errors));
-        throw new Error(`AppSync GraphQL errors: ${JSON.stringify(result.errors)}`);
       } else {
-        console.log('✅ AppSync Broadcast Exitoso:', JSON.stringify(result.data));
-        console.log(`🔔 Suscripción onRoomMatch disparada para sala ${match.roomId}`);
-        console.log(`👥 Usuarios notificados: ${match.matchedUsers.join(', ')}`);
+        console.log('✅ BROADCAST EXITOSO: AppSync ha recibido la orden de notificar.');
       }
     } catch (error) {
-      console.error('❌ Error fatal llamando a AppSync:', error);
-      // Aquí mantenemos el fallback de polling si falla
-      await this.storeMatchNotifications(match);
-      throw error;
+      console.error('❌ Error enviando broadcast a AppSync:', error);
     }
   }
 

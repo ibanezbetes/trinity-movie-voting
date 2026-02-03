@@ -44,7 +44,7 @@ type Mutation {
   joinRoom(code: String!): Room!
   vote(input: VoteInput!): VoteResult!
   createMatch(input: CreateMatchInput!): Match!
-  publishRoomMatch(roomId: ID!, matchData: RoomMatchInput!): RoomMatchEvent!
+  publishRoomMatch(roomId: ID!, matchData: RoomMatchInput!): RoomMatchEvent! @aws_iam
   addRoomMember(roomId: ID!, userId: String!): RoomMembership!
   removeRoomMember(roomId: ID!, userId: String!): Boolean!
   leaveRoom(roomId: ID!): Boolean!
