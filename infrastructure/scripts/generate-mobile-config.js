@@ -38,7 +38,7 @@ async function generateMobileConfig() {
       userPoolId: getOutput('UserPoolId'),
       userPoolClientId: getOutput('UserPoolClientId'),
       graphqlEndpoint: getOutput('GraphQLEndpoint'),
-      region: getOutput('AWSRegion'),
+      region: getOutput('Region'),
     };
 
     // Generate TypeScript configuration file

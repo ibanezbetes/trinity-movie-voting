@@ -329,26 +329,18 @@ class RoomSubscriptionManager implements RoomSubscriptionService {
             // Reset retry count on successful message
             this.connectionRetries.set(roomId, 0);
             
-            // Process all room match events since they're already filtered by roomId
-            if (roomMatchEvent.matchedUsers && roomMatchEvent.matchedUsers.includes(userId)) {
-              logger.match('✅ Room match notification is for current user - processing', {
-                roomId: roomMatchEvent.roomId,
-                matchId: roomMatchEvent.matchId,
-                movieTitle: roomMatchEvent.movieTitle,
-                currentUserId: userId,
-                matchedUsers: roomMatchEvent.matchedUsers,
-              });
-              
-              onMatch(roomMatchEvent);
-            } else {
-              logger.match('ℹ️ Room match notification not for current user - ignoring', {
-                roomId: roomMatchEvent.roomId,
-                matchId: roomMatchEvent.matchId,
-                movieTitle: roomMatchEvent.movieTitle,
-                currentUserId: userId,
-                matchedUsers: roomMatchEvent.matchedUsers,
-              });
-            }
+            // CRITICAL FIX: Process ALL room match events for this room
+            // Don't filter by matchedUsers here - let the UI handle the filtering
+            // This ensures ALL users in the room get notified immediately
+            logger.match('✅ Room match notification received - processing for all users in room', {
+              roomId: roomMatchEvent.roomId,
+              matchId: roomMatchEvent.matchId,
+              movieTitle: roomMatchEvent.movieTitle,
+              currentUserId: userId,
+              matchedUsers: roomMatchEvent.matchedUsers,
+            });
+            
+            onMatch(roomMatchEvent);
           }
         },
         error: (error) => {

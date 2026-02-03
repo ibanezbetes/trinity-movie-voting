@@ -56,10 +56,9 @@ export default function VotingRoomScreen() {
     // Add this room to active rooms for match checking
     addActiveRoom(roomId);
     
-    loadRoomData();
-
-    // Set up room-based subscription for real-time match notifications
+    // CRITICAL FIX: Set up subscriptions FIRST, then load data
     setupRoomSubscription();
+    loadRoomData();
 
     // Cleanup: remove room from active rooms and unsubscribe when leaving
     return () => {
@@ -107,51 +106,12 @@ export default function VotingRoomScreen() {
       const userId = authStatus.user.userId;
       setCurrentUserId(userId);
 
-      logger.room('🔔 Setting up ENHANCED dual subscription system', { roomId, userId });
+      logger.room('🔔 Setting up CRITICAL room subscription system', { roomId, userId });
 
-      // CRITICAL FIX 1: Set up user-specific subscription
-      // This ensures the user gets notified even if they voted "yes" earlier
-      userSubscriptionService.subscribeToUser(userId, (userMatchEvent) => {
-        logger.room('🎉 USER MATCH NOTIFICATION RECEIVED in VotingRoom', {
-          userId: userMatchEvent.userId,
-          roomId: userMatchEvent.roomId,
-          matchId: userMatchEvent.matchId,
-          movieTitle: userMatchEvent.movieTitle,
-          matchedUsers: userMatchEvent.matchedUsers,
-          subscriptionType: 'user-specific-realtime'
-        });
-
-        // Update state to show match found
-        setHasExistingMatch(true);
-        setExistingMatch({
-          id: userMatchEvent.matchId,
-          title: userMatchEvent.movieTitle,
-          movieId: parseInt(userMatchEvent.movieId),
-          posterPath: userMatchEvent.posterPath,
-          timestamp: userMatchEvent.timestamp,
-        });
-
-        // Show immediate match notification
-        Alert.alert(
-          '🎉 ¡MATCH ENCONTRADO!',
-          `¡Se encontró una película en común!\n\n${userMatchEvent.movieTitle}`,
-          [
-            { 
-              text: 'Ver mis matches', 
-              onPress: () => navigation.navigate('MyMatches' as any)
-            },
-            { 
-              text: 'Ir al inicio', 
-              onPress: () => navigation.navigate('Dashboard' as any)
-            }
-          ]
-        );
-      });
-
-      // CRITICAL FIX 2: Set up room-based subscription (for compatibility)
-      // This ensures ALL users in the voting room get notified when a match occurs
+      // CRITICAL FIX: Use ONLY room-based subscription for immediate notifications
+      // This ensures ALL users in the room get notified when ANY match occurs
       roomSubscriptionService.subscribeToRoom(roomId, userId, (roomMatchEvent) => {
-        logger.room('🎉 ROOM MATCH NOTIFICATION RECEIVED in VotingRoom (ENHANCED)', {
+        logger.room('🎉 ROOM MATCH NOTIFICATION RECEIVED in VotingRoom', {
           roomId: roomMatchEvent.roomId,
           matchId: roomMatchEvent.matchId,
           movieTitle: roomMatchEvent.movieTitle,
@@ -187,11 +147,11 @@ export default function VotingRoomScreen() {
         );
       });
       
-      logger.room('✅ Enhanced dual subscription system established for real-time notifications', { roomId, userId });
+      logger.room('✅ Room subscription system established for real-time notifications', { roomId, userId });
 
     } catch (error) {
-      logger.roomError('Failed to setup enhanced room subscription', error, { roomId });
-      console.error('Failed to setup enhanced room subscription:', error);
+      logger.roomError('Failed to setup room subscription', error, { roomId });
+      console.error('Failed to setup room subscription:', error);
     }
   };
 
