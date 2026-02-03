@@ -106,43 +106,10 @@ export default function VotingRoomScreen() {
 
       logger.room('Setting up room-based subscription', { roomId, userId });
 
-      // Subscribe to room-based match notifications
-      roomSubscriptionService.subscribeToRoom(roomId, userId, (roomMatchEvent) => {
-        logger.room('🎉 Room match notification received in VotingRoom', {
-          roomId: roomMatchEvent.roomId,
-          matchId: roomMatchEvent.matchId,
-          movieTitle: roomMatchEvent.movieTitle,
-          matchedUsers: roomMatchEvent.matchedUsers,
-          currentUserId: userId,
-        });
-
-        // Update state to show match found
-        setHasExistingMatch(true);
-        setExistingMatch({
-          id: roomMatchEvent.matchId,
-          title: roomMatchEvent.movieTitle,
-          movieId: roomMatchEvent.movieId,
-          roomId: roomMatchEvent.roomId,
-          timestamp: roomMatchEvent.timestamp,
-          posterPath: roomMatchEvent.posterPath,
-        });
-
-        // Show match notification
-        Alert.alert(
-          '🎉 ¡MATCH EN TIEMPO REAL!',
-          `¡Se encontró una película en común en tu sala!\n\n${roomMatchEvent.movieTitle}`,
-          [
-            { 
-              text: 'Ver mis matches', 
-              onPress: () => navigation.navigate('MyMatches' as any)
-            },
-            { 
-              text: 'Ir al inicio', 
-              onPress: () => navigation.navigate('Dashboard' as any)
-            }
-          ]
-        );
-      });
+      // REMOVED: Duplicate subscription - let MatchNotificationContext handle all subscriptions
+      // This prevents duplicate notifications and conflicts
+      
+      logger.room('Room subscription will be handled by MatchNotificationContext', { roomId, userId });
 
     } catch (error) {
       logger.roomError('Failed to setup room subscription', error, { roomId });

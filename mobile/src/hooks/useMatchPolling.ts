@@ -219,7 +219,7 @@ export function useGlobalMatchPolling(onNewMatch?: (match: Match) => void) {
       } catch (error) {
         logger.matchError('❌ Error in global match polling', error);
       }
-    }, 5000); // 5 seconds
+    }, 2000); // 2 seconds instead of 5
   };
 
   const stopGlobalPolling = () => {

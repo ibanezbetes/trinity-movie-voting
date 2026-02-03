@@ -41,14 +41,7 @@
         "userPoolId": "eu-west-1_RPkdnO7Ju",
         "userPoolWebClientId": "61nf41i2bff1c4oc4qo9g36m1k",
         "graphqlEndpoint": "https://nvokqs473bbfdizeq4n5oosjpy.appsync-api.eu-west-1.amazonaws.com/graphql",
-        "authenticationType": "AMAZON_COGNITO_USER_POOLS",
-        "tables": {
-          "rooms": "TrinityRooms",
-          "votes": "TrinityVotes",
-          "matches": "TrinityMatches",
-          "users": "TrinityUsers"
-        },
-        "syncedAt": "2026-02-03T00:08:46.561Z"
+        "authenticationType": "AMAZON_COGNITO_USER_POOLS"
       }
     }
   }

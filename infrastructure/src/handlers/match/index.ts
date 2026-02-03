@@ -367,7 +367,7 @@ export const handler: Handler<MatchEvent, MatchResponse> = async (event) => {
         const roomMatchEvent = {
           roomId: roomId,
           matchId: matchData.matchId,
-          movieId: matchData.movieId,
+          movieId: String(matchData.movieId), // Convert to string for consistency
           movieTitle: matchData.movieTitle,
           posterPath: matchData.posterPath || null,
           matchedUsers: matchData.matchedUsers,

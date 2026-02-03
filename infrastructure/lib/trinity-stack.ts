@@ -452,44 +452,30 @@ export class TrinityStack extends cdk.Stack {
     });
 
     // publishRoomMatch mutation - triggers room-based subscription
-    matchDataSource.createResolver('PublishRoomMatchResolver', {
+    noneDataSource.createResolver('PublishRoomMatchResolver', {
       typeName: 'Mutation',
       fieldName: 'publishRoomMatch',
       requestMappingTemplate: appsync.MappingTemplate.fromString(`
         {
           "version": "2017-02-28",
-          "operation": "Invoke",
           "payload": {
-            "operation": "publishRoomMatch",
             "roomId": "$context.arguments.roomId",
             "matchData": $util.toJson($context.arguments.matchData)
           }
         }
       `),
       responseMappingTemplate: appsync.MappingTemplate.fromString(`
-        #if($context.error)
-          $util.error($context.error.message, $context.error.type)
-        #end
-        #if($context.result.statusCode == 200)
-          ## Return the room match event from the Lambda response
-          #if($context.result.body.roomMatchEvent)
-            $util.toJson($context.result.body.roomMatchEvent)
-          #else
-            ## Fallback: construct the event from input arguments
-            {
-              "roomId": "$context.arguments.roomId",
-              "matchId": "$context.arguments.matchData.matchId",
-              "movieId": "$context.arguments.matchData.movieId",
-              "movieTitle": "$context.arguments.matchData.movieTitle",
-              "posterPath": $util.toJson($context.arguments.matchData.posterPath),
-              "matchedUsers": $util.toJson($context.arguments.matchData.matchedUsers),
-              "timestamp": "$util.time.nowISO8601()",
-              "matchDetails": $util.toJson($context.arguments.matchData.matchDetails)
-            }
-          #end
-        #else
-          $util.error($context.result.body.error, "BadRequest")
-        #end
+        ## For NONE data source, simply return the input data to trigger subscription
+        {
+          "roomId": "$context.arguments.roomId",
+          "matchId": "$context.arguments.matchData.matchId",
+          "movieId": "$context.arguments.matchData.movieId",
+          "movieTitle": "$context.arguments.matchData.movieTitle",
+          "posterPath": $util.toJson($context.arguments.matchData.posterPath),
+          "matchedUsers": $util.toJson($context.arguments.matchData.matchedUsers),
+          "timestamp": "$util.time.nowISO8601()",
+          "matchDetails": $util.toJson($context.arguments.matchData.matchDetails)
+        }
       `),
     });
 

@@ -1,7 +1,6 @@
 // Auto-generated AWS configuration
-// Generated on: 2026-02-03T00:08:46.560Z
+// Generated on: 2026-02-03T00:26:18.237Z
 // Stack: TrinityStack
-// Synced from AWS
 
 export interface AWSConfig {
   region: string;
@@ -26,12 +25,4 @@ export const expoConfig = {
   EXPO_PUBLIC_USER_POOL_CLIENT_ID: '61nf41i2bff1c4oc4qo9g36m1k',
   EXPO_PUBLIC_GRAPHQL_ENDPOINT: 'https://nvokqs473bbfdizeq4n5oosjpy.appsync-api.eu-west-1.amazonaws.com/graphql',
   EXPO_PUBLIC_AUTH_TYPE: 'AMAZON_COGNITO_USER_POOLS',
-};
-
-// Table names (for reference)
-export const tableNames = {
-  rooms: 'TrinityRooms',
-  votes: 'TrinityVotes',
-  matches: 'TrinityMatches',
-  users: 'TrinityUsers',
 };

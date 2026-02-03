@@ -422,7 +422,7 @@ class VoteService {
       roomId: match.roomId,
       matchData: {
         matchId: match.id,
-        movieId: match.movieId,
+        movieId: match.movieId, // Keep as number, GraphQL ID can handle it
         movieTitle: match.title,
         posterPath: match.posterPath,
         matchedUsers: match.matchedUsers,
