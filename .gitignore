@@ -15,6 +15,7 @@ yarn-error.log*
 infrastructure/cdk.out/
 infrastructure/node_modules/
 infrastructure/.env
+infrastructure/lib/          # Compiled TypeScript files
 
 # Mobile
 mobile/node_modules/
@@ -85,3 +86,51 @@ jspm_packages/
 # Temporary files
 *.tmp
 *.temp
+
+# Documentation temporal files
+*_SOLUTION*.md
+*_FIX*.md
+*_SUMMARY*.md
+*_FINAL*.md
+*_READY*.md
+*_SUCCESS*.md
+*_VERIFICATION*.md
+*_IMPLEMENTATION*.md
+*_DEPLOYMENT*.md
+*_TROUBLESHOOTING*.md
+*_CHANGELOG*.md
+*_FEATURES*.md
+*_INSTRUCTIONS*.md
+*_DOCUMENTATION*.md
+*_GUIDE*.md
+*_REFERENCE*.md
+*_USAGE*.md
+*_BUILD*.md
+*_APK*.md
+*_CLIENTS*.md
+
+# Build scripts temporales
+build-*-*.bat
+install-*.bat
+verify-*.bat
+test-*.js
+*-test.js
+deploy-*.bat
+deploy-*.js
+check-*.bat
+check-*.js
+
+# Archive files
+*.zip
+*.rar
+*.7z
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Infrastructure specific
+infrastructure/sync-summary.json
+infrastructure/schema-*.graphql
+infrastructure/vote-handler*.zip

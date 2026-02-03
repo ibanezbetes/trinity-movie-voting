@@ -8,13 +8,13 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
-    "deploy": "cdk deploy",
-    "deploy:all": "node deploy-script.js",
-    "deploy:manual": "cdk deploy --require-approval never",
+    "deploy": "cdk deploy --require-approval never",
     "destroy": "cdk destroy",
     "diff": "cdk diff",
     "synth": "cdk synth",
-    "generate-config": "node scripts/generate-mobile-config.js"
+    "bootstrap": "cdk bootstrap",
+    "generate-config": "node scripts/generate-mobile-config.js",
+    "update-config": "node scripts/update-mobile-config.js"
   },
   "keywords": [
     "aws",

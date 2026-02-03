@@ -402,175 +402,36 @@ class VoteService {
   }
 
   private async triggerAppSyncSubscription(match: Match): Promise<void> {
-    console.log(`🔔 INICIANDO NOTIFICACIONES via AppSync Events`);
+    console.log(`🔔 INICIANDO BROADCAST INDIVIDUAL para cada usuario en sala: ${match.roomId}`);
     console.log(`👥 Usuarios a notificar: ${match.matchedUsers.join(', ')}`);
     
-    // NUEVA ESTRATEGIA: Usar AppSync Events para notificaciones garantizadas
-    await this.publishMatchEvents(match);
-    
-    // FALLBACK: Mantener notificaciones GraphQL para compatibilidad
-    await this.publishGraphQLNotifications(match);
-  }
-
-  private async publishMatchEvents(match: Match): Promise<void> {
-    const eventApiEndpoint = process.env.EVENT_API_ENDPOINT;
-    const eventApiId = process.env.EVENT_API_ID;
-    
-    if (!eventApiEndpoint || !eventApiId) {
-      console.error('❌ FATAL: EVENT_API_ENDPOINT o EVENT_API_ID no están definidos');
-      return;
-    }
-
-    console.log(`🚀 Publishing match events via AppSync Events API: ${eventApiId}`);
-
-    const matchEvent = {
-      matchId: match.id,
-      roomId: match.roomId,
-      movieId: match.movieId,
-      movieTitle: match.title,
-      posterPath: match.posterPath,
-      matchedUsers: match.matchedUsers,
-      timestamp: match.timestamp,
-      eventType: 'MATCH_FOUND',
-      matchDetails: {
-        voteCount: match.matchedUsers.length,
-        requiredVotes: match.matchedUsers.length,
-        matchType: 'unanimous'
-      }
-    };
-
-    // 1. Publicar evento individual a cada usuario
-    const userEventPromises = match.matchedUsers.map(async (userId) => {
-      const userChannel = `user/${userId}`;
-      
-      try {
-        await this.publishEvent(eventApiEndpoint, userChannel, {
-          ...matchEvent,
-          targetUserId: userId,
-          channelType: 'individual'
-        });
-        console.log(`✅ Evento publicado a canal individual: ${userChannel}`);
-      } catch (error) {
-        console.error(`❌ Error publicando a canal ${userChannel}:`, error);
-      }
-    });
-
-    // 2. Publicar evento broadcast a la sala
-    const roomChannel = `room/${match.roomId}`;
-    const roomEventPromise = this.publishEvent(eventApiEndpoint, roomChannel, {
-      ...matchEvent,
-      channelType: 'broadcast'
-    });
-
-    // Ejecutar todas las publicaciones en paralelo
-    const results = await Promise.allSettled([...userEventPromises, roomEventPromise]);
-    
-    // Log resultados
-    results.forEach((result, index) => {
-      if (index < match.matchedUsers.length) {
-        const userId = match.matchedUsers[index];
-        if (result.status === 'fulfilled') {
-          console.log(`✅ Evento individual enviado exitosamente a usuario: ${userId}`);
-        } else {
-          console.error(`❌ Error enviando evento individual a usuario ${userId}:`, result.reason);
-        }
-      } else {
-        if (result.status === 'fulfilled') {
-          console.log(`✅ Evento de sala enviado exitosamente a: ${roomChannel}`);
-        } else {
-          console.error(`❌ Error enviando evento de sala:`, result.reason);
-        }
-      }
-    });
-
-    console.log(`✅ Todos los eventos de match publicados via AppSync Events`);
-  }
-
-  private async publishEvent(eventApiEndpoint: string, channel: string, eventData: any): Promise<void> {
-    try {
-      // Use HTTP POST to publish event to AppSync Events
-      const url = new URL('/event', eventApiEndpoint);
-      
-      const request = new HttpRequest({
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          host: url.hostname,
-        },
-        hostname: url.hostname,
-        path: '/event',
-        body: JSON.stringify({
-          channel: channel,
-          events: [eventData]
-        }),
-      });
-
-      const signer = new SignatureV4({
-        credentials: defaultProvider(),
-        region: process.env.AWS_REGION || 'us-east-1',
-        service: 'appsync',
-        sha256: Sha256,
-      });
-
-      const signedRequest = await signer.sign(request);
-
-      const response = await fetch(eventApiEndpoint + '/event', {
-        method: signedRequest.method,
-        headers: signedRequest.headers as any,
-        body: signedRequest.body,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log(`✅ Event published to channel ${channel}:`, result);
-
-    } catch (error) {
-      console.error(`❌ Error publishing event to channel ${channel}:`, error);
-      throw error;
-    }
-  }
-
-  private async publishGraphQLNotifications(match: Match): Promise<void> {
     const endpoint = process.env.GRAPHQL_ENDPOINT;
     if (!endpoint) {
-      console.error('❌ GRAPHQL_ENDPOINT no está definido para fallback');
+      console.error('❌ FATAL: GRAPHQL_ENDPOINT no está definido');
       return;
     }
 
-    console.log(`📤 Enviando notificaciones GraphQL como fallback`);
-    
-    // Enviar notificación individual a cada usuario (fallback)
+    // NUEVA ESTRATEGIA: Enviar notificación individual a cada usuario
+    // Esto asegura que TODOS los usuarios que participaron en el match reciban la notificación
     const notificationPromises = match.matchedUsers.map(async (userId) => {
       await this.sendIndividualUserNotification(userId, match, endpoint);
     });
 
-    // También enviar la notificación general de la sala (fallback)
-    const roomNotificationPromise = this.sendRoomNotification(match, endpoint);
-
     // Enviar todas las notificaciones en paralelo
-    const results = await Promise.allSettled([...notificationPromises, roomNotificationPromise]);
+    const results = await Promise.allSettled(notificationPromises);
     
     // Log resultados
     results.forEach((result, index) => {
-      if (index < match.matchedUsers.length) {
-        const userId = match.matchedUsers[index];
-        if (result.status === 'fulfilled') {
-          console.log(`✅ Notificación GraphQL enviada exitosamente a usuario: ${userId}`);
-        } else {
-          console.error(`❌ Error enviando notificación GraphQL a usuario ${userId}:`, result.reason);
-        }
+      const userId = match.matchedUsers[index];
+      if (result.status === 'fulfilled') {
+        console.log(`✅ Notificación enviada exitosamente a usuario: ${userId}`);
       } else {
-        if (result.status === 'fulfilled') {
-          console.log(`✅ Notificación GraphQL de sala enviada exitosamente`);
-        } else {
-          console.error(`❌ Error enviando notificación GraphQL de sala:`, result.reason);
-        }
+        console.error(`❌ Error enviando notificación a usuario ${userId}:`, result.reason);
       }
     });
+
+    // También enviar la notificación general de la sala (para compatibilidad)
+    await this.sendRoomNotification(match, endpoint);
   }
 
   private async sendIndividualUserNotification(userId: string, match: Match, endpoint: string): Promise<void> {
