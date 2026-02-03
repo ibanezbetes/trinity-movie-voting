@@ -1,0 +1,136 @@
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+type Match {
+  id: ID!
+  matchedUsers: [String!]!
+  movieId: Int!
+  posterPath: String
+  roomId: String!
+  timestamp: AWSDateTime!
+  title: String!
+}
+
+type MatchDetails @aws_iam {
+  matchType: String!
+  requiredVotes: Int!
+  voteCount: Int!
+}
+
+type MovieCandidate {
+  id: Int!
+  mediaType: MediaType!
+  overview: String!
+  posterPath: String
+  releaseDate: String
+  title: String!
+}
+
+type Mutation {
+  addRoomMember(roomId: ID!, userId: String!): RoomMembership!
+  createMatch(input: CreateMatchInput!): Match!
+  createRoom(input: CreateRoomInput!): Room!
+  joinRoom(code: String!): Room!
+  leaveRoom(roomId: ID!): Boolean!
+  publishRoomMatch(matchData: RoomMatchInput!, roomId: ID!): RoomMatchEvent! @aws_iam
+  removeRoomMember(roomId: ID!, userId: String!): Boolean!
+  vote(input: VoteInput!): VoteResult!
+}
+
+type Query {
+  checkRoomMatch(roomId: String!): Match
+  checkUserMatches: [Match!]!
+  getMyMatches: [Match!]!
+  getMyRooms: [Room!]!
+  getRoom(id: String!): Room
+  getRoomMembers(roomId: ID!): [RoomMembership!]!
+  getUserRooms(userId: String!): [RoomMembership!]!
+}
+
+type Room {
+  candidates: [MovieCandidate!]!
+  code: String!
+  createdAt: AWSDateTime!
+  genreIds: [Int!]!
+  hostId: String!
+  id: ID!
+  mediaType: MediaType!
+}
+
+type RoomMatchEvent @aws_iam {
+  matchDetails: MatchDetails
+  matchId: ID!
+  matchedUsers: [String!]!
+  movieId: ID!
+  movieTitle: String!
+  posterPath: String
+  roomId: ID!
+  timestamp: AWSDateTime!
+}
+
+type RoomMembership {
+  isActive: Boolean!
+  joinedAt: AWSDateTime!
+  role: String!
+  roomId: ID!
+  userId: String!
+}
+
+type Subscription {
+  onMatchCreated: Match @aws_subscribe(mutations : ["createMatch"])
+  roomMatch(roomId: ID!): RoomMatchEvent @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["publishRoomMatch"])
+}
+
+type Vote {
+  movieId: Int!
+  roomId: String!
+  userId: String!
+  vote: Boolean!
+}
+
+type VoteResult {
+  match: Match
+  success: Boolean!
+}
+
+enum MediaType {
+  MOVIE
+  TV
+}
+
+input CreateMatchInput {
+  matchedUsers: [String!]!
+  movieId: Int!
+  posterPath: String
+  roomId: String!
+  title: String!
+}
+
+input CreateRoomInput {
+  genreIds: [Int!]!
+  mediaType: MediaType!
+}
+
+input MatchDetailsInput {
+  matchType: String!
+  requiredVotes: Int!
+  voteCount: Int!
+}
+
+input RoomMatchInput {
+  matchDetails: MatchDetailsInput
+  matchId: ID!
+  matchedUsers: [String!]!
+  movieId: ID!
+  movieTitle: String!
+  posterPath: String
+}
+
+input VoteInput {
+  movieId: Int!
+  roomId: String!
+  vote: Boolean!
+}

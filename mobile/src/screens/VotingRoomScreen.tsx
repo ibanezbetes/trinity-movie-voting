@@ -20,7 +20,7 @@ import { client, verifyAuthStatus } from '../services/amplify';
 import { GET_ROOM, VOTE } from '../services/graphql';
 import { logger } from '../services/logger';
 import { useProactiveMatchCheck, ACTION_NAMES } from '../hooks/useProactiveMatchCheck';
-import { roomSubscriptionService } from '../services/subscriptions';
+import { roomSubscriptionService, userSubscriptionService } from '../services/subscriptions';
 
 type VotingRoomRouteProp = RouteProp<RootStackParamList, 'VotingRoom'>;
 
@@ -65,6 +65,9 @@ export default function VotingRoomScreen() {
     return () => {
       removeActiveRoom(roomId);
       roomSubscriptionService.unsubscribeFromRoom(roomId);
+      if (currentUserId) {
+        userSubscriptionService.unsubscribeFromUser(currentUserId);
+      }
     };
   }, []);
 
@@ -73,7 +76,7 @@ export default function VotingRoomScreen() {
     if (hasExistingMatch || isLoading) return;
 
     const interval = setInterval(async () => {
-      logger.room('Periodic match check', { roomId });
+      logger.room('🔍 AGGRESSIVE periodic match check', { roomId });
       const hasMatch = await checkForExistingMatch();
       if (hasMatch) {
         // If match found, navigate back to home
@@ -88,7 +91,7 @@ export default function VotingRoomScreen() {
           ]
         );
       }
-    }, 5000); // Verificar cada 5 segundos
+    }, 2000); // Verificar cada 2 segundos (más agresivo)
 
     return () => clearInterval(interval);
   }, [hasExistingMatch, isLoading, roomId]);
@@ -104,17 +107,57 @@ export default function VotingRoomScreen() {
       const userId = authStatus.user.userId;
       setCurrentUserId(userId);
 
-      logger.room('Setting up room-based subscription', { roomId, userId });
+      logger.room('🔔 Setting up ENHANCED dual subscription system', { roomId, userId });
 
-      // CRITICAL FIX: Set up direct room subscription for real-time match notifications
+      // CRITICAL FIX 1: Set up user-specific subscription
+      // This ensures the user gets notified even if they voted "yes" earlier
+      userSubscriptionService.subscribeToUser(userId, (userMatchEvent) => {
+        logger.room('🎉 USER MATCH NOTIFICATION RECEIVED in VotingRoom', {
+          userId: userMatchEvent.userId,
+          roomId: userMatchEvent.roomId,
+          matchId: userMatchEvent.matchId,
+          movieTitle: userMatchEvent.movieTitle,
+          matchedUsers: userMatchEvent.matchedUsers,
+          subscriptionType: 'user-specific-realtime'
+        });
+
+        // Update state to show match found
+        setHasExistingMatch(true);
+        setExistingMatch({
+          id: userMatchEvent.matchId,
+          title: userMatchEvent.movieTitle,
+          movieId: parseInt(userMatchEvent.movieId),
+          posterPath: userMatchEvent.posterPath,
+          timestamp: userMatchEvent.timestamp,
+        });
+
+        // Show immediate match notification
+        Alert.alert(
+          '🎉 ¡MATCH ENCONTRADO!',
+          `¡Se encontró una película en común!\n\n${userMatchEvent.movieTitle}`,
+          [
+            { 
+              text: 'Ver mis matches', 
+              onPress: () => navigation.navigate('MyMatches' as any)
+            },
+            { 
+              text: 'Ir al inicio', 
+              onPress: () => navigation.navigate('Dashboard' as any)
+            }
+          ]
+        );
+      });
+
+      // CRITICAL FIX 2: Set up room-based subscription (for compatibility)
       // This ensures ALL users in the voting room get notified when a match occurs
       roomSubscriptionService.subscribeToRoom(roomId, userId, (roomMatchEvent) => {
-        logger.room('🎉 MATCH NOTIFICATION RECEIVED in VotingRoom', {
+        logger.room('🎉 ROOM MATCH NOTIFICATION RECEIVED in VotingRoom (ENHANCED)', {
           roomId: roomMatchEvent.roomId,
           matchId: roomMatchEvent.matchId,
           movieTitle: roomMatchEvent.movieTitle,
           matchedUsers: roomMatchEvent.matchedUsers,
           currentUserId: userId,
+          subscriptionType: 'room-based-realtime'
         });
 
         // Update state to show match found
@@ -144,17 +187,17 @@ export default function VotingRoomScreen() {
         );
       });
       
-      logger.room('✅ Direct room subscription established for real-time notifications', { roomId, userId });
+      logger.room('✅ Enhanced dual subscription system established for real-time notifications', { roomId, userId });
 
     } catch (error) {
-      logger.roomError('Failed to setup room subscription', error, { roomId });
-      console.error('Failed to setup room subscription:', error);
+      logger.roomError('Failed to setup enhanced room subscription', error, { roomId });
+      console.error('Failed to setup enhanced room subscription:', error);
     }
   };
 
   const checkForExistingMatch = async (): Promise<boolean> => {
     try {
-      logger.room('Checking for existing match using getMyMatches', { roomId });
+      logger.room('🔍 ENHANCED checking for existing match using getMyMatches', { roomId });
       
       const authStatus = await verifyAuthStatus();
       if (!authStatus.isAuthenticated) {
@@ -172,6 +215,7 @@ export default function VotingRoomScreen() {
               title
               posterPath
               timestamp
+              matchedUsers
             }
           }
         `,
@@ -182,11 +226,12 @@ export default function VotingRoomScreen() {
       const roomMatch = matches.find(match => match.roomId === roomId);
       
       if (roomMatch) {
-        logger.room('Existing match found', {
+        logger.room('🎉 EXISTING MATCH FOUND!', {
           matchId: roomMatch.id,
           movieTitle: roomMatch.title,
           movieId: roomMatch.movieId,
-          timestamp: roomMatch.timestamp
+          timestamp: roomMatch.timestamp,
+          matchedUsers: roomMatch.matchedUsers
         });
         
         setHasExistingMatch(true);
@@ -202,21 +247,19 @@ export default function VotingRoomScreen() {
               onPress: () => navigation.navigate('MyMatches' as any)
             },
             { 
-              text: 'Salir de la sala', 
-              onPress: () => navigation.goBack()
+              text: 'Ir al inicio', 
+              onPress: () => navigation.navigate('Dashboard' as any)
             }
           ]
         );
         
         return true;
+      } else {
+        logger.room('No existing match found', { roomId, totalMatches: matches.length });
+        return false;
       }
-      
-      logger.room('No existing match found', { roomId });
-      return false;
-      
     } catch (error) {
       logger.roomError('Error checking for existing match', error, { roomId });
-      console.error('Error checking for existing match:', error);
       return false;
     }
   };

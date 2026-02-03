@@ -1,42 +1,33 @@
 import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/api';
 import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
-import { awsConfig } from '../config/aws-config';
+import { awsConfig, amplifyConfig } from '../config/aws-config';
 import { logger } from './logger';
 
-logger.info('AMPLIFY', 'Configuring AWS Amplify', {
+logger.info('AMPLIFY', 'Configuring AWS Amplify with enhanced real-time support', {
   region: awsConfig.region,
   endpoint: awsConfig.graphqlEndpoint,
+  realtimeEndpoint: awsConfig.realtimeEndpoint,
   userPoolId: awsConfig.userPoolId,
   clientId: awsConfig.userPoolWebClientId
 });
 
-// Configure Amplify
-Amplify.configure({
-  API: {
-    GraphQL: {
-      endpoint: awsConfig.graphqlEndpoint,
-      region: awsConfig.region,
-      defaultAuthMode: 'userPool',
-    },
-  },
-  Auth: {
-    Cognito: {
-      userPoolId: awsConfig.userPoolId,
-      userPoolClientId: awsConfig.userPoolWebClientId,
-      region: awsConfig.region,
-    },
-  },
-});
+// CRITICAL: Configure Amplify with enhanced real-time support
+Amplify.configure(amplifyConfig);
 
-logger.info('AMPLIFY', 'AWS Amplify configured successfully');
+logger.info('AMPLIFY', 'AWS Amplify configured successfully with real-time support');
 
 // Create GraphQL client with authentication
 export const client = generateClient({
   authMode: 'userPool',
 });
 
-logger.info('AMPLIFY', 'GraphQL client created successfully');
+// CRITICAL: Create a separate client for real-time subscriptions with explicit configuration
+export const realtimeClient = generateClient({
+  authMode: 'userPool',
+});
+
+logger.info('AMPLIFY', 'GraphQL clients created successfully (standard + realtime)');
 
 // Helper function to verify authentication status
 export const verifyAuthStatus = async () => {

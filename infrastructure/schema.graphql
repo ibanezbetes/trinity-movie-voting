@@ -45,6 +45,7 @@ type Mutation {
   vote(input: VoteInput!): VoteResult!
   createMatch(input: CreateMatchInput!): Match!
   publishRoomMatch(roomId: ID!, matchData: RoomMatchInput!): RoomMatchEvent! @aws_iam
+  publishUserMatch(userId: ID!, matchData: RoomMatchInput!): UserMatchEvent! @aws_iam
   addRoomMember(roomId: ID!, userId: String!): RoomMembership!
   removeRoomMember(roomId: ID!, userId: String!): Boolean!
   leaveRoom(roomId: ID!): Boolean!
@@ -74,6 +75,11 @@ type Subscription {
   roomMatch(roomId: ID!): RoomMatchEvent
     @aws_subscribe(mutations: ["publishRoomMatch"])
     @aws_iam
+    @aws_cognito_user_pools
+  userMatch(userId: ID!): UserMatchEvent
+    @aws_subscribe(mutations: ["publishUserMatch"])
+    @aws_iam
+    @aws_cognito_user_pools
 }
 
 input CreateRoomInput {
@@ -93,6 +99,18 @@ type VoteResult {
 }
 
 type RoomMatchEvent @aws_iam {
+  roomId: ID!
+  matchId: ID!
+  movieId: ID!
+  movieTitle: String!
+  posterPath: String
+  matchedUsers: [String!]!
+  timestamp: AWSDateTime!
+  matchDetails: MatchDetails
+}
+
+type UserMatchEvent @aws_iam {
+  userId: ID!
   roomId: ID!
   matchId: ID!
   movieId: ID!
@@ -123,6 +141,8 @@ input RoomMatchInput {
   movieTitle: String!
   posterPath: String
   matchedUsers: [String!]!
+  roomId: ID
+  timestamp: AWSDateTime
   matchDetails: MatchDetailsInput
 }
 

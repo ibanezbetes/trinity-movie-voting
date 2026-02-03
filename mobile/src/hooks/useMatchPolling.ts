@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { GET_MATCHES } from '../services/graphql';
 import { logger } from '../services/logger';
@@ -10,6 +10,7 @@ interface Match {
   title: string;
   posterPath?: string;
   timestamp: string;
+  matchedUsers: string[];
 }
 
 interface UseMatchPollingOptions {
@@ -19,6 +20,7 @@ interface UseMatchPollingOptions {
   onMatchFound?: (match: Match) => void;
 }
 
+// CRITICAL: Enhanced polling with better error handling and backoff
 export function useMatchPolling({
   roomId,
   enabled = true,
@@ -27,8 +29,12 @@ export function useMatchPolling({
 }: UseMatchPollingOptions) {
   const [isPolling, setIsPolling] = useState(false);
   const [lastMatchCheck, setLastMatchCheck] = useState<number>(0);
+  const [errorCount, setErrorCount] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
+  const lastKnownMatches = useRef<Set<string>>(new Set());
+  const maxErrors = 5;
+  const baseInterval = interval;
 
   // Cleanup on unmount
   useEffect(() => {
@@ -40,44 +46,7 @@ export function useMatchPolling({
     };
   }, []);
 
-  // Start/stop polling based on enabled state
-  useEffect(() => {
-    if (enabled && roomId) {
-      startPolling();
-    } else {
-      stopPolling();
-    }
-
-    return () => stopPolling();
-  }, [enabled, roomId, interval]);
-
-  const startPolling = () => {
-    if (intervalRef.current || !roomId) return;
-
-    setIsPolling(true);
-    logger.match('Starting match polling', { roomId, interval });
-
-    // Check immediately
-    checkForMatch();
-
-    // Then check periodically
-    intervalRef.current = setInterval(() => {
-      if (mountedRef.current) {
-        checkForMatch();
-      }
-    }, interval);
-  };
-
-  const stopPolling = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    setIsPolling(false);
-    logger.match('Stopped match polling', { roomId });
-  };
-
-  const checkForMatch = async () => {
+  const checkForMatch = useCallback(async () => {
     if (!roomId || !mountedRef.current) return;
 
     try {
@@ -87,43 +56,141 @@ export function useMatchPolling({
       if (now - lastMatchCheck < 1000) return;
       setLastMatchCheck(now);
 
+      logger.match('🔍 Enhanced polling for matches', { roomId, errorCount });
+
       const authStatus = await verifyAuthStatus();
       if (!authStatus.isAuthenticated) {
         logger.authError('User not authenticated for match polling', null);
         return;
       }
 
-      // Check for room-specific match
+      // CRITICAL: Use getMyMatches for more reliable match detection
       const response = await client.graphql({
-        query: CHECK_ROOM_MATCH,
-        variables: { roomId },
+        query: `
+          query GetMatches {
+            getMyMatches {
+              id
+              roomId
+              movieId
+              title
+              posterPath
+              timestamp
+              matchedUsers
+            }
+          }
+        `,
         authMode: 'userPool',
       });
 
-      const match = response.data.checkRoomMatch;
+      const allMatches = response.data.getMyMatches || [];
+      const roomMatches = allMatches.filter(match => match.roomId === roomId);
       
-      if (match && mountedRef.current) {
-        logger.match('Match found via polling', {
-          matchId: match.id,
-          roomId: match.roomId,
-          title: match.title,
-          pollingInterval: interval,
+      // Check for new matches
+      const newMatches = roomMatches.filter(match => !lastKnownMatches.current.has(match.id));
+      
+      if (newMatches.length > 0 && mountedRef.current) {
+        logger.match('🎉 New matches found via enhanced polling', { 
+          roomId, 
+          newMatchCount: newMatches.length,
+          matchIds: newMatches.map(m => m.id)
+        });
+
+        // Update known matches
+        newMatches.forEach(match => {
+          lastKnownMatches.current.add(match.id);
+          if (onMatchFound) {
+            onMatchFound(match);
+          }
         });
 
         // Stop polling since match was found
         stopPolling();
-
-        // Notify callback
-        if (onMatchFound) {
-          onMatchFound(match);
-        }
       }
 
+      // Reset error count on successful check
+      setErrorCount(0);
+
     } catch (error) {
-      logger.matchError('Error in match polling', error, { roomId });
-      // Continue polling even if there's an error
+      const newErrorCount = errorCount + 1;
+      setErrorCount(newErrorCount);
+      
+      logger.matchError('❌ Error in enhanced match polling', error, { 
+        roomId, 
+        errorCount: newErrorCount,
+        maxErrors 
+      });
+
+      // Stop polling if too many errors
+      if (newErrorCount >= maxErrors) {
+        logger.matchError('❌ Too many polling errors, stopping', error, { roomId, errorCount: newErrorCount });
+        stopPolling();
+      }
     }
-  };
+  }, [roomId, onMatchFound, errorCount, lastMatchCheck]);
+
+  const startPolling = useCallback(() => {
+    if (intervalRef.current || !roomId) return;
+
+    setIsPolling(true);
+    setErrorCount(0);
+    lastKnownMatches.current.clear();
+    
+    logger.match('▶️ Starting enhanced match polling', { roomId, interval: baseInterval });
+
+    // Check immediately
+    checkForMatch();
+
+    // Set up interval with exponential backoff on errors
+    const currentInterval = errorCount > 0 ? baseInterval * Math.pow(2, Math.min(errorCount, 3)) : baseInterval;
+    
+    intervalRef.current = setInterval(() => {
+      if (mountedRef.current) {
+        checkForMatch();
+      }
+    }, currentInterval);
+  }, [roomId, checkForMatch, baseInterval, errorCount]);
+
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setIsPolling(false);
+    setErrorCount(0);
+    logger.match('⏹️ Stopped enhanced match polling', { roomId });
+  }, [roomId]);
+
+  // Start/stop polling based on enabled state
+  useEffect(() => {
+    if (enabled && roomId) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+
+    return () => stopPolling();
+  }, [enabled, roomId, startPolling, stopPolling]);
+
+  // Restart polling with backoff when error count changes
+  useEffect(() => {
+    if (isPolling && errorCount > 0 && errorCount < maxErrors) {
+      stopPolling();
+      
+      // Restart with exponential backoff
+      const backoffDelay = baseInterval * Math.pow(2, Math.min(errorCount, 3));
+      logger.match('🔄 Restarting polling with backoff', { 
+        roomId, 
+        errorCount, 
+        backoffDelay 
+      });
+      
+      setTimeout(() => {
+        if (roomId && enabled && mountedRef.current) {
+          startPolling();
+        }
+      }, backoffDelay);
+    }
+  }, [errorCount, isPolling, roomId, enabled, startPolling, stopPolling, baseInterval]);
 
   // Manual check function
   const checkNow = () => {
@@ -152,6 +219,7 @@ export function useMatchPolling({
 
   return {
     isPolling,
+    errorCount,
     checkNow,
     checkUserMatches,
     startPolling,
@@ -159,11 +227,16 @@ export function useMatchPolling({
   };
 }
 
-// Hook for global match notifications (not room-specific)
+// CRITICAL: Enhanced global match polling for background detection
 export function useGlobalMatchPolling(onNewMatch?: (match: Match) => void) {
   const [lastMatchCount, setLastMatchCount] = useState(0);
+  const [isGlobalPolling, setIsGlobalPolling] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
+  const globalKnownMatches = useRef<Set<string>>(new Set());
+  const globalErrorCount = useRef(0);
+  const maxGlobalErrors = 3;
+  const globalInterval = 8000; // 8 seconds for global polling
 
   useEffect(() => {
     return () => {
@@ -174,63 +247,119 @@ export function useGlobalMatchPolling(onNewMatch?: (match: Match) => void) {
     };
   }, []);
 
-  const startGlobalPolling = () => {
-    if (intervalRef.current) return;
+  const checkForGlobalMatches = useCallback(async () => {
+    if (!mountedRef.current) return;
 
-    logger.match('🔄 Starting global match polling with getMyMatches query');
+    try {
+      logger.match('🌍 Enhanced global polling for matches');
 
-    // Check every 5 seconds for new matches using getMyMatches
-    intervalRef.current = setInterval(async () => {
-      if (!mountedRef.current) return;
+      const authStatus = await verifyAuthStatus();
+      if (!authStatus.isAuthenticated) return;
 
-      try {
-        const authStatus = await verifyAuthStatus();
-        if (!authStatus.isAuthenticated) return;
+      // Use the reliable getMyMatches query
+      const response = await client.graphql({
+        query: `
+          query GetMatches {
+            getMyMatches {
+              id
+              roomId
+              movieId
+              title
+              posterPath
+              timestamp
+              matchedUsers
+            }
+          }
+        `,
+        authMode: 'userPool',
+      });
 
-        // Use the reliable getMyMatches query
-        const response = await client.graphql({
-          query: GET_MATCHES,
-          authMode: 'userPool',
+      const allMatches = response.data.getMyMatches || [];
+      
+      // Check for matches from the last 30 seconds (to catch recent matches)
+      const now = new Date();
+      const thirtySecondsAgo = new Date(now.getTime() - 30000);
+      
+      const recentMatches = allMatches.filter(match => {
+        const matchTime = new Date(match.timestamp);
+        return matchTime > thirtySecondsAgo && !globalKnownMatches.current.has(match.id);
+      });
+      
+      if (recentMatches.length > 0) {
+        logger.match('🎉 New matches found via enhanced global polling', { 
+          newMatchCount: recentMatches.length,
+          matchIds: recentMatches.map(m => m.id)
         });
 
-        const matches = response.data.getMyMatches || [];
-        
-        if (matches.length > lastMatchCount) {
-          // New match(es) found
-          const newMatches = matches.slice(0, matches.length - lastMatchCount);
-          setLastMatchCount(matches.length);
-
-          newMatches.forEach((match: Match) => {
-            logger.match('🎉 New match detected via global polling', {
-              matchId: match.id,
-              title: match.title,
-              roomId: match.roomId,
-              timestamp: match.timestamp,
-            });
-
-            if (onNewMatch) {
-              onNewMatch(match);
-            }
-          });
-        } else if (matches.length < lastMatchCount) {
-          // Reset count if matches decreased (shouldn't happen normally)
-          setLastMatchCount(matches.length);
-        }
-      } catch (error) {
-        logger.matchError('❌ Error in global match polling', error);
+        // Update known matches and notify
+        recentMatches.forEach(match => {
+          globalKnownMatches.current.add(match.id);
+          if (onNewMatch) {
+            onNewMatch(match);
+          }
+        });
       }
-    }, 2000); // 2 seconds instead of 5
-  };
 
-  const stopGlobalPolling = () => {
+      // Also check by count for additional safety
+      if (allMatches.length > lastMatchCount) {
+        setLastMatchCount(allMatches.length);
+      } else if (allMatches.length < lastMatchCount) {
+        // Reset count if matches decreased (shouldn't happen normally)
+        setLastMatchCount(allMatches.length);
+        globalKnownMatches.current.clear();
+      }
+
+      // Reset error count on successful check
+      globalErrorCount.current = 0;
+
+    } catch (error) {
+      globalErrorCount.current++;
+      
+      logger.matchError('❌ Error in enhanced global match polling', error, { 
+        errorCount: globalErrorCount.current,
+        maxErrors: maxGlobalErrors 
+      });
+
+      // Stop global polling if too many errors
+      if (globalErrorCount.current >= maxGlobalErrors) {
+        logger.matchError('❌ Too many global polling errors, stopping');
+        stopGlobalPolling();
+      }
+    }
+  }, [onNewMatch, lastMatchCount]);
+
+  const startGlobalPolling = useCallback(() => {
+    if (intervalRef.current) return;
+
+    setIsGlobalPolling(true);
+    globalErrorCount.current = 0;
+    globalKnownMatches.current.clear();
+
+    logger.match('▶️ Starting enhanced global match polling', { interval: globalInterval });
+
+    // Check immediately
+    checkForGlobalMatches();
+
+    // Set up interval
+    intervalRef.current = setInterval(() => {
+      if (mountedRef.current) {
+        checkForGlobalMatches();
+      }
+    }, globalInterval);
+  }, [checkForGlobalMatches]);
+
+  const stopGlobalPolling = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    logger.match('⏹️ Stopped global match polling');
-  };
+    setIsGlobalPolling(false);
+    globalErrorCount.current = 0;
+    logger.match('⏹️ Stopped enhanced global match polling');
+  }, []);
 
   return {
+    isGlobalPolling,
     startGlobalPolling,
     stopGlobalPolling,
   };

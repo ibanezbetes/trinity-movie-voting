@@ -254,6 +254,44 @@ export class TrinityStack extends cdk.Stack {
     });
   }
 
+  private createAppSyncEventsAPI() {
+    console.log('🚀 Creating AWS AppSync Events API for real-time notifications...');
+
+    // Create AppSync Events API
+    this.eventApi = new appsync.CfnApi(this, 'TrinityEventAPI', {
+      name: 'trinity-match-events',
+      eventConfig: {
+        authProviders: [
+          { authType: appsync.AuthorizationType.USER_POOL },
+          { authType: appsync.AuthorizationType.IAM }
+        ],
+        connectionAuthModes: [
+          { authType: appsync.AuthorizationType.USER_POOL }
+        ],
+        defaultPublishAuthModes: [
+          { authType: appsync.AuthorizationType.IAM }
+        ],
+        defaultSubscribeAuthModes: [
+          { authType: appsync.AuthorizationType.USER_POOL }
+        ],
+      },
+    });
+
+    // Create namespace for user-specific channels
+    new appsync.CfnChannelNamespace(this, 'UserChannelNamespace', {
+      name: 'user',
+      apiId: this.eventApi.attrApiId,
+    });
+
+    // Create namespace for room-based channels
+    new appsync.CfnChannelNamespace(this, 'RoomChannelNamespace', {
+      name: 'room',
+      apiId: this.eventApi.attrApiId,
+    });
+
+    console.log('✅ AppSync Events API created with user and room namespaces');
+  }
+
   private createLambdaFunctions() {
     // Common Lambda configuration
     const commonLambdaProps = {
@@ -315,11 +353,28 @@ export class TrinityStack extends cdk.Stack {
     // Add GraphQL endpoint to Vote Lambda for subscription notifications
     this.voteLambda.addEnvironment('GRAPHQL_ENDPOINT', this.api.graphqlUrl);
     
+    // CRITICAL: Add AppSync Events API endpoint for real-time notifications
+    this.voteLambda.addEnvironment('EVENT_API_ENDPOINT', this.eventApi.attrApiEndpoint);
+    this.voteLambda.addEnvironment('EVENT_API_ID', this.eventApi.attrApiId);
+    
     // Grant AppSync invoke permissions to Vote Lambda for publishing room matches
     this.voteLambda.addToRolePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['appsync:GraphQL'],
       resources: [this.api.arn + '/*'],
+    }));
+
+    // CRITICAL: Grant AppSync Events permissions to Vote Lambda for publishing events
+    this.voteLambda.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'appsync:PostToConnection',
+        'appsync:GetConnection',
+        'appsync:DeleteConnection'
+      ],
+      resources: [
+        `arn:aws:appsync:${this.region}:${this.account}:apis/${this.eventApi.attrApiId}/*`
+      ],
     }));
 
     // CRITICAL: Grant AppSync invoke permissions to Match Lambda for executing GraphQL mutations
@@ -794,6 +849,18 @@ export class TrinityStack extends cdk.Stack {
       value: this.api.graphqlUrl,
       description: 'AppSync GraphQL API Endpoint',
       exportName: 'TrinityGraphQLEndpoint',
+    });
+
+    new cdk.CfnOutput(this, 'EventAPIEndpoint', {
+      value: this.eventApi.attrApiEndpoint,
+      description: 'AppSync Events API Endpoint',
+      exportName: 'TrinityEventAPIEndpoint',
+    });
+
+    new cdk.CfnOutput(this, 'EventAPIId', {
+      value: this.eventApi.attrApiId,
+      description: 'AppSync Events API ID',
+      exportName: 'TrinityEventAPIId',
     });
 
     new cdk.CfnOutput(this, 'AWSRegion', {
