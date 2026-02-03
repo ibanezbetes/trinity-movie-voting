@@ -2,6 +2,10 @@ import { Handler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { SignatureV4 } from '@aws-sdk/signature-v4';
+import { Sha256 } from '@aws-crypto/sha256-js';
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
+import { HttpRequest } from '@aws-sdk/protocol-http';
 
 // Initialize AWS clients
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
@@ -393,62 +397,88 @@ class VoteService {
   }
 
   private async triggerAppSyncSubscription(match: Match): Promise<void> {
-    try {
-      console.log(`🔔 CRITICAL FIX: Triggering AppSync subscription for match: ${match.title}`);
-      console.log(`📱 Broadcasting to ALL users who voted in room ${match.roomId}`);
-      console.log(`👥 Matched users: ${match.matchedUsers.join(', ')}`);
-      
-      // SIMPLIFIED APPROACH: Use the createMatch mutation that already works
-      // This will trigger the onMatchCreated subscription for all connected clients
-      // The client-side filtering will ensure each user only processes relevant matches
-      
-      if (this.matchLambdaArn) {
-        const payload = {
-          operation: 'createMatch',
-          input: {
-            roomId: match.roomId,
-            movieId: match.movieId,
-            title: match.title,
-            posterPath: match.posterPath,
-            matchedUsers: match.matchedUsers,
-          },
-        };
+    console.log(`🔔 BROADCASTING REAL: Llamando a AppSync API para sala ${match.roomId}`);
+    console.log(`🚀 NUEVA IMPLEMENTACION: Usando llamada HTTP directa a AppSync`);
+    
+    const endpoint = process.env.GRAPHQL_ENDPOINT;
+    if (!endpoint) {
+      console.error('❌ GRAPHQL_ENDPOINT no está definido');
+      throw new Error('GRAPHQL_ENDPOINT no está definido');
+    }
 
-        console.log('🚀 Invoking Match Lambda with createMatch...');
-        console.log('📡 This will trigger onMatchCreated subscription for ALL connected clients');
-        console.log('🔍 Client-side filtering will ensure each user gets relevant matches');
-        
-        const command = new InvokeCommand({
-          FunctionName: this.matchLambdaArn,
-          InvocationType: 'RequestResponse',
-          Payload: JSON.stringify(payload),
-        });
-
-        const response = await lambdaClient.send(command);
-        
-        if (response.Payload) {
-          const result = JSON.parse(new TextDecoder().decode(response.Payload));
-          console.log('📨 Match Lambda response:', JSON.stringify(result, null, 2));
-          
-          if (result.statusCode === 200) {
-            console.log('✅ createMatch executed successfully');
-            console.log('🔔 onMatchCreated subscription triggered for all connected clients');
-            console.log(`👥 Users ${match.matchedUsers.join(', ')} should receive notifications`);
-          } else {
-            console.error('❌ Match Lambda returned error:', result.body?.error);
-            throw new Error(result.body?.error || 'Failed to create match');
-          }
-        } else {
-          throw new Error('No response payload from Match Lambda');
+    // La mutación que dispara la suscripción "NoneDataSource"
+    const mutation = `
+      mutation PublishRoomMatch($roomId: ID!, $matchData: RoomMatchInput!) {
+        publishRoomMatch(roomId: $roomId, matchData: $matchData) {
+          roomId
+          matchId
+          movieId
+          matchedUsers
         }
-      } else {
-        throw new Error('Match Lambda ARN not configured');
       }
+    `;
+
+    const variables = {
+      roomId: match.roomId,
+      matchData: {
+        matchId: match.id,
+        movieId: match.movieId,
+        movieTitle: match.title,
+        posterPath: match.posterPath,
+        matchedUsers: match.matchedUsers,
+        matchDetails: {
+          voteCount: match.matchedUsers.length,
+          requiredVotes: match.matchedUsers.length,
+          matchType: 'unanimous'
+        }
+      }
+    };
+
+    // Preparamos la petición HTTP
+    const request = new HttpRequest({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        host: new URL(endpoint).hostname,
+      },
+      hostname: new URL(endpoint).hostname,
+      path: '/graphql',
+      body: JSON.stringify({ query: mutation, variables }),
+    });
+
+    // Firmamos la petición con credenciales IAM de la Lambda
+    const signer = new SignatureV4({
+      credentials: defaultProvider(),
+      region: process.env.AWS_REGION || 'us-east-1',
+      service: 'appsync',
+      sha256: Sha256,
+    });
+
+    try {
+      const signedRequest = await signer.sign(request);
       
+      // Usamos fetch nativo (Node 18+)
+      const response = await fetch(endpoint, {
+        method: signedRequest.method,
+        headers: signedRequest.headers as any,
+        body: signedRequest.body,
+      });
+
+      const result = await response.json() as { data?: any; errors?: any[] };
+      
+      if (result.errors) {
+        console.error('❌ Error de AppSync:', JSON.stringify(result.errors));
+        throw new Error(`AppSync GraphQL errors: ${JSON.stringify(result.errors)}`);
+      } else {
+        console.log('✅ AppSync Broadcast Exitoso:', JSON.stringify(result.data));
+        console.log(`🔔 Suscripción onRoomMatch disparada para sala ${match.roomId}`);
+        console.log(`👥 Usuarios notificados: ${match.matchedUsers.join(', ')}`);
+      }
     } catch (error) {
-      console.error('❌ Error triggering AppSync subscription:', error);
-      // Store notifications for polling as fallback
+      console.error('❌ Error fatal llamando a AppSync:', error);
+      // Aquí mantenemos el fallback de polling si falla
       await this.storeMatchNotifications(match);
+      throw error;
     }
   }
 

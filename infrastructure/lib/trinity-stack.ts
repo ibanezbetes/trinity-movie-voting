@@ -242,6 +242,10 @@ export class TrinityStack extends cdk.Stack {
             userPool: this.userPool,
           },
         },
+        // CRITICAL: Allow Lambda services to use IAM credentials for AppSync calls
+        additionalAuthorizationModes: [{
+          authorizationType: appsync.AuthorizationType.IAM,
+        }],
       },
       logConfig: {
         fieldLogLevel: appsync.FieldLogLevel.ALL,
@@ -265,7 +269,7 @@ export class TrinityStack extends cdk.Stack {
         MATCHES_TABLE: this.matchesTable.tableName,
         USERS_TABLE: this.usersTable.tableName,
         GRAPHQL_ENDPOINT: '', // Will be set after API creation
-      },
+      }
     };
 
     // TMDB Integration Lambda
