@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { GET_MATCHES } from '../services/graphql';
 import { matchSubscriptionService, roomSubscriptionService } from '../services/subscriptions';
@@ -24,6 +25,8 @@ interface MatchNotificationContextType {
   clearActiveRooms: () => void;
   subscribeToRoom: (roomId: string) => void;
   unsubscribeFromRoom: (roomId: string) => void;
+  dismissedNotifications: Set<string>;
+  dismissNotification: (matchId: string) => void;
 }
 
 const MatchNotificationContext = createContext<MatchNotificationContextType | undefined>(undefined);
@@ -43,6 +46,83 @@ export function MatchNotificationProvider({
   const [activeRooms, setActiveRooms] = useState<Set<string>>(new Set());
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [dismissedNotifications, setDismissedNotifications] = useState<Set<string>>(new Set());
+
+  // Storage keys for persistence
+  const DISMISSED_NOTIFICATIONS_KEY = 'trinity_dismissed_notifications';
+
+  // Load dismissed notifications from storage on mount
+  useEffect(() => {
+    const loadDismissedNotifications = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(DISMISSED_NOTIFICATIONS_KEY);
+        if (stored) {
+          const dismissedArray = JSON.parse(stored);
+          setDismissedNotifications(new Set(dismissedArray));
+          logger.match('Loaded dismissed notifications from storage', { 
+            count: dismissedArray.length 
+          });
+        }
+      } catch (error) {
+        logger.matchError('Failed to load dismissed notifications', error);
+      }
+    };
+
+    loadDismissedNotifications();
+  }, []);
+
+  // Save dismissed notifications to storage whenever it changes
+  const saveDismissedNotifications = async (dismissed: Set<string>) => {
+    try {
+      const dismissedArray = Array.from(dismissed);
+      await AsyncStorage.setItem(DISMISSED_NOTIFICATIONS_KEY, JSON.stringify(dismissedArray));
+      logger.match('Saved dismissed notifications to storage', { 
+        count: dismissedArray.length 
+      });
+    } catch (error) {
+      logger.matchError('Failed to save dismissed notifications', error);
+    }
+  };
+
+  // Function to dismiss a notification
+  const dismissNotification = (matchId: string) => {
+    setDismissedNotifications(prev => {
+      const newSet = new Set(prev);
+      newSet.add(matchId);
+      saveDismissedNotifications(newSet);
+      logger.match('Notification dismissed', { matchId });
+      return newSet;
+    });
+  };
+
+  // Function to check if a match should be shown (not dismissed)
+  const shouldShowMatch = (match: Match): boolean => {
+    const isDismissed = dismissedNotifications.has(match.id);
+    
+    if (isDismissed) {
+      logger.match('Match notification skipped - already dismissed', { 
+        matchId: match.id,
+        title: match.title 
+      });
+      return false;
+    }
+
+    // Also check if match is too old (more than 5 minutes)
+    const matchTime = new Date(match.timestamp).getTime();
+    const now = new Date().getTime();
+    const fiveMinutesAgo = now - (5 * 60 * 1000);
+    
+    if (matchTime < fiveMinutesAgo) {
+      logger.match('Match notification skipped - too old', { 
+        matchId: match.id,
+        title: match.title,
+        ageInMinutes: (now - matchTime) / (60 * 1000)
+      });
+      return false;
+    }
+
+    return true;
+  };
 
   // Global match polling for background detection
   const { startGlobalPolling, stopGlobalPolling } = useGlobalMatchPolling((match) => {
@@ -50,6 +130,11 @@ export function MatchNotificationProvider({
       matchId: match.id,
       title: match.title,
     });
+
+    // Check if we should show this match
+    if (!shouldShowMatch(match)) {
+      return;
+    }
 
     const wasInRoom = match.roomId === currentRoomId;
     showMatchNotification(match, wasInRoom);
@@ -80,6 +165,11 @@ export function MatchNotificationProvider({
               title: match.title,
               roomId: match.roomId,
             });
+
+            // Check if we should show this match
+            if (!shouldShowMatch(match)) {
+              return;
+            }
 
             // Check if this match is from a room the user is currently in
             const wasInRoom = match.roomId === currentRoomId;
@@ -118,6 +208,11 @@ export function MatchNotificationProvider({
                 posterPath: roomMatchEvent.posterPath,
                 timestamp: roomMatchEvent.timestamp,
               };
+
+              // Check if we should show this match
+              if (!shouldShowMatch(match)) {
+                return;
+              }
 
               const wasInRoom = roomMatchEvent.roomId === currentRoomId;
               showMatchNotification(match, wasInRoom);
@@ -234,7 +329,9 @@ export function MatchNotificationProvider({
         
         // PRIORITY 1: Check current room first (most critical)
         if (currentRoomId) {
-          const currentRoomMatch = userMatches.find(match => match.roomId === currentRoomId);
+          const currentRoomMatch = userMatches.find(match => 
+            match.roomId === currentRoomId && shouldShowMatch(match)
+          );
           if (currentRoomMatch) {
             logger.match('🚨 MATCH FOUND IN CURRENT ROOM - BLOCKING ACTION', { 
               actionName,
@@ -258,7 +355,9 @@ export function MatchNotificationProvider({
         // PRIORITY 2: Check all active rooms
         if (activeRooms.size > 0) {
           for (const roomId of activeRooms) {
-            const roomMatch = userMatches.find(match => match.roomId === roomId);
+            const roomMatch = userMatches.find(match => 
+              match.roomId === roomId && shouldShowMatch(match)
+            );
             if (roomMatch) {
               logger.match('🚨 MATCH FOUND IN ACTIVE ROOM - BLOCKING ACTION', { 
                 actionName,
@@ -282,14 +381,14 @@ export function MatchNotificationProvider({
           }
         }
 
-        // PRIORITY 3: Check for ANY recent matches (last 60 seconds)
+        // PRIORITY 3: Check for ANY recent matches that haven't been dismissed (last 60 seconds)
         if (userMatches.length > 0) {
           const now = new Date().getTime();
           const sixtySecondsAgo = now - (60 * 1000);
           
           const recentMatches = userMatches.filter(match => {
             const matchTime = new Date(match.timestamp).getTime();
-            return matchTime > sixtySecondsAgo;
+            return matchTime > sixtySecondsAgo && shouldShowMatch(match);
           });
           
           if (recentMatches.length > 0) {
@@ -380,6 +479,7 @@ export function MatchNotificationProvider({
           { 
             text: 'Ver Mis Matches', 
             onPress: () => {
+              dismissNotification(match.id);
               // Navigate to matches and then home
               if (onNavigateToHome) {
                 onNavigateToHome();
@@ -389,6 +489,7 @@ export function MatchNotificationProvider({
           { 
             text: 'Ir al Inicio', 
             onPress: () => {
+              dismissNotification(match.id);
               if (onNavigateToHome) {
                 onNavigateToHome();
               }
@@ -399,12 +500,14 @@ export function MatchNotificationProvider({
           { 
             text: 'Ver Mis Matches', 
             onPress: () => {
+              dismissNotification(match.id);
               // Navigate to matches but stay in current location
             }
           },
           { 
             text: 'Continuar', 
             onPress: () => {
+              dismissNotification(match.id);
               // Execute the original action if provided
               if (originalAction) {
                 originalAction();
@@ -443,6 +546,11 @@ export function MatchNotificationProvider({
         timestamp: roomMatchEvent.timestamp,
       };
 
+      // Check if we should show this match
+      if (!shouldShowMatch(match)) {
+        return;
+      }
+
       const wasInRoom = roomMatchEvent.roomId === currentRoomId;
       showMatchNotification(match, wasInRoom);
       
@@ -469,6 +577,8 @@ export function MatchNotificationProvider({
     clearActiveRooms,
     subscribeToRoom,
     unsubscribeFromRoom,
+    dismissedNotifications,
+    dismissNotification,
   };
 
   return (

@@ -1,398 +1,276 @@
-# Trinity - Movie Matching App
+# Trinity Movie Matching App
 
-Trinity es una aplicación móvil que permite a los usuarios crear salas virtuales para votar películas y encontrar coincidencias en tiempo real. Cuando todos los usuarios en una sala votan positivamente por la misma película, se crea un "match" y todos reciben notificaciones instantáneas.
+Una aplicación móvil para crear salas de votación de películas y encontrar coincidencias entre usuarios.
 
-## 🏗️ Arquitectura del Sistema
+## 🎯 Descripción
 
-### Componentes Principales
+Trinity es una aplicación que permite a los usuarios crear salas virtuales donde pueden votar por películas de forma anónima. Cuando todos los usuarios en una sala votan positivamente por la misma película, se genera un "match" y todos reciben una notificación.
 
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Mobile App    │    │   AWS AppSync    │    │   AWS Lambda    │
-│   (React Native)│◄──►│   (GraphQL API)  │◄──►│   (Handlers)    │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Cognito       │    │   DynamoDB       │    │   TMDB API      │
-│   (Auth)        │    │   (Database)     │    │   (Movies)      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
+## 🏗️ Arquitectura
 
-### Tecnologías Utilizadas
-
+### Stack Tecnológico
 - **Frontend**: React Native + Expo
-- **Backend**: AWS CDK + TypeScript
+- **Backend**: AWS CDK + TypeScript  
 - **API**: AWS AppSync (GraphQL)
 - **Base de Datos**: Amazon DynamoDB
 - **Autenticación**: Amazon Cognito
 - **Funciones**: AWS Lambda
 - **API Externa**: The Movie Database (TMDB)
 
-## 📱 Funcionalidades
+### Componentes Principales
 
-### Core Features
-- ✅ **Autenticación de usuarios** con Cognito
-- ✅ **Creación de salas** con códigos únicos
-- ✅ **Unirse a salas** mediante código
-- ✅ **Votación de películas** con sistema swipe
-- ✅ **Detección de matches** en tiempo real
-- ✅ **Notificaciones push** via GraphQL subscriptions
-- ✅ **Historial de matches** personal
+```
+trinity/
+├── infrastructure/          # AWS CDK Infrastructure
+│   ├── lib/
+│   │   └── trinity-stack.ts # Stack principal de AWS
+│   ├── src/handlers/        # Lambda functions
+│   │   ├── tmdb/           # Integración con TMDB
+│   │   ├── room/           # Gestión de salas
+│   │   ├── vote/           # Procesamiento de votos
+│   │   └── match/          # Gestión de matches
+│   └── schema.graphql      # Esquema GraphQL
+├── mobile/                 # React Native App
+│   ├── src/
+│   │   ├── screens/        # Pantallas de la UI
+│   │   ├── services/       # Servicios de API
+│   │   ├── hooks/          # Custom hooks
+│   │   ├── context/        # React context
+│   │   └── types/          # Tipos TypeScript
+│   └── android/            # Configuración Android
+└── docs/                   # Documentación
+```
 
-### Flujo de Usuario
+## 🚀 Funcionalidades
 
-1. **Registro/Login** → Usuario se autentica con Cognito
-2. **Crear/Unirse a Sala** → Usuario crea sala o se une con código
-3. **Votar Películas** → Sistema presenta películas filtradas por género
-4. **Match Detection** → Cuando todos votan "sí" por la misma película
-5. **Notificación** → Todos los usuarios reciben notificación instantánea
-6. **Ver Matches** → Usuario puede revisar su historial de matches
+### Gestión de Salas
+- **Crear Sala**: Los usuarios pueden crear salas especificando tipo de media (película/serie) y géneros
+- **Unirse a Sala**: Otros usuarios pueden unirse usando un código de 6 caracteres
+- **Mis Salas**: Ver salas donde el usuario participa (creadas o unidas) que no tienen matches
 
-## 🚀 Configuración del Proyecto
+### Sistema de Votación
+- **Votación Anónima**: Los usuarios votan por películas sin ver los votos de otros
+- **Candidatos TMDB**: Las películas se obtienen de The Movie Database API
+- **Detección de Matches**: Cuando todos votan positivamente por la misma película
+
+### Notificaciones en Tiempo Real
+- **GraphQL Subscriptions**: Notificaciones instantáneas de matches
+- **Polling Fallback**: Sistema de respaldo para garantizar la entrega
+- **Notificaciones Push**: Integración con Expo Notifications
+
+## 📱 Pantallas Principales
+
+1. **AuthScreen**: Autenticación con Cognito
+2. **DashboardScreen**: Pantalla principal con opciones
+3. **CreateRoomScreen**: Crear nueva sala
+4. **JoinRoomScreen**: Unirse a sala existente
+5. **MyRoomsScreen**: Ver salas del usuario
+6. **VotingRoomScreen**: Votar por películas
+7. **MyMatchesScreen**: Ver matches encontrados
+8. **RecommendationsScreen**: Recomendaciones basadas en matches
+
+## 🔧 Configuración del Desarrollo
 
 ### Prerrequisitos
-
 - Node.js 18+
 - AWS CLI configurado
-- AWS CDK v2
-- Android Studio (para builds APK)
-- Cuenta TMDB API
+- AWS CDK CLI
+- Expo CLI
+- Android Studio (para desarrollo Android)
 
 ### Variables de Entorno
 
-Crear `.env` en el directorio raíz:
-
+#### Infrastructure (.env)
 ```bash
-# TMDB API Configuration
-TMDB_API_KEY=tu_tmdb_api_key
-TMDB_READ_TOKEN=tu_tmdb_read_token
-TMDB_BASE_URL=https://api.themoviedb.org/3
+TMDB_API_KEY=tu_api_key_de_tmdb
+AWS_REGION=eu-west-1
+```
 
-# AWS Configuration (opcional, usa AWS CLI por defecto)
-AWS_REGION=us-east-1
-AWS_PROFILE=default
+#### Mobile (.env)
+```bash
+EXPO_PUBLIC_AWS_REGION=eu-west-1
+EXPO_PUBLIC_USER_POOL_ID=tu_user_pool_id
+EXPO_PUBLIC_USER_POOL_CLIENT_ID=tu_client_id
+EXPO_PUBLIC_GRAPHQL_ENDPOINT=tu_graphql_endpoint
 ```
 
 ### Instalación
 
-1. **Clonar repositorio**
+1. **Clonar el repositorio**
 ```bash
 git clone <repository-url>
-cd trinity
+cd trinity_app
 ```
 
-2. **Instalar dependencias del backend**
+2. **Configurar Infrastructure**
 ```bash
 cd infrastructure
 npm install
+cp .env.example .env
+# Editar .env con tus valores
 ```
 
-3. **Instalar dependencias del frontend**
+3. **Desplegar Infrastructure**
+```bash
+cdk bootstrap
+cdk deploy
+```
+
+4. **Configurar Mobile**
 ```bash
 cd ../mobile
 npm install
+cp .env.example .env
+# Editar .env con los valores del deploy
 ```
 
-4. **Desplegar infraestructura AWS**
+5. **Ejecutar Mobile App**
 ```bash
-cd ../infrastructure
-npm run deploy
+npx expo start
 ```
 
-5. **Configurar mobile app**
+## 🗄️ Base de Datos
+
+### Tablas DynamoDB
+
+#### trinity-rooms
+- **PK**: `id` (UUID de la sala)
+- **GSI**: `code-index` (código de 6 caracteres)
+- **Atributos**: hostId, mediaType, genreIds, candidates, createdAt, ttl
+
+#### trinity-votes
+- **PK**: `roomId`
+- **SK**: `userMovieId` (userId#movieId)
+- **Atributos**: userId, movieId, vote, timestamp
+
+#### trinity-matches
+- **PK**: `roomId`
+- **SK**: `movieId`
+- **Atributos**: matchId, title, posterPath, matchedUsers, timestamp
+
+## 🔄 Flujo de la Aplicación
+
+### 1. Creación de Sala
+1. Usuario selecciona tipo de media y géneros
+2. Sistema genera código único de 6 caracteres
+3. TMDB Lambda obtiene candidatos de películas
+4. Sala se almacena en DynamoDB con TTL de 24h
+
+### 2. Unión a Sala
+1. Usuario ingresa código de sala
+2. Sistema valida código y sala activa
+3. Se registra participación del usuario
+4. Usuario accede a pantalla de votación
+
+### 3. Proceso de Votación
+1. Usuario ve candidatos de películas
+2. Vota positivo/negativo por cada película
+3. Vote Lambda procesa el voto
+4. Sistema verifica si hay match (todos votan positivo)
+
+### 4. Detección de Match
+1. Si todos los usuarios votan positivo por la misma película
+2. Se crea registro en tabla de matches
+3. Se publican notificaciones via GraphQL subscriptions
+4. Usuarios reciben notificación del match
+
+## 🔐 Seguridad
+
+### Autenticación
+- **Amazon Cognito**: Gestión de usuarios y autenticación
+- **JWT Tokens**: Autenticación en GraphQL API
+- **IAM Roles**: Permisos granulares para Lambda functions
+
+### Autorización
+- **User Pool Groups**: Control de acceso por grupos
+- **GraphQL Directives**: `@aws_auth` para proteger resolvers
+- **Lambda Authorizers**: Validación adicional en funciones
+
+## 📊 Monitoreo
+
+### Logging Estructurado
+```typescript
+logger.userAction('Room created', { 
+  roomId: room.id, 
+  mediaType: room.mediaType,
+  genreCount: room.genreIds.length 
+});
+```
+
+### Métricas CloudWatch
+- Salas creadas por día
+- Matches generados
+- Errores de API
+- Latencia de funciones Lambda
+
+## 🧪 Testing
+
+### Unit Tests
 ```bash
-cd ../mobile
-# El script de deployment genera automáticamente la configuración
-npm start
-```
-
-## 🏗️ Infraestructura AWS
-
-### Recursos Desplegados
-
-#### DynamoDB Tables
-- **TrinityRooms**: Almacena información de salas
-- **TrinityVotes**: Registra votos de usuarios
-- **TrinityMatches**: Guarda matches encontrados
-- **TrinityUsers**: Información de usuarios
-
-#### Lambda Functions
-- **trinity-tmdb-handler**: Integración con TMDB API
-- **trinity-room-handler**: Gestión de salas
-- **trinity-vote-handler**: Procesamiento de votos y detección de matches
-- **trinity-match-handler**: Gestión del historial de matches
-
-#### AppSync API
-- **GraphQL Endpoint**: API principal para operaciones CRUD
-- **Real-time Subscriptions**: Notificaciones en tiempo real
-- **Dual Authentication**: Cognito User Pool + IAM
-
-#### Cognito User Pool
-- **Autenticación**: Email + password
-- **Auto-confirmación**: Sin verificación de email requerida
-- **Token Management**: JWT tokens con refresh
-
-### Esquema GraphQL
-
-```graphql
-type Room {
-  id: ID!
-  code: String!
-  hostId: ID!
-  mediaType: MediaType!
-  genreIds: [Int!]!
-  candidates: [MovieCandidate!]!
-  createdAt: AWSDateTime!
-}
-
-type Match {
-  id: ID!
-  roomId: ID!
-  movieId: Int!
-  title: String!
-  posterPath: String
-  timestamp: AWSDateTime!
-  matchedUsers: [ID!]!
-}
-
-type Mutation {
-  createRoom(input: CreateRoomInput!): Room!
-  joinRoom(code: String!): Room!
-  vote(input: VoteInput!): VoteResult!
-}
-
-type Subscription {
-  userMatch(userId: ID!): UserMatchEvent
-  roomMatch(roomId: ID!): RoomMatchEvent
-}
-```
-
-## 📱 Aplicación Móvil
-
-### Estructura del Proyecto
-
-```
-mobile/
-├── src/
-│   ├── components/          # Componentes reutilizables
-│   ├── screens/            # Pantallas principales
-│   │   ├── AuthScreen.tsx
-│   │   ├── DashboardScreen.tsx
-│   │   ├── CreateRoomScreen.tsx
-│   │   ├── JoinRoomScreen.tsx
-│   │   ├── VotingRoomScreen.tsx
-│   │   ├── MyMatchesScreen.tsx
-│   │   └── MyRoomsScreen.tsx
-│   ├── services/           # Servicios y APIs
-│   │   ├── amplify.ts      # Configuración AWS
-│   │   ├── auth.ts         # Autenticación
-│   │   ├── graphql.ts      # Queries y mutations
-│   │   ├── subscriptions.ts # Real-time subscriptions
-│   │   └── logger.ts       # Sistema de logging
-│   ├── hooks/              # Custom hooks
-│   │   ├── useMatchPolling.ts
-│   │   └── useProactiveMatchCheck.ts
-│   ├── context/            # React Context
-│   │   ├── AuthContext.tsx
-│   │   └── MatchNotificationContext.tsx
-│   ├── navigation/         # Navegación
-│   │   └── AppNavigator.tsx
-│   ├── types/              # TypeScript types
-│   │   └── index.ts
-│   └── config/             # Configuración
-│       └── aws-config.ts
-├── android/                # Configuración Android
-├── assets/                 # Recursos estáticos
-├── App.tsx                 # Componente principal
-├── app.json               # Configuración Expo
-├── package.json           # Dependencias
-└── build-apk.bat          # Script de build APK
-```
-
-### Sistema de Notificaciones
-
-#### Dual Subscription System
-La app implementa un sistema dual de suscripciones para garantizar la entrega de notificaciones:
-
-1. **User-Specific Subscriptions** (`userMatch`)
-   - Canal dedicado por usuario
-   - Garantiza que cada usuario reciba notificaciones individuales
-   - Filtrado automático por userId
-
-2. **Room-Based Subscriptions** (`roomMatch`)
-   - Canal por sala para compatibilidad
-   - Broadcast a todos los usuarios en la sala
-   - Filtrado manual en el cliente
-
-#### Polling Fallback
-- Sistema de polling como respaldo
-- Se activa si las subscriptions WebSocket fallan
-- Verificación periódica de matches cada 2 segundos
-
-### Build y Deployment
-
-#### Desarrollo (Expo)
-```bash
-cd mobile
-npm start
-# Escanear QR code con Expo Go app
-```
-
-#### Producción (APK)
-```bash
-cd mobile
-./build-apk.bat
-# APK generado en: android/app/build/outputs/apk/release/
-```
-
-## 🔧 Desarrollo
-
-### Comandos Útiles
-
-#### Backend
-```bash
-# Desplegar infraestructura
 cd infrastructure
-npm run deploy
-
-# Destruir infraestructura
-npm run destroy
-
-# Verificar diferencias
-npm run diff
-
-# Sintetizar CloudFormation
-npm run synth
+npm test
 ```
 
-#### Frontend
+### Integration Tests
 ```bash
-# Desarrollo con Expo
 cd mobile
-npm start
-
-# Build APK
-./build-apk.bat
-
-# Limpiar cache
-npm run clean
+npm test
 ```
-
-### Debugging
-
-#### Backend (Lambda Logs)
-```bash
-# Ver logs en tiempo real
-aws logs tail /aws/lambda/trinity-vote-handler --follow
-
-# Buscar errores específicos
-aws logs filter-log-events \
-  --log-group-name /aws/lambda/trinity-vote-handler \
-  --filter-pattern "ERROR"
-```
-
-#### Frontend (React Native)
-- Usar React Native Debugger
-- Console logs disponibles en Metro bundler
-- Sistema de logging personalizado en `src/services/logger.ts`
-
-### Testing
-
-#### Escenario de Prueba Principal
-1. **Usuario A** abre app → Crea sala → Obtiene código
-2. **Usuario B** abre app → Se une con código
-3. **Usuario A** vota "sí" en película X → No hay match aún
-4. **Usuario B** vota "sí" en película X → ¡MATCH!
-5. **Verificar**: Ambos usuarios reciben notificación instantánea
-
-## 📊 Monitoreo y Métricas
-
-### CloudWatch Dashboards
-- **Lambda Performance**: Duración, errores, invocaciones
-- **DynamoDB Metrics**: Read/Write capacity, throttling
-- **AppSync Metrics**: Request count, latency, errors
-
-### Alertas Configuradas
-- Lambda errors > 5% en 5 minutos
-- DynamoDB throttling events
-- AppSync 4xx/5xx errors
-
-## 🔒 Seguridad
-
-### Autenticación y Autorización
-- **Cognito User Pool**: Gestión de usuarios
-- **JWT Tokens**: Autenticación stateless
-- **IAM Roles**: Permisos granulares para Lambda
-- **AppSync Authorization**: User Pool + IAM dual mode
-
-### Validación de Datos
-- **Input Validation**: En Lambda handlers
-- **Schema Validation**: GraphQL type safety
-- **Rate Limiting**: AppSync built-in protection
 
 ## 🚀 Deployment
 
-### Ambientes
+### Staging
+```bash
+cd infrastructure
+cdk deploy --context environment=staging
+```
 
-#### Development
-- **Stack Name**: `TrinityStack-dev`
-- **Auto-deploy**: En push a `develop` branch
-- **Configuración**: Logs detallados, sin TTL en tablas
+### Production
+```bash
+cd infrastructure
+cdk deploy --context environment=prod --require-approval broadening
+```
 
-#### Production
-- **Stack Name**: `TrinityStack-prod`
-- **Manual deploy**: Requiere aprobación
-- **Configuración**: Logs mínimos, TTL configurado, backup habilitado
-
-### CI/CD Pipeline
-```yaml
-# .github/workflows/deploy.yml
-name: Deploy Trinity
-on:
-  push:
-    branches: [main, develop]
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Setup Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '18'
-      - name: Install dependencies
-        run: cd infrastructure && npm install
-      - name: Deploy to AWS
-        run: cd infrastructure && npm run deploy
+### Mobile Build
+```bash
+cd mobile
+npx expo build:android
 ```
 
 ## 📚 Documentación Adicional
 
+### Documentación Técnica Completa
+- **[Documentación Técnica](docs/technical/README.md)** - Índice completo de documentación técnica
+- **[Arquitectura de la Aplicación](docs/technical/01-app-architecture.md)** - Concepto, arquitectura serverless y ventajas
+- **[Lenguajes de Programación](docs/technical/02-programming-languages.md)** - Stack tecnológico y herramientas
+- **[Servicios AWS](docs/technical/03-aws-services.md)** - Servicios utilizados y su propósito
+- **[Funciones Lambda](docs/technical/04-lambda-functions.md)** - Microservicios especializados
+- **[Esquemas GraphQL](docs/technical/05-graphql-schema.md)** - API completa y tipada
+- **[Tablas DynamoDB](docs/technical/06-dynamodb-tables.md)** - Diseño de base de datos NoSQL
+- **[Flujos de Aplicación](docs/technical/07-application-flows.md)** - Flujos detallados de funcionalidades
+- **[Diagramas de Arquitectura](docs/technical/diagrams/architecture-overview.md)** - Diagramas visuales del sistema
+
+### Guías de Deployment y Producción
 - [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
 - [Production Build Guide](docs/PRODUCTION_BUILD_GUIDE.md)
 - [Trinity Master Spec](docs/TRINITY_MASTER_SPEC.md)
 
 ## 🤝 Contribución
 
-1. Fork el repositorio
-2. Crear feature branch (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit cambios (`git commit -am 'Agregar nueva funcionalidad'`)
-4. Push al branch (`git push origin feature/nueva-funcionalidad`)
-5. Crear Pull Request
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
 
 ## 📄 Licencia
 
-Este proyecto está bajo la licencia MIT. Ver [LICENSE](LICENSE) para más detalles.
+Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
 
-## 🆘 Soporte
+## 🔗 Enlaces Útiles
 
-Para reportar bugs o solicitar features:
-- Crear issue en GitHub
-- Incluir logs relevantes
-- Describir pasos para reproducir el problema
-
----
-
-**Trinity** - Encuentra tu próxima película favorita con amigos 🎬
+- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
+- [React Native Documentation](https://reactnative.dev/)
+- [Expo Documentation](https://docs.expo.dev/)
+- [TMDB API Documentation](https://developers.themoviedb.org/3)
+- [AWS AppSync Documentation](https://docs.aws.amazon.com/appsync/)
