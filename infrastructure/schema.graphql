@@ -73,6 +73,7 @@ type Subscription {
     @aws_subscribe(mutations: ["createMatch"])
   roomMatch(roomId: ID!): RoomMatchEvent
     @aws_subscribe(mutations: ["publishRoomMatch"])
+    @aws_iam
 }
 
 input CreateRoomInput {
@@ -91,7 +92,7 @@ type VoteResult {
   match: Match
 }
 
-type RoomMatchEvent {
+type RoomMatchEvent @aws_iam {
   roomId: ID!
   matchId: ID!
   movieId: ID!
@@ -102,7 +103,7 @@ type RoomMatchEvent {
   matchDetails: MatchDetails
 }
 
-type MatchDetails {
+type MatchDetails @aws_iam {
   voteCount: Int!
   requiredVotes: Int!
   matchType: String!

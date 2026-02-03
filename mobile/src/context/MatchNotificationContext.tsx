@@ -182,10 +182,10 @@ export function MatchNotificationProvider({
   };
 
   const checkForMatchesBeforeAction = async (action: () => void, actionName: string = 'user action') => {
+    // CRITICAL: Block ALL actions while checking for matches
     if (isCheckingMatches) {
-      // Si ya estamos verificando, ejecutar la acción directamente
-      action();
-      return;
+      logger.match('⏳ Already checking matches - blocking action', { actionName });
+      return; // BLOCK the action completely
     }
 
     setIsCheckingMatches(true);
@@ -194,17 +194,19 @@ export function MatchNotificationProvider({
       const authStatus = await verifyAuthStatus();
       if (!authStatus.isAuthenticated) {
         logger.authError('User not authenticated for match check before action', null);
-        action(); // Ejecutar la acción aunque no esté autenticado
+        setIsCheckingMatches(false);
+        action(); // Only execute if not authenticated
         return;
       }
 
-      logger.match('🔍 Checking for matches in ALL user rooms before action', { 
+      logger.match('🔍 AGGRESSIVE MATCH CHECK before action', { 
         actionName,
-        userId: authStatus.user?.userId
+        userId: authStatus.user?.userId,
+        activeRoomsCount: activeRooms.size,
+        currentRoomId
       });
 
-      // NUEVA LÓGICA MEJORADA: Verificación activa de matches
-      // Esta query obtiene todos los matches del usuario directamente del backend
+      // CRITICAL: SYNCHRONOUS match checking - block until complete
       try {
         const response = await client.graphql({
           query: `
@@ -224,122 +226,146 @@ export function MatchNotificationProvider({
         });
 
         const userMatches = response.data.getMyMatches || [];
+        logger.match('📊 Match check results', { 
+          actionName,
+          totalMatches: userMatches.length,
+          activeRoomsCount: activeRooms.size
+        });
         
+        // PRIORITY 1: Check current room first (most critical)
+        if (currentRoomId) {
+          const currentRoomMatch = userMatches.find(match => match.roomId === currentRoomId);
+          if (currentRoomMatch) {
+            logger.match('🚨 MATCH FOUND IN CURRENT ROOM - BLOCKING ACTION', { 
+              actionName,
+              matchId: currentRoomMatch.id,
+              roomId: currentRoomId,
+              title: currentRoomMatch.title
+            });
+
+            setIsCheckingMatches(false);
+            showMatchNotification(currentRoomMatch, true);
+            removeActiveRoom(currentRoomId);
+
+            if (onMatchFound) {
+              onMatchFound(currentRoomMatch, true);
+            }
+            
+            return; // BLOCK the action - match found in current room
+          }
+        }
+
+        // PRIORITY 2: Check all active rooms
+        if (activeRooms.size > 0) {
+          for (const roomId of activeRooms) {
+            const roomMatch = userMatches.find(match => match.roomId === roomId);
+            if (roomMatch) {
+              logger.match('🚨 MATCH FOUND IN ACTIVE ROOM - BLOCKING ACTION', { 
+                actionName,
+                matchId: roomMatch.id,
+                roomId,
+                title: roomMatch.title,
+                wasInCurrentRoom: roomId === currentRoomId
+              });
+
+              setIsCheckingMatches(false);
+              const wasInCurrentRoom = roomId === currentRoomId;
+              showMatchNotification(roomMatch, wasInCurrentRoom);
+              removeActiveRoom(roomId);
+
+              if (onMatchFound) {
+                onMatchFound(roomMatch, wasInCurrentRoom);
+              }
+              
+              return; // BLOCK the action - match found in active room
+            }
+          }
+        }
+
+        // PRIORITY 3: Check for ANY recent matches (last 60 seconds)
         if (userMatches.length > 0) {
-          // Verificar si hay matches en salas activas (más recientes que hace 30 segundos)
           const now = new Date().getTime();
-          const thirtySecondsAgo = now - (30 * 1000);
+          const sixtySecondsAgo = now - (60 * 1000);
           
           const recentMatches = userMatches.filter(match => {
             const matchTime = new Date(match.timestamp).getTime();
-            return matchTime > thirtySecondsAgo;
+            return matchTime > sixtySecondsAgo;
           });
           
           if (recentMatches.length > 0) {
-            // Hay matches recientes - mostrar el más nuevo
             const latestMatch = recentMatches[0];
             
-            logger.match('🎉 Recent match found before user action - showing notification', { 
+            logger.match('🚨 RECENT MATCH FOUND - BLOCKING ACTION', { 
               actionName,
-              matchCount: recentMatches.length,
-              latestMatch: {
-                id: latestMatch.id,
-                title: latestMatch.title,
-                roomId: latestMatch.roomId,
-                timestamp: latestMatch.timestamp
-              }
+              matchId: latestMatch.id,
+              title: latestMatch.title,
+              roomId: latestMatch.roomId,
+              timestamp: latestMatch.timestamp,
+              ageInSeconds: (now - new Date(latestMatch.timestamp).getTime()) / 1000
             });
 
-            // Mostrar notificación del match más reciente
+            setIsCheckingMatches(false);
             const wasInCurrentRoom = latestMatch.roomId === currentRoomId;
-            showMatchNotification(latestMatch, wasInCurrentRoom, action);
+            showMatchNotification(latestMatch, wasInCurrentRoom);
             
-            // Remover la sala de las activas ya que tiene match
             if (wasInCurrentRoom) {
               removeActiveRoom(latestMatch.roomId);
             }
 
-            // Llamar callback si se proporciona
             if (onMatchFound) {
               onMatchFound(latestMatch, wasInCurrentRoom);
             }
             
-            return; // No ejecutar la acción original
+            return; // BLOCK the action - recent match found
           }
         }
 
-        // Si no hay matches recientes, verificar matches específicos de salas activas
-        if (activeRooms.size > 0) {
-          const checkPromises = Array.from(activeRooms).map(async (roomId) => {
-            try {
-              // Usar getMyMatches y filtrar por roomId
-              const roomMatches = userMatches.filter(match => match.roomId === roomId);
-              
-              if (roomMatches.length > 0) {
-                const match = roomMatches[0];
-                logger.match('Match detected in specific room before user action', {
-                  actionName,
-                  matchId: match.id,
-                  roomId: match.roomId,
-                  movieTitle: match.title,
-                  wasInCurrentRoom: roomId === currentRoomId
-                });
-
-                return { roomId, match, wasInRoom: roomId === currentRoomId };
-              }
-
-              return null;
-            } catch (error) {
-              logger.matchError('Error checking room for match before action', error, { roomId, actionName });
-              return null;
-            }
-          });
-
-          const results = await Promise.allSettled(checkPromises);
-          const matches = results
-            .filter(r => r.status === 'fulfilled' && r.value)
-            .map(r => r.status === 'fulfilled' ? r.value : null)
-            .filter(Boolean);
-
-          if (matches.length > 0) {
-            // Se encontraron matches en salas específicas
-            const firstMatch = matches[0];
-            if (firstMatch) {
-              logger.match('Match found in specific room before user action', { 
-                actionName,
-                matchId: firstMatch.match.id,
-                roomId: firstMatch.roomId,
-                title: firstMatch.match.title
-              });
-
-              showMatchNotification(firstMatch.match, firstMatch.wasInRoom, action);
-              removeActiveRoom(firstMatch.roomId);
-
-              if (onMatchFound) {
-                onMatchFound(firstMatch.match, firstMatch.wasInRoom);
-              }
-              
-              return; // No ejecutar la acción original
-            }
-          }
-        }
-
-        // No se encontraron matches, ejecutar la acción original
-        logger.match('✅ No matches found before user action - proceeding', { actionName });
-        action();
+        // No matches found - allow action to proceed
+        logger.match('✅ No matches found - allowing action', { 
+          actionName,
+          totalMatchesChecked: userMatches.length,
+          activeRoomsChecked: activeRooms.size
+        });
+        
+        setIsCheckingMatches(false);
+        action(); // ONLY execute if no matches found
 
       } catch (error) {
-        logger.matchError('Error checking for user matches before action', error, { actionName });
-        // En caso de error, ejecutar la acción de todos modos
+        logger.matchError('❌ Error in aggressive match check', error, { actionName });
+        setIsCheckingMatches(false);
+        
+        // CRITICAL: On error, still try to check for matches using fallback method
+        // Don't execute action if there might be matches
+        logger.match('🔄 Using fallback match check due to error', { actionName });
+        
+        // Simple fallback: if we have active rooms, assume there might be matches
+        if (activeRooms.size > 0) {
+          logger.match('⚠️ Blocking action due to active rooms and check error', { 
+            actionName,
+            activeRoomsCount: activeRooms.size 
+          });
+          return; // BLOCK action on error if there are active rooms
+        }
+        
+        // Only execute if no active rooms
         action();
       }
 
     } catch (error) {
-      logger.matchError('Error in match check before action', error, { actionName });
-      // En caso de error, ejecutar la acción de todos modos
-      action();
-    } finally {
+      logger.matchError('❌ Critical error in match check', error, { actionName });
       setIsCheckingMatches(false);
+      
+      // CRITICAL: On critical error, be conservative and block action if there are active rooms
+      if (activeRooms.size > 0) {
+        logger.match('⚠️ Blocking action due to critical error and active rooms', { 
+          actionName,
+          activeRoomsCount: activeRooms.size 
+        });
+        return; // BLOCK action on critical error if there are active rooms
+      }
+      
+      // Only execute if no active rooms
+      action();
     }
   };
 

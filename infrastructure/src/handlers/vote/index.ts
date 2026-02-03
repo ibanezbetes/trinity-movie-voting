@@ -335,18 +335,19 @@ class VoteService {
     // Wait for all user match records to be created
     await Promise.allSettled(userMatchPromises);
 
-    console.log(`Match created: ${matchId} with ${matchedUsers.length} users and individual user records`);
-
-    // CRITICAL: Trigger AppSync subscription FIRST before deleting room
-    // This ensures all users get notified before the room becomes unavailable
+    // CRITICAL: Trigger AppSync subscription FIRST before any cleanup
+    // This ensures all users get notified before any changes
     await this.triggerAppSyncSubscription(match);
 
-    // Wait a moment to ensure notifications are sent before deleting room
+    // Wait a moment to ensure notifications are sent
     // This prevents "Room not found" errors for concurrent votes
     await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
 
-    // Delete the room since match is found - room is no longer needed
-    await this.deleteRoom(roomId);
+    // DISABLED: Do not delete room after match - let it remain active
+    // This prevents "Room not found" errors for users who vote after match is created
+    // await this.deleteRoom(roomId);
+    
+    console.log(`Match created but room ${roomId} kept active to prevent "Room not found" errors`);
 
     return match;
   }

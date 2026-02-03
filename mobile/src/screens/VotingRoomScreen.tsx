@@ -106,10 +106,45 @@ export default function VotingRoomScreen() {
 
       logger.room('Setting up room-based subscription', { roomId, userId });
 
-      // REMOVED: Duplicate subscription - let MatchNotificationContext handle all subscriptions
-      // This prevents duplicate notifications and conflicts
+      // CRITICAL FIX: Set up direct room subscription for real-time match notifications
+      // This ensures ALL users in the voting room get notified when a match occurs
+      roomSubscriptionService.subscribeToRoom(roomId, userId, (roomMatchEvent) => {
+        logger.room('🎉 MATCH NOTIFICATION RECEIVED in VotingRoom', {
+          roomId: roomMatchEvent.roomId,
+          matchId: roomMatchEvent.matchId,
+          movieTitle: roomMatchEvent.movieTitle,
+          matchedUsers: roomMatchEvent.matchedUsers,
+          currentUserId: userId,
+        });
+
+        // Update state to show match found
+        setHasExistingMatch(true);
+        setExistingMatch({
+          id: roomMatchEvent.matchId,
+          title: roomMatchEvent.movieTitle,
+          movieId: parseInt(roomMatchEvent.movieId),
+          posterPath: roomMatchEvent.posterPath,
+          timestamp: roomMatchEvent.timestamp,
+        });
+
+        // Show immediate match notification
+        Alert.alert(
+          '🎉 ¡MATCH ENCONTRADO!',
+          `¡Se encontró una película en común!\n\n${roomMatchEvent.movieTitle}`,
+          [
+            { 
+              text: 'Ver mis matches', 
+              onPress: () => navigation.navigate('MyMatches' as any)
+            },
+            { 
+              text: 'Ir al inicio', 
+              onPress: () => navigation.navigate('Dashboard' as any)
+            }
+          ]
+        );
+      });
       
-      logger.room('Room subscription will be handled by MatchNotificationContext', { roomId, userId });
+      logger.room('✅ Direct room subscription established for real-time notifications', { roomId, userId });
 
     } catch (error) {
       logger.roomError('Failed to setup room subscription', error, { roomId });
@@ -254,13 +289,35 @@ export default function VotingRoomScreen() {
   };
 
   const handleVote = async (vote: boolean) => {
-    if (isVoting || currentIndex >= candidates.length || hasExistingMatch) return;
+    if (isVoting || currentIndex >= candidates.length) return;
 
     const currentMovie = candidates[currentIndex];
     
-    // Use proactive match check before voting
+    logger.vote('🚨 CRITICAL: Vote attempt - checking for matches FIRST', {
+      movieId: currentMovie.id,
+      movieTitle: currentMovie.title,
+      vote,
+      currentIndex,
+      totalCandidates: candidates.length,
+      roomId,
+      roomCode,
+      hasExistingMatch
+    });
+
+    // Check for existing matches but don't block votes (rooms persist now)
+    const hasMatch = await checkForExistingMatch();
+    if (hasMatch) {
+      logger.vote('ℹ️ Match exists in room but allowing vote (rooms persist now)', {
+        movieId: currentMovie.id,
+        movieTitle: currentMovie.title,
+        vote,
+        roomId
+      });
+    }
+
+    // Use proactive match check as additional layer
     await executeWithMatchCheck(async () => {
-      logger.vote('Vote initiated', {
+      logger.vote('✅ Vote proceeding after match checks', {
         movieId: currentMovie.id,
         movieTitle: currentMovie.title,
         vote,
@@ -287,6 +344,34 @@ export default function VotingRoomScreen() {
           userId: authStatus.user?.userId,
           hasTokens: !!authStatus.session?.tokens
         });
+
+        // FINAL CHECK: Verify room still exists before voting
+        logger.vote('🔍 Final room existence check before vote submission');
+        const roomCheckResponse = await client.graphql({
+          query: GET_ROOM,
+          variables: { id: roomId },
+          authMode: 'userPool',
+        });
+
+        if (!roomCheckResponse.data.getRoom) {
+          logger.voteError('Room no longer exists - vote blocked', null, {
+            roomId,
+            movieId: currentMovie.id,
+            vote
+          });
+          
+          Alert.alert(
+            '🎉 ¡MATCH ENCONTRADO!',
+            'La sala ya no existe porque se encontró una película en común. Serás redirigido a tus matches.',
+            [
+              { 
+                text: 'Ver mis matches', 
+                onPress: () => navigation.navigate('MyMatches' as any)
+              }
+            ]
+          );
+          return;
+        }
 
         logger.apiRequest('vote mutation', {
           input: {
@@ -384,7 +469,23 @@ export default function VotingRoomScreen() {
         roomCode
       });
       console.error('Error voting:', error);
-      Alert.alert('Error', 'No se pudo registrar el voto. Inténtalo de nuevo.');
+      
+      // Check if error is due to room not found
+      const errorMessage = error?.message || error?.toString() || '';
+      if (errorMessage.includes('Room not found') || errorMessage.includes('has expired')) {
+        Alert.alert(
+          '🎉 ¡MATCH ENCONTRADO!',
+          'La sala ya no existe porque se encontró una película en común. Serás redirigido a tus matches.',
+          [
+            { 
+              text: 'Ver mis matches', 
+              onPress: () => navigation.navigate('MyMatches' as any)
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'No se pudo registrar el voto. Inténtalo de nuevo.');
+      }
     } finally {
       setIsVoting(false);
     }
@@ -393,8 +494,7 @@ export default function VotingRoomScreen() {
 
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gestureState) => {
-      // Don't allow gestures if there's an existing match
-      if (hasExistingMatch) return false;
+      // Allow gestures even if there's an existing match (rooms persist now)
       return Math.abs(gestureState.dx) > 20 || Math.abs(gestureState.dy) > 20;
     },
     onPanResponderGrant: () => {
@@ -414,41 +514,42 @@ export default function VotingRoomScreen() {
     onPanResponderRelease: async (_, gestureState) => {
       pan.flattenOffset();
       
-      // Check for existing match before processing swipe
-      const hasMatch = await checkForExistingMatch();
-      if (hasMatch) {
-        // Reset animation and don't process vote
-        Animated.parallel([
-          Animated.spring(pan, {
-            toValue: { x: 0, y: 0 },
-            useNativeDriver: false,
-          }),
-          Animated.spring(scale, {
-            toValue: 1,
-            useNativeDriver: false,
-          }),
-        ]).start();
-        return;
-      }
+      logger.userAction('Swipe gesture detected - processing vote', {
+        gestureX: gestureState.dx,
+        gestureY: gestureState.dy
+      });
       
       const swipeThreshold = 120;
       
       if (gestureState.dx > swipeThreshold) {
         // Swipe right - Like
+        logger.userAction('Swipe right detected - processing like vote');
         Animated.timing(pan, {
           toValue: { x: screenWidth, y: gestureState.dy },
           duration: 200,
           useNativeDriver: false,
-        }).start(() => handleVote(true));
+        }).start(() => {
+          // Process vote directly (rooms persist now)
+          executeWithMatchCheck(async () => {
+            handleVote(true);
+          }, 'Swipe Right Like');
+        });
       } else if (gestureState.dx < -swipeThreshold) {
         // Swipe left - Dislike
+        logger.userAction('Swipe left detected - processing dislike vote');
         Animated.timing(pan, {
           toValue: { x: -screenWidth, y: gestureState.dy },
           duration: 200,
           useNativeDriver: false,
-        }).start(() => handleVote(false));
+        }).start(() => {
+          // Process vote directly (rooms persist now)
+          executeWithMatchCheck(async () => {
+            handleVote(false);
+          }, 'Swipe Left Dislike');
+        });
       } else {
         // Snap back
+        logger.userAction('Swipe gesture too small - snapping back');
         Animated.parallel([
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
@@ -605,14 +706,23 @@ export default function VotingRoomScreen() {
         <TouchableOpacity
           style={[
             styles.actionButton, 
-            styles.dislikeButton,
-            hasExistingMatch && styles.disabledButton
+            styles.dislikeButton
           ]}
           onPress={async () => {
+            logger.userAction('Dislike button pressed - checking for matches first');
+            
+            // CRITICAL: Check for matches before ANY button action
             const hasMatch = await checkForExistingMatch();
-            if (!hasMatch) handleVote(false);
+            if (hasMatch) {
+              logger.userAction('Match exists but allowing vote (rooms persist now)');
+            }
+            
+            // Additional proactive check
+            await executeWithMatchCheck(async () => {
+              handleVote(false);
+            }, 'Dislike Button Action');
           }}
-          disabled={isVoting || hasExistingMatch}
+          disabled={isVoting}
         >
           <Text style={styles.actionButtonText}>👎</Text>
         </TouchableOpacity>
@@ -620,14 +730,23 @@ export default function VotingRoomScreen() {
         <TouchableOpacity
           style={[
             styles.actionButton, 
-            styles.likeButton,
-            hasExistingMatch && styles.disabledButton
+            styles.likeButton
           ]}
           onPress={async () => {
+            logger.userAction('Like button pressed - checking for matches first');
+            
+            // CRITICAL: Check for matches before ANY button action
             const hasMatch = await checkForExistingMatch();
-            if (!hasMatch) handleVote(true);
+            if (hasMatch) {
+              logger.userAction('Match exists but allowing vote (rooms persist now)');
+            }
+            
+            // Additional proactive check
+            await executeWithMatchCheck(async () => {
+              handleVote(true);
+            }, 'Like Button Action');
           }}
-          disabled={isVoting || hasExistingMatch}
+          disabled={isVoting}
         >
           <Text style={styles.actionButtonText}>👍</Text>
         </TouchableOpacity>
