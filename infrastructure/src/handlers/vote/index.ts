@@ -686,19 +686,22 @@ class VoteService {
   }
 }
 
-// Lambda Handler
-export const handler: Handler<VoteEvent, VoteResponse> = async (event) => {
-  console.log('Vote Lambda received event:', JSON.stringify(event));
+// Lambda Handler for AppSync
+export const handler: Handler = async (event) => {
+  console.log('Vote Lambda received AppSync event:', JSON.stringify(event));
 
   try {
-    const { userId, input } = event;
+    // Extract user ID from AppSync context
+    const userId = event.identity?.claims?.sub || event.identity?.username;
+    if (!userId) {
+      throw new Error('User not authenticated');
+    }
+
+    // Get arguments from AppSync
+    const { input } = event.arguments;
     const { roomId, movieId, vote } = input;
 
     // Validate input
-    if (!userId) {
-      throw new Error('User ID is required');
-    }
-
     if (!roomId) {
       throw new Error('Room ID is required');
     }
@@ -714,22 +717,12 @@ export const handler: Handler<VoteEvent, VoteResponse> = async (event) => {
     const voteService = new VoteService();
     const result = await voteService.processVote(userId, roomId, movieId, vote);
 
-    return {
-      statusCode: 200,
-      body: result,
-    };
+    return result;
 
   } catch (error) {
     console.error('Vote Lambda error:', error);
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    
-    return {
-      statusCode: 400,
-      body: {
-        success: false,
-        error: errorMessage,
-      },
-    };
+    throw new Error(errorMessage);
   }
 };

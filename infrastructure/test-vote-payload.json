@@ -1,0 +1,17 @@
+{
+  "info": {
+    "fieldName": "vote"
+  },
+  "identity": {
+    "claims": {
+      "sub": "e2352494-00a1-701b-affc-1b5dad653c83"
+    }
+  },
+  "arguments": {
+    "input": {
+      "roomId": "cbe35d01-041d-4582-b742-21805bab9f56",
+      "movieId": 1084242,
+      "vote": false
+    }
+  }
+}

@@ -1,74 +1,19 @@
-import { Handler } from 'aws-lambda';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, GetCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
-import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
-import { randomUUID } from 'crypto';
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient, PutCommand, GetCommand, QueryCommand, ScanCommand } = require('@aws-sdk/lib-dynamodb');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
+const { randomUUID } = require('crypto');
 
 // Initialize AWS clients
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION });
 
-// Types
-interface MovieCandidate {
-  id: number;
-  title: string;
-  overview: string;
-  posterPath: string | null;
-  releaseDate: string;
-  mediaType: 'MOVIE' | 'TV';
-}
-
-interface Room {
-  id: string;
-  code: string;
-  hostId: string;
-  mediaType: 'MOVIE' | 'TV';
-  genreIds: number[];
-  candidates: MovieCandidate[];
-  createdAt: string;
-  ttl: number;
-}
-
-interface CreateRoomEvent {
-  operation: 'createRoom';
-  userId: string;
-  input: {
-    mediaType: 'MOVIE' | 'TV';
-    genreIds: number[];
-  };
-}
-
-interface JoinRoomEvent {
-  operation: 'joinRoom';
-  userId: string;
-  code: string;
-}
-
-interface GetRoomEvent {
-  operation: 'getRoom';
-  userId: string;
-  roomId: string;
-}
-
-interface GetMyRoomsEvent {
-  operation: 'getMyRooms';
-  userId: string;
-}
-
-type RoomEvent = CreateRoomEvent | JoinRoomEvent | GetRoomEvent | GetMyRoomsEvent;
-
-interface RoomResponse {
-  statusCode: number;
-  body: Room | Room[] | { error: string };
-}
-
 // Room code generator
 class RoomCodeGenerator {
-  private static readonly CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  private static readonly CODE_LENGTH = 6;
+  static CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  static CODE_LENGTH = 6;
 
-  static generate(): string {
+  static generate() {
     let code = '';
     for (let i = 0; i < this.CODE_LENGTH; i++) {
       code += this.CHARACTERS.charAt(Math.floor(Math.random() * this.CHARACTERS.length));
@@ -76,22 +21,22 @@ class RoomCodeGenerator {
     return code;
   }
 
-  static async generateUnique(docClient: DynamoDBDocumentClient, tableName: string): Promise<string> {
+  static async generateUnique(docClient, tableName) {
     let attempts = 0;
     const maxAttempts = 10;
 
     while (attempts < maxAttempts) {
       const code = this.generate();
       
-      // Check if code already exists
       try {
-        const result = await docClient.send(new QueryCommand({
+        // Try to find existing room with this code using scan (fallback method)
+        const result = await docClient.send(new ScanCommand({
           TableName: tableName,
-          IndexName: 'code-index',
-          KeyConditionExpression: 'code = :code',
+          FilterExpression: 'code = :code',
           ExpressionAttributeValues: {
             ':code': code,
           },
+          Limit: 1,
         }));
 
         if (!result.Items || result.Items.length === 0) {
@@ -110,8 +55,6 @@ class RoomCodeGenerator {
 
 // TMDB Integration
 class TMDBIntegration {
-  private readonly lambdaArn: string;
-
   constructor() {
     this.lambdaArn = process.env.TMDB_LAMBDA_ARN || '';
     if (!this.lambdaArn) {
@@ -119,7 +62,7 @@ class TMDBIntegration {
     }
   }
 
-  async fetchCandidates(mediaType: 'MOVIE' | 'TV', genreIds?: number[]): Promise<MovieCandidate[]> {
+  async fetchCandidates(mediaType, genreIds) {
     try {
       const payload = {
         mediaType,
@@ -157,9 +100,6 @@ class TMDBIntegration {
 
 // Room Service
 class RoomService {
-  private readonly tableName: string;
-  private readonly tmdbIntegration: TMDBIntegration;
-
   constructor() {
     this.tableName = process.env.ROOMS_TABLE || '';
     if (!this.tableName) {
@@ -168,7 +108,7 @@ class RoomService {
     this.tmdbIntegration = new TMDBIntegration();
   }
 
-  async createRoom(userId: string, mediaType: 'MOVIE' | 'TV', genreIds: number[]): Promise<Room> {
+  async createRoom(userId, mediaType, genreIds) {
     // Validate input
     if (!mediaType || !['MOVIE', 'TV'].includes(mediaType)) {
       throw new Error('Invalid mediaType. Must be MOVIE or TV');
@@ -195,7 +135,7 @@ class RoomService {
     const now = new Date().toISOString();
     const ttl = Math.floor(Date.now() / 1000) + (24 * 60 * 60); // 24 hours from now
 
-    const room: Room = {
+    const room = {
       id: roomId,
       code,
       hostId: userId,
@@ -217,7 +157,7 @@ class RoomService {
     return room;
   }
 
-  async joinRoom(userId: string, code: string): Promise<Room> {
+  async joinRoom(userId, code) {
     if (!code || code.trim() === '') {
       throw new Error('Room code is required');
     }
@@ -227,7 +167,7 @@ class RoomService {
     }
 
     try {
-      // Query by room code using GSI
+      // Try GSI first
       const result = await docClient.send(new QueryCommand({
         TableName: this.tableName,
         IndexName: 'code-index',
@@ -241,12 +181,7 @@ class RoomService {
         throw new Error('Room not found. Please check the room code.');
       }
 
-      if (result.Items.length > 1) {
-        console.error(`Multiple rooms found for code ${code}:`, result.Items);
-        throw new Error('Multiple rooms found for code. Please contact support.');
-      }
-
-      const room = result.Items[0] as Room;
+      const room = result.Items[0];
 
       // Check if room has expired
       const now = Math.floor(Date.now() / 1000);
@@ -254,7 +189,6 @@ class RoomService {
         throw new Error('Room has expired. Please create a new room.');
       }
 
-      // Record user participation when joining room
       await this.recordRoomParticipation(userId, room.id);
 
       console.log(`User ${userId} joined room: ${room.id} with code: ${code}`);
@@ -266,7 +200,7 @@ class RoomService {
     }
   }
 
-  private async joinRoomByScan(userId: string, code: string): Promise<Room> {
+  async joinRoomByScan(userId, code) {
     // Fallback method using scan
     const result = await docClient.send(new ScanCommand({
       TableName: this.tableName,
@@ -280,7 +214,7 @@ class RoomService {
       throw new Error('Room not found. Please check the room code.');
     }
 
-    const room = result.Items[0] as Room;
+    const room = result.Items[0];
 
     // Check if room has expired
     const now = Math.floor(Date.now() / 1000);
@@ -288,14 +222,13 @@ class RoomService {
       throw new Error('Room has expired. Please create a new room.');
     }
 
-    // Record user participation when joining room
     await this.recordRoomParticipation(userId, room.id);
 
     console.log(`User ${userId} joined room: ${room.id} with code: ${code} (scan method)`);
     return room;
   }
 
-  private async recordRoomParticipation(userId: string, roomId: string): Promise<void> {
+  async recordRoomParticipation(userId, roomId) {
     try {
       const votesTable = process.env.VOTES_TABLE || '';
       if (!votesTable) {
@@ -303,40 +236,36 @@ class RoomService {
         return;
       }
 
-      // Create a special "participation" record in VOTES table
-      // This allows the room to appear in getMyRooms() even without actual votes
       const participationRecord = {
         roomId,
-        userMovieId: `${userId}#JOINED`, // Special marker for room participation
+        userMovieId: `${userId}#JOINED`,
         userId,
-        movieId: -1, // Special value indicating this is a participation record, not a vote
-        vote: false, // Not a real vote
+        movieId: -1,
+        vote: false,
         timestamp: new Date().toISOString(),
-        isParticipation: true, // Flag to distinguish from real votes
+        isParticipation: true,
       };
 
       await docClient.send(new PutCommand({
         TableName: votesTable,
         Item: participationRecord,
-        // Allow overwriting if user joins the same room multiple times
       }));
 
       console.log(`Participation recorded for user ${userId} in room ${roomId}`);
     } catch (error) {
       console.error(`Error recording participation for user ${userId} in room ${roomId}:`, error);
-      // Don't fail the join operation if participation tracking fails
     }
   }
 
-  async getMyRooms(userId: string): Promise<Room[]> {
+  async getMyRooms(userId) {
     if (!userId) {
       throw new Error('User ID is required');
     }
 
     try {
-      const allRooms: Room[] = [];
+      const allRooms = [];
 
-      // 1. Get rooms where user is the host - use scan for now since GSI might not be ready
+      // Get rooms where user is the host - use scan for now
       const hostRoomsResult = await docClient.send(new ScanCommand({
         TableName: this.tableName,
         FilterExpression: 'hostId = :userId',
@@ -346,12 +275,11 @@ class RoomService {
       }));
 
       const hostRooms = hostRoomsResult.Items || [];
-      allRooms.push(...(hostRooms as Room[]));
+      allRooms.push(...hostRooms);
 
-      // 2. Get rooms where user has participated (joined or voted)
+      // Get rooms where user has participated
       const votesTable = process.env.VOTES_TABLE || '';
       if (votesTable) {
-        // Get all participation records by this user - use scan for now
         const userParticipationResult = await docClient.send(new ScanCommand({
           TableName: votesTable,
           FilterExpression: 'userId = :userId',
@@ -361,22 +289,17 @@ class RoomService {
         }));
 
         const userParticipation = userParticipationResult.Items || [];
-        
-        // Get unique room IDs from participation records (both votes and joins)
         const participatedRoomIds = new Set(userParticipation.map(record => record.roomId));
-        
-        // Get room details for participated rooms (excluding already fetched host rooms)
         const hostRoomIds = new Set(hostRooms.map(room => room.id));
         const newRoomIds = Array.from(participatedRoomIds).filter(roomId => !hostRoomIds.has(roomId));
         
-        // Fetch room details for participated rooms
         const participatedRoomsPromises = newRoomIds.map(async (roomId) => {
           try {
             const roomResult = await docClient.send(new GetCommand({
               TableName: this.tableName,
               Key: { id: roomId },
             }));
-            return roomResult.Item as Room;
+            return roomResult.Item;
           } catch (error) {
             console.error(`Error fetching room ${roomId}:`, error);
             return null;
@@ -384,46 +307,14 @@ class RoomService {
         });
 
         const participatedRooms = (await Promise.all(participatedRoomsPromises))
-          .filter(room => room !== null) as Room[];
+          .filter(room => room !== null);
         
         allRooms.push(...participatedRooms);
       }
 
-      // 3. Filter out expired rooms and rooms with matches
+      // Filter out expired rooms
       const now = Math.floor(Date.now() / 1000);
       const activeRooms = allRooms.filter(room => !room.ttl || room.ttl >= now);
-
-      // 4. Check for matches and filter out rooms with matches
-      const matchesTable = process.env.MATCHES_TABLE || '';
-      if (matchesTable) {
-        const roomsWithoutMatches = [];
-        
-        for (const room of activeRooms) {
-          try {
-            // Check if room has any matches
-            const matchResult = await docClient.send(new QueryCommand({
-              TableName: matchesTable,
-              KeyConditionExpression: 'roomId = :roomId',
-              ExpressionAttributeValues: {
-                ':roomId': room.id,
-              },
-              Limit: 1, // We only need to know if any match exists
-            }));
-
-            // If no matches found, include the room
-            if (!matchResult.Items || matchResult.Items.length === 0) {
-              roomsWithoutMatches.push(room);
-            }
-          } catch (error) {
-            console.error(`Error checking matches for room ${room.id}:`, error);
-            // Include room if we can't check matches (fail safe)
-            roomsWithoutMatches.push(room);
-          }
-        }
-
-        console.log(`Found ${roomsWithoutMatches.length} active rooms without matches for user ${userId}`);
-        return roomsWithoutMatches.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      }
 
       console.log(`Found ${activeRooms.length} active rooms for user ${userId}`);
       return activeRooms.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -434,7 +325,7 @@ class RoomService {
     }
   }
 
-  async getRoom(roomId: string): Promise<Room | null> {
+  async getRoom(roomId) {
     const result = await docClient.send(new GetCommand({
       TableName: this.tableName,
       Key: { id: roomId },
@@ -444,7 +335,7 @@ class RoomService {
       return null;
     }
 
-    const room = result.Item as Room;
+    const room = result.Item;
 
     // Check if room has expired
     const now = Math.floor(Date.now() / 1000);
@@ -457,7 +348,7 @@ class RoomService {
 }
 
 // Lambda Handler for AppSync
-export const handler: Handler = async (event) => {
+exports.handler = async (event) => {
   console.log('Room Lambda received AppSync event:', JSON.stringify(event));
 
   try {

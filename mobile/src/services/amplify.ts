@@ -1,18 +1,34 @@
 import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/api';
 import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
-import { awsConfig, amplifyConfig } from '../config/aws-config';
+import { awsConfig } from '../config/aws-config';
 import { logger } from './logger';
 
 logger.info('AMPLIFY', 'Configuring AWS Amplify with enhanced real-time support', {
   region: awsConfig.region,
   endpoint: awsConfig.graphqlEndpoint,
-  realtimeEndpoint: awsConfig.realtimeEndpoint,
   userPoolId: awsConfig.userPoolId,
   clientId: awsConfig.userPoolWebClientId
 });
 
 // CRITICAL: Configure Amplify with enhanced real-time support
+const amplifyConfig = {
+  Auth: {
+    Cognito: {
+      userPoolId: awsConfig.userPoolId,
+      userPoolClientId: awsConfig.userPoolWebClientId,
+      region: awsConfig.region,
+    },
+  },
+  API: {
+    GraphQL: {
+      endpoint: awsConfig.graphqlEndpoint,
+      region: awsConfig.region,
+      defaultAuthMode: awsConfig.authenticationType,
+    },
+  },
+};
+
 Amplify.configure(amplifyConfig);
 
 logger.info('AMPLIFY', 'AWS Amplify configured successfully with real-time support');

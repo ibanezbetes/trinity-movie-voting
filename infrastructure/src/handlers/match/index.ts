@@ -182,29 +182,28 @@ class MatchService {
     try {
       console.log(`Getting matches for user: ${userId}`);
       
-      // Use the new GSI to efficiently query matches by user
-      const result = await docClient.send(new QueryCommand({
+      // Scan the matches table and filter by matchedUsers array
+      // Since we store matches with matchedUsers as an array, we need to scan and filter
+      const result = await docClient.send(new ScanCommand({
         TableName: this.matchesTable,
-        IndexName: 'userId-timestamp-index',
-        KeyConditionExpression: 'userId = :userId',
+        FilterExpression: 'contains(matchedUsers, :userId)',
         ExpressionAttributeValues: {
           ':userId': userId,
         },
-        ScanIndexForward: false, // Sort by timestamp descending (newest first)
-        Limit: 50, // Limit to last 50 matches for performance
+        Limit: 50,
       }));
 
       const matches = (result.Items || []) as Match[];
       console.log(`Found ${matches.length} matches for user ${userId}`);
       
+      // Sort by timestamp descending (newest first)
+      matches.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      
       return matches;
 
     } catch (error) {
       console.error('Error getting user matches:', error);
-      
-      // Fallback to scan method for backward compatibility
-      console.log('Falling back to scan method...');
-      return await this.scanUserMatches(userId);
+      return [];
     }
   }
 
@@ -212,16 +211,14 @@ class MatchService {
     try {
       console.log(`🔍 Checking for ANY matches for user: ${userId}`);
       
-      // Use the GSI to efficiently query matches by user
-      const result = await docClient.send(new QueryCommand({
+      // Scan the matches table and filter by matchedUsers array
+      const result = await docClient.send(new ScanCommand({
         TableName: this.matchesTable,
-        IndexName: 'userId-timestamp-index',
-        KeyConditionExpression: 'userId = :userId',
+        FilterExpression: 'contains(matchedUsers, :userId)',
         ExpressionAttributeValues: {
           ':userId': userId,
         },
-        ScanIndexForward: false, // Sort by timestamp descending (newest first)
-        Limit: 10, // Limit to last 10 matches for performance
+        Limit: 10,
       }));
 
       const matches = (result.Items || []) as Match[];
@@ -236,14 +233,14 @@ class MatchService {
         })));
       }
       
+      // Sort by timestamp descending (newest first)
+      matches.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      
       return matches;
 
     } catch (error) {
       console.error('❌ Error checking user matches:', error);
-      
-      // Fallback to scan method for backward compatibility
-      console.log('🔄 Falling back to scan method...');
-      return await this.scanUserMatches(userId);
+      return [];
     }
   }
 
@@ -346,52 +343,51 @@ class MatchService {
   }
 }
 
-// Lambda Handler
-export const handler: Handler<MatchEvent, MatchResponse> = async (event) => {
-  console.log('Match Lambda received event:', JSON.stringify(event));
+// Lambda Handler for AppSync
+export const handler: Handler = async (event) => {
+  console.log('Match Lambda received AppSync event:', JSON.stringify(event));
 
   try {
     const matchService = new MatchService();
 
-    switch (event.operation) {
-      case 'publishRoomMatch': {
-        const { roomId, matchData } = event;
-        
-        console.log(`🚀 CRITICAL FIX: Processing publishRoomMatch for room: ${roomId}`);
-        console.log(`🎬 Movie: ${matchData.movieTitle}`);
-        console.log(`👥 Matched users: ${matchData.matchedUsers.join(', ')}`);
-        
-        // CRITICAL FIX: Return the correct roomMatchEvent structure that AppSync expects
-        // The AppSync resolver will use this to trigger the roomMatch subscription
-        
-        const roomMatchEvent = {
-          roomId: roomId,
-          matchId: matchData.matchId,
-          movieId: String(matchData.movieId), // Convert to string for consistency
-          movieTitle: matchData.movieTitle,
-          posterPath: matchData.posterPath || null,
-          matchedUsers: matchData.matchedUsers,
-          timestamp: new Date().toISOString(),
-          matchDetails: matchData.matchDetails
-        };
+    // Extract user ID from AppSync context
+    const userId = event.identity?.claims?.sub || event.identity?.username;
+    
+    // Determine operation from AppSync field name
+    const fieldName = event.info?.fieldName;
+    
+    switch (fieldName) {
+      case 'getMyMatches': {
+        if (!userId) {
+          throw new Error('User not authenticated');
+        }
 
-        console.log('📡 Returning roomMatchEvent for AppSync subscription trigger');
-        console.log('✅ AppSync will broadcast this to all roomMatch subscribers');
-        console.log(`🔔 All users subscribed to roomMatch(${roomId}) will be notified`);
+        const matches = await matchService.getUserMatches(userId);
+        return matches;
+      }
+
+      case 'checkUserMatches': {
+        if (!userId) {
+          throw new Error('User not authenticated');
+        }
+
+        const matches = await matchService.checkUserMatches(userId);
+        return matches;
+      }
+
+      case 'checkRoomMatch': {
+        const { roomId } = event.arguments;
         
-        // CRITICAL: Return the roomMatchEvent in the body so AppSync resolver can use it
-        return {
-          statusCode: 200,
-          body: { 
-            success: true,
-            roomMatchEvent: roomMatchEvent,
-            message: 'Room match event prepared for AppSync subscription broadcast'
-          },
-        };
+        if (!roomId) {
+          throw new Error('Room ID is required');
+        }
+
+        const match = await matchService.checkRoomMatch(roomId);
+        return match;
       }
 
       case 'createMatch': {
-        const { input } = event;
+        const { input } = event.arguments;
         
         // Create the match object
         const timestamp = new Date().toISOString();
@@ -413,113 +409,65 @@ export const handler: Handler<MatchEvent, MatchResponse> = async (event) => {
         console.log(`🎬 Match: ${match.title}`);
         console.log(`👥 Notifying ${match.matchedUsers.length} users: ${match.matchedUsers.join(', ')}`);
         
-        // CRITICAL: When this resolver returns the match object, AppSync will automatically
-        // trigger the onMatchCreated subscription for all connected clients.
-        // The subscription is configured in schema.graphql as:
-        // onMatchCreated: Match @aws_subscribe(mutations: ["createMatch"])
-        
-        // This means any client subscribed to onMatchCreated will receive this match
-        // The client-side filtering in subscriptions.ts will ensure each user only
-        // processes matches where they are in the matchedUsers array
-        
-        console.log('✅ Returning match object to AppSync for subscription broadcast');
-        
-        return {
-          statusCode: 200,
-          body: { match },
-        };
+        return match;
       }
 
-      case 'matchCreated': {
-        const { match } = event;
+      case 'publishRoomMatch': {
+        const { roomId, matchData } = event.arguments;
         
-        // Process the match creation
-        await matchService.handleMatchCreated(match);
+        console.log(`🚀 CRITICAL FIX: Processing publishRoomMatch for room: ${roomId}`);
+        console.log(`🎬 Movie: ${matchData.movieTitle}`);
+        console.log(`👥 Matched users: ${matchData.matchedUsers.join(', ')}`);
         
-        // Send notifications (future implementation)
-        await matchService.processMatchNotification(match);
-
-        return {
-          statusCode: 200,
-          body: { success: true },
+        // Return the roomMatchEvent structure that AppSync expects
+        const roomMatchEvent = {
+          roomId: roomId,
+          matchId: matchData.matchId,
+          movieId: String(matchData.movieId),
+          movieTitle: matchData.movieTitle,
+          posterPath: matchData.posterPath || null,
+          matchedUsers: matchData.matchedUsers,
+          timestamp: new Date().toISOString(),
+          matchDetails: matchData.matchDetails
         };
+
+        console.log('📡 Returning roomMatchEvent for AppSync subscription trigger');
+        
+        return roomMatchEvent;
       }
 
-      case 'getUserMatches': {
-        const { userId } = event;
+      case 'publishUserMatch': {
+        const { userId: targetUserId, matchData } = event.arguments;
         
-        if (!userId) {
-          throw new Error('User ID is required');
-        }
-
-        const matches = await matchService.getUserMatches(userId);
-
-        return {
-          statusCode: 200,
-          body: { matches },
-        };
-      }
-
-      case 'checkUserMatches': {
-        const { userId } = event;
+        console.log(`🚀 Processing publishUserMatch for user: ${targetUserId}`);
+        console.log(`🎬 Movie: ${matchData.movieTitle}`);
         
-        if (!userId) {
-          throw new Error('User ID is required');
-        }
-
-        const matches = await matchService.checkUserMatches(userId);
-
-        return {
-          statusCode: 200,
-          body: { matches },
+        // Return the userMatchEvent structure that AppSync expects
+        const userMatchEvent = {
+          userId: targetUserId,
+          roomId: matchData.roomId,
+          matchId: matchData.matchId,
+          movieId: String(matchData.movieId),
+          movieTitle: matchData.movieTitle,
+          posterPath: matchData.posterPath || null,
+          matchedUsers: matchData.matchedUsers,
+          timestamp: new Date().toISOString(),
+          matchDetails: matchData.matchDetails
         };
-      }
 
-      case 'checkRoomMatch': {
-        const { roomId } = event;
+        console.log('📡 Returning userMatchEvent for AppSync subscription trigger');
         
-        if (!roomId) {
-          throw new Error('Room ID is required');
-        }
-
-        const match = await matchService.checkRoomMatch(roomId);
-
-        return {
-          statusCode: 200,
-          body: { match: match || undefined },
-        };
-      }
-
-      case 'notifyMatch': {
-        const { match } = event;
-        
-        if (!match) {
-          throw new Error('Match is required');
-        }
-
-        await matchService.notifyMatchToUsers(match);
-
-        return {
-          statusCode: 200,
-          body: { success: true },
-        };
+        return userMatchEvent;
       }
 
       default:
-        throw new Error(`Unknown operation: ${(event as any).operation}`);
+        throw new Error(`Unknown field: ${fieldName}`);
     }
 
   } catch (error) {
     console.error('Match Lambda error:', error);
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    
-    return {
-      statusCode: 400,
-      body: {
-        success: false,
-        error: errorMessage,
-      },
-    };
+    throw new Error(errorMessage);
   }
 };

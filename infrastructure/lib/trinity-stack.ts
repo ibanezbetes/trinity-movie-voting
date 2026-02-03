@@ -21,6 +21,12 @@ export class TrinityStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    // Add GSI for room code lookup (first deployment)
+    roomsTable.addGlobalSecondaryIndex({
+      indexName: 'code-index',
+      partitionKey: { name: 'code', type: dynamodb.AttributeType.STRING },
+    });
+
     const votesTable = new dynamodb.Table(this, 'VotesTable', {
       tableName: 'trinity-votes',
       partitionKey: { name: 'roomId', type: dynamodb.AttributeType.STRING },
@@ -35,13 +41,6 @@ export class TrinityStack extends cdk.Stack {
       sortKey: { name: 'movieId', type: dynamodb.AttributeType.NUMBER },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-
-    // Add GSI for user matches
-    matchesTable.addGlobalSecondaryIndex({
-      indexName: 'UserMatchesIndex',
-      partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'timestamp', type: dynamodb.AttributeType.STRING },
     });
 
     // Cognito User Pool
