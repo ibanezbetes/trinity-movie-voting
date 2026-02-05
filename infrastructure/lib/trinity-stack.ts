@@ -101,7 +101,8 @@ export class TrinityStack extends cdk.Stack {
       handler: 'index.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../src/handlers/tmdb')),
       environment: {
-        TMDB_API_KEY: process.env.TMDB_API_KEY || '',
+        TMDB_API_KEY: process.env.TMDB_API_KEY || 'dc4dbcd2404c1ca852f8eb964add267d', // Fallback hardcoded
+        TMDB_READ_TOKEN: process.env.TMDB_READ_TOKEN || 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJkYzRkYmNkMjQwNGMxY2E4NTJmOGViOTY0YWRkMjY3ZCIsIm5iZiI6MTc2NjAwMTAwMi40MDk5OTk4LCJzdWIiOiI2OTQzMDk2YTRjMGMxZmUzZDY3OWFjYmUiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.qK155c8oXB-_OUfYcNedwc7Fsbg8w7Y4d99oikb3SP8',
       },
       timeout: cdk.Duration.seconds(30),
     });

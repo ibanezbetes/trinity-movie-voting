@@ -76,11 +76,18 @@ class TMDBClient {
 
   constructor() {
     this.baseUrl = process.env.TMDB_BASE_URL || 'https://api.themoviedb.org/3';
-    this.readToken = process.env.TMDB_READ_TOKEN || '';
+    // Try both TMDB_READ_TOKEN and TMDB_API_KEY for compatibility
+    this.readToken = process.env.TMDB_READ_TOKEN || process.env.TMDB_API_KEY || '';
     this.validator = new LatinScriptValidator();
     
+    console.log('TMDBClient initializing...');
+    console.log('Base URL:', this.baseUrl);
+    console.log('Token configured:', this.readToken ? 'YES' : 'NO');
+    console.log('Token length:', this.readToken.length);
+    
     if (!this.readToken) {
-      throw new Error('TMDB_READ_TOKEN environment variable is required');
+      console.error('Available environment variables:', Object.keys(process.env).filter(key => key.includes('TMDB')));
+      throw new Error('TMDB_READ_TOKEN or TMDB_API_KEY environment variable is required');
     }
   }
 
@@ -308,13 +315,25 @@ export const handler: Handler<TMDBEvent, TMDBResponse> = async (event) => {
 
     // Validate input
     if (!mediaType || !['MOVIE', 'TV'].includes(mediaType)) {
+      console.error('Invalid mediaType:', mediaType);
       throw new Error('Invalid mediaType. Must be MOVIE or TV');
     }
 
     // Validate genre limit (max 2 as per master spec)
     if (genreIds && genreIds.length > 2) {
+      console.error('Too many genres:', genreIds.length);
       throw new Error('Maximum 2 genres allowed');
     }
+
+    // Check environment variables
+    const tmdbReadToken = process.env.TMDB_READ_TOKEN || process.env.TMDB_API_KEY || '';
+    if (!tmdbReadToken) {
+      console.error('TMDB token not found in environment variables');
+      console.error('Available env vars:', Object.keys(process.env).filter(key => key.includes('TMDB')));
+      throw new Error('TMDB API token not configured');
+    }
+
+    console.log('TMDB token configured, length:', tmdbReadToken.length);
 
     const tmdbClient = new TMDBClient();
     
@@ -335,6 +354,14 @@ export const handler: Handler<TMDBEvent, TMDBResponse> = async (event) => {
 
   } catch (error) {
     console.error('TMDB Lambda error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Environment variables:', {
+      TMDB_API_KEY: process.env.TMDB_API_KEY ? 'SET' : 'NOT SET',
+      TMDB_READ_TOKEN: process.env.TMDB_READ_TOKEN ? 'SET' : 'NOT SET',
+      TMDB_BASE_URL: process.env.TMDB_BASE_URL || 'NOT SET'
+    });
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
     return {
       statusCode: 500,
@@ -342,6 +369,7 @@ export const handler: Handler<TMDBEvent, TMDBResponse> = async (event) => {
         candidates: [],
         totalResults: 0,
         page: 1,
+        error: errorMessage,
       },
     };
   }
