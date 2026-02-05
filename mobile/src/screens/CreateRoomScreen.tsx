@@ -23,6 +23,7 @@ export default function CreateRoomScreen() {
   const navigation = useNavigation<CreateRoomNavigationProp>();
   const [mediaType, setMediaType] = useState<'MOVIE' | 'TV'>('MOVIE');
   const [selectedGenres, setSelectedGenres] = useState<number[]>([]);
+  const [maxParticipants, setMaxParticipants] = useState<number>(2);
   const [isCreating, setIsCreating] = useState(false);
 
   const currentGenres = mediaType === 'MOVIE' ? MOVIE_GENRES : TV_GENRES;
@@ -69,6 +70,7 @@ export default function CreateRoomScreen() {
     logger.userAction('Create room button pressed', {
       mediaType,
       selectedGenres,
+      maxParticipants,
       genreNames: selectedGenres.map(id => currentGenres.find(g => g.id === id)?.name)
     });
 
@@ -82,6 +84,7 @@ export default function CreateRoomScreen() {
     logger.room('Starting room creation process', {
       mediaType,
       genreIds: selectedGenres,
+      maxParticipants,
       timestamp: new Date().toISOString()
     });
     
@@ -105,6 +108,7 @@ export default function CreateRoomScreen() {
         input: {
           mediaType,
           genreIds: selectedGenres,
+          maxParticipants,
         },
       });
 
@@ -114,6 +118,7 @@ export default function CreateRoomScreen() {
           input: {
             mediaType,
             genreIds: selectedGenres,
+            maxParticipants,
           },
         },
         authMode: 'userPool', // Explicitly specify auth mode
@@ -224,6 +229,35 @@ export default function CreateRoomScreen() {
                   selectedGenres.includes(genre.id) && styles.genreTextSelected
                 ]}>
                   {genre.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Participants Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            ¿Cuántas personas votarán?
+          </Text>
+          <Text style={styles.sectionSubtitle}>
+            Se producirá match cuando {maxParticipants} personas voten "Sí" a la misma película
+          </Text>
+          <View style={styles.participantsContainer}>
+            {[2, 3, 4, 5, 6].map((num) => (
+              <TouchableOpacity
+                key={num}
+                style={[
+                  styles.participantButton,
+                  maxParticipants === num && styles.participantButtonSelected
+                ]}
+                onPress={() => setMaxParticipants(num)}
+              >
+                <Text style={[
+                  styles.participantText,
+                  maxParticipants === num && styles.participantTextSelected
+                ]}>
+                  {num}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -366,5 +400,37 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#ffffff',
     letterSpacing: 1,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#888888',
+    marginBottom: 15,
+    lineHeight: 20,
+  },
+  participantsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  participantButton: {
+    flex: 1,
+    paddingVertical: 20,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#333333',
+    alignItems: 'center',
+    backgroundColor: '#2a2a2a',
+  },
+  participantButtonSelected: {
+    borderColor: '#FF9800',
+    backgroundColor: '#FF9800',
+  },
+  participantText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#888888',
+  },
+  participantTextSelected: {
+    color: '#ffffff',
   },
 });

@@ -175,3 +175,36 @@ infrastructure/*.report.json
 # Duplicate documentation folders
 docu_trinity/
 docs_backup/
+
+# Sync and download scripts (temporary)
+**/download-from-aws.ps1
+**/sync-lambda-code.ps1
+**/sync-from-aws.js
+
+# CDK cache
+infrastructure/cdk.out/.cache/
+
+# Android build artifacts
+mobile/android/app/build/
+mobile/android/app/.cxx/
+mobile/android/build/
+mobile/android/.gradle/
+
+# Expo build artifacts
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+
+# APK and AAB files (builds)
+*.apk
+*.aab
+
+# Native debug symbols
+native-debug-symbols.zip
+
+# Cleanup script (keep only the main one)
+cleanup-project.ps1
+
+# Quick start guides (versioned)
+QUICK_START_*.md
+SYNC_FROM_AWS_*.md

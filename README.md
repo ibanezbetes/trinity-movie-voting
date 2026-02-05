@@ -1,142 +1,136 @@
-# Trinity - Movie Matching App
+# 🎬 Trinity - Movie Matching App
 
-Trinity es una aplicación móvil que ayuda a grupos de amigos a encontrar películas o series para ver juntos mediante un sistema de votación colaborativa.
+Trinity es una aplicación móvil que ayuda a grupos de amigos a encontrar la película o serie perfecta para ver juntos. Usando un sistema de votación tipo "Tinder", todos los participantes votan sobre opciones hasta encontrar un match perfecto.
 
-## 🎯 Descripción
+## 🎯 Características Principales
 
-Trinity resuelve el problema común de "¿qué vemos hoy?" permitiendo que múltiples usuarios voten simultáneamente sobre candidatos de películas/series hasta encontrar un match perfecto donde todos están de acuerdo.
-
-### Características Principales
-
-- **Salas de Votación**: Crea salas con código único para que tus amigos se unan
-- **Votación Colaborativa**: Todos votan simultáneamente sobre los mismos candidatos
-- **Match Automático**: Cuando todos votan positivo por la misma película, se genera un match
-- **Notificaciones en Tiempo Real**: Recibe notificaciones instantáneas cuando hay un match
-- **Historial de Matches**: Consulta todas las películas que han coincidido con tus amigos
-- **Integración TMDB**: Candidatos de películas obtenidos de The Movie Database
+- **Salas de Votación**: Crea salas privadas con código único de 6 caracteres
+- **Votación Intuitiva**: Sistema de swipe (like/dislike) para películas y series
+- **Match Automático**: Detecta cuando todos los participantes coinciden en una opción
+- **Recomendaciones Inteligentes**: Integración con TMDB para sugerencias personalizadas
+- **Notificaciones en Tiempo Real**: AppSync subscriptions para notificar matches instantáneamente
+- **Configuración Flexible**: Salas de 2 a 6 participantes con hasta 2 géneros
 
 ## 🏗️ Arquitectura
 
 ### Stack Tecnológico
 
-**Frontend (Mobile)**
-- React Native 0.81.5
-- Expo SDK 54
-- TypeScript 5.9.2
-- React Navigation 7.x
-- AWS Amplify 6.16.0
+**Frontend**:
+- React Native + Expo
+- TypeScript
+- AWS Amplify (Auth + API)
+- React Navigation
 
-**Backend (Infrastructure)**
+**Backend**:
 - AWS CDK (Infrastructure as Code)
 - AWS AppSync (GraphQL API)
 - AWS Lambda (Serverless Functions)
-- Amazon DynamoDB (Database)
+- Amazon DynamoDB (NoSQL Database)
 - Amazon Cognito (Authentication)
-- TMDB API (Movie Data)
+- TMDB API (Movie Database)
 
-### Arquitectura Serverless
+### Diagrama de Arquitectura
 
 ```
-┌─────────────┐
-│   Mobile    │
-│     App     │
-└──────┬──────┘
-       │
-       ├─── AWS Cognito (Auth)
-       │
-       ├─── AWS AppSync (GraphQL)
-       │         │
-       │         ├─── Room Handler (Lambda)
-       │         ├─── Vote Handler (Lambda)
-       │         ├─── Match Handler (Lambda)
-       │         └─── TMDB Handler (Lambda)
-       │
-       └─── DynamoDB Tables
-                 ├─── trinity-rooms
-                 ├─── trinity-votes
-                 └─── trinity-matches
+┌─────────────────┐
+│  Mobile App     │
+│  (React Native) │
+└────────┬────────┘
+         │
+         ├─────────────────┐
+         │                 │
+    ┌────▼─────┐     ┌────▼──────┐
+    │ Cognito  │     │  AppSync  │
+    │  (Auth)  │     │ (GraphQL) │
+    └──────────┘     └─────┬─────┘
+                           │
+         ┌─────────────────┼─────────────────┐
+         │                 │                 │
+    ┌────▼────┐      ┌─────▼─────┐    ┌─────▼─────┐
+    │  Room   │      │   Vote    │    │   Match   │
+    │ Handler │      │  Handler  │    │  Handler  │
+    └────┬────┘      └─────┬─────┘    └───────────┘
+         │                 │
+         │           ┌─────▼─────┐
+         │           │ DynamoDB  │
+         │           │  Tables   │
+         │           └───────────┘
+         │
+    ┌────▼────┐
+    │  TMDB   │
+    │ Handler │
+    └─────────┘
 ```
 
-## � Estructura del Proyecto
+## 📁 Estructura del Proyecto
 
 ```
 trinity/
 ├── infrastructure/          # AWS CDK Infrastructure
 │   ├── lib/
 │   │   └── trinity-stack.ts # Stack principal de CDK
-│   ├── src/handlers/        # Lambda functions
+│   ├── src/handlers/        # Lambda Functions
 │   │   ├── room/           # Gestión de salas
 │   │   ├── vote/           # Procesamiento de votos
-│   │   ├── match/          # Gestión de matches
+│   │   ├── match/          # Detección de matches
 │   │   └── tmdb/           # Integración con TMDB
-│   ├── lambda-zips/        # ZIPs de Lambda para deployment
-│   ├── schema.graphql      # Esquema GraphQL
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── README.md
+│   ├── scripts/            # Scripts de utilidad
+│   ├── lambda-zips/        # Lambda deployments
+│   └── schema.graphql      # Esquema GraphQL
 │
 ├── mobile/                 # React Native App
 │   ├── src/
 │   │   ├── screens/        # Pantallas de la app
-│   │   ├── services/       # Servicios (API, Auth, etc.)
-│   │   ├── hooks/          # Custom React hooks
-│   │   ├── context/        # React Context providers
+│   │   ├── services/       # Servicios (API, Auth)
+│   │   ├── hooks/          # Custom React Hooks
+│   │   ├── context/        # React Context
 │   │   ├── navigation/     # Configuración de navegación
-│   │   ├── config/         # Configuración AWS
-│   │   ├── data/           # Datos estáticos
-│   │   └── types/          # Tipos TypeScript
+│   │   └── types/          # TypeScript types
 │   ├── android/            # Configuración Android
-│   ├── assets/             # Assets estáticos
-│   ├── App.tsx             # Componente principal
-│   ├── app.json           # Configuración Expo
-│   ├── package.json
-│   └── README.md
+│   └── assets/             # Recursos estáticos
 │
 ├── docs/                   # Documentación
-│   ├── technical/          # Documentación técnica
+│   ├── technical/          # Docs técnicas detalladas
 │   ├── DEPLOYMENT_GUIDE.md
-│   ├── PRODUCTION_BUILD_GUIDE.md
 │   └── TRINITY_MASTER_SPEC.md
 │
-├── .kiro/                  # Configuración Kiro
-│   ├── steering/           # Guías de desarrollo
-│   └── specs/              # Especificaciones
-│
-├── .env.example           # Template de variables de entorno
-├── .gitignore
-├── LICENSE
-└── README.md              # Este archivo
+└── .kiro/                  # Configuración de Kiro AI
+    └── steering/           # Guías de desarrollo
 ```
 
 ## 🚀 Inicio Rápido
 
 ### Prerrequisitos
 
-- Node.js 18+ y npm
+- Node.js 18+
 - AWS CLI configurado
 - AWS CDK CLI (`npm install -g aws-cdk`)
+- Expo CLI (`npm install -g expo-cli`)
 - Cuenta de TMDB API
-- Para mobile: Expo CLI, Android Studio o Xcode
 
 ### 1. Clonar el Repositorio
 
 ```bash
-git clone https://github.com/tu-usuario/trinity_app.git
-cd trinity_app
+git clone https://github.com/tu-usuario/trinity.git
+cd trinity
 ```
 
 ### 2. Configurar Infrastructure
 
 ```bash
 cd infrastructure
+
+# Instalar dependencias
 npm install
 
 # Configurar variables de entorno
 cp .env.example .env
-# Editar .env con tus credenciales AWS y TMDB API key
+# Editar .env y añadir tu TMDB_API_KEY
+
+# Bootstrap CDK (solo primera vez)
+cdk bootstrap
 
 # Desplegar a AWS
-cdk bootstrap  # Solo la primera vez
 cdk deploy
 ```
 
@@ -144,155 +138,239 @@ cdk deploy
 
 ```bash
 cd mobile
+
+# Instalar dependencias
 npm install
 
 # Configurar variables de entorno
+# El archivo .env se genera automáticamente después del deployment
+# O puedes crearlo manualmente:
 cp .env.example .env
-# Editar .env con los endpoints de AWS generados en el paso anterior
+# Editar .env con los valores de AWS
 
 # Iniciar en desarrollo
-npx expo start --clear
+npx expo start
 ```
 
-## � Uso de la Aplicación
-
-### Flujo Básico
-
-1. **Registro/Login**: Crea una cuenta o inicia sesión
-2. **Crear Sala**: 
-   - Selecciona tipo de media (Película o Serie)
-   - Elige hasta 2 géneros
-   - Comparte el código de sala con tus amigos
-3. **Unirse a Sala**: Ingresa el código de 6 caracteres
-4. **Votar**: 
-   - Desliza las películas candidatas
-   - Vota positivo (👍) o negativo (👎)
-5. **Match**: Cuando todos votan positivo por la misma película, ¡match!
-6. **Celebración**: Pantalla de celebración con el póster de la película
-7. **Mis Matches**: Consulta tu historial de matches
-
-### Pantallas Principales
-
-- **Dashboard**: Pantalla principal con acceso a todas las funciones
-- **Crear Sala**: Configuración de nueva sala de votación
-- **Unirse a Sala**: Ingreso con código de sala
-- **Sala de Votación**: Votación de candidatos
-- **Celebración de Match**: Pantalla visual cuando hay match
-- **Mis Salas**: Historial de salas creadas/participadas
-- **Mis Matches**: Historial de películas con match
-- **Perfil**: Configuración de usuario
-
-## 🔧 Desarrollo
-
-### Comandos Útiles
-
-**Infrastructure**
-```bash
-cd infrastructure
-
-# Desarrollo
-npm run build          # Compilar TypeScript
-npm run watch          # Compilar en modo watch
-cdk synth             # Sintetizar CloudFormation
-cdk diff              # Ver cambios antes de deploy
-cdk deploy            # Desplegar a AWS
-
-# Testing
-npm test              # Ejecutar tests
-```
-
-**Mobile**
-```bash
-cd mobile
-
-# Desarrollo
-npx expo start        # Iniciar Metro bundler
-npx expo start --clear # Limpiar cache y iniciar
-
-# Android
-npx expo run:android  # Ejecutar en Android
-cd android && ./gradlew assembleRelease  # Build APK
-
-# iOS
-npx expo run:ios      # Ejecutar en iOS
-
-# Testing
-npm test              # Ejecutar tests
-```
-
-### Variables de Entorno
-
-**Infrastructure (.env)**
-```bash
-TMDB_API_KEY=tu_api_key_de_tmdb
-AWS_REGION=eu-west-1
-AWS_ACCOUNT_ID=tu_account_id
-```
-
-**Mobile (.env)**
-```bash
-EXPO_PUBLIC_AWS_REGION=eu-west-1
-EXPO_PUBLIC_USER_POOL_ID=tu_user_pool_id
-EXPO_PUBLIC_USER_POOL_CLIENT_ID=tu_client_id
-EXPO_PUBLIC_GRAPHQL_ENDPOINT=tu_graphql_endpoint
-EXPO_PUBLIC_APP_NAME=Trinity
-EXPO_PUBLIC_APP_VERSION=1.0.0
-```
-
-## � Modelo de Datos
+## 📊 Modelo de Datos
 
 ### Tablas DynamoDB
 
-**trinity-rooms**
-- Almacena información de salas de votación
-- TTL de 24 horas
-- Incluye candidatos de películas
+#### `trinity-rooms`
+```typescript
+{
+  id: string              // UUID (PK)
+  code: string            // Código de 6 caracteres (GSI)
+  hostId: string          // ID del creador
+  mediaType: 'MOVIE' | 'TV'
+  genreIds: number[]      // Máximo 2 géneros
+  maxParticipants: number // 2-6 participantes
+  candidates: Movie[]     // 50 películas sugeridas
+  createdAt: string       // ISO timestamp
+  ttl: number             // Expira en 24h
+}
+```
 
-**trinity-votes**
-- Registra votos de usuarios
-- Partition Key: roomId
-- Sort Key: userMovieId (userId#movieId)
+#### `trinity-votes`
+```typescript
+{
+  roomId: string          // Partition Key
+  userMovieId: string     // Sort Key: "userId#movieId"
+  userId: string
+  movieId: number         // TMDB ID
+  vote: boolean           // true = like, false = dislike
+  timestamp: string
+}
+```
 
-**trinity-matches**
-- Almacena matches generados
-- Incluye lista de usuarios que coincidieron
-- Información de la película
+#### `trinity-matches`
+```typescript
+{
+  roomId: string          // Partition Key
+  movieId: number         // Sort Key
+  matchId: string         // UUID
+  title: string
+  posterPath: string
+  matchedUsers: string[]  // IDs de usuarios que hicieron match
+  timestamp: string
+}
+```
 
-Ver [docs/technical/06-dynamodb-tables.md](docs/technical/06-dynamodb-tables.md) para más detalles.
+## 🔄 Flujos Principales
+
+### 1. Crear Sala
+
+```
+Usuario → createRoom(mediaType, genreIds, maxParticipants)
+  ↓
+Room Handler genera código único
+  ↓
+TMDB Handler obtiene 50 candidatos
+  ↓
+Sala guardada en DynamoDB (TTL 24h)
+  ↓
+Usuario registrado como participante
+```
+
+### 2. Unirse a Sala
+
+```
+Usuario → joinRoom(code)
+  ↓
+Room Handler valida código
+  ↓
+Usuario registrado como participante
+  ↓
+Retorna sala con candidatos
+```
+
+### 3. Votar
+
+```
+Usuario → vote(roomId, movieId, vote)
+  ↓
+Vote Handler registra voto
+  ↓
+Verifica si hay match (todos votaron positivo)
+  ↓
+Si hay match:
+  - Crea registro en trinity-matches
+  - Publica notificación via AppSync
+  - Usuarios reciben notificación en tiempo real
+```
+
+### 4. Algoritmo de Match
+
+```typescript
+// Match ocurre cuando:
+positiveVotes.length === maxParticipants
+
+// Ejemplo: Sala de 3 personas
+// Usuario A vota SÍ → 1/3
+// Usuario B vota SÍ → 2/3
+// Usuario C vota SÍ → 3/3 ✅ MATCH!
+```
 
 ## 🔐 Seguridad
 
-- **Autenticación**: AWS Cognito con User Pools
-- **Autorización**: GraphQL con directivas @aws_auth
-- **API Keys**: Variables de entorno, nunca en código
-- **HTTPS**: Todas las comunicaciones encriptadas
-- **TTL**: Salas expiran automáticamente después de 24h
+- **Autenticación**: Amazon Cognito con User Pools
+- **Autorización**: AppSync con reglas de autorización por usuario
+- **API Keys**: Variables de entorno (nunca en código)
+- **TTL**: Salas expiran automáticamente en 24h
+- **Validación**: Input validation en todas las Lambda functions
 
 ## 🧪 Testing
 
+### Infrastructure
+
 ```bash
-# Infrastructure
 cd infrastructure
 npm test
+```
 
-# Mobile
+### Mobile
+
+```bash
 cd mobile
 npm test
 ```
 
-## 📚 Documentación
+### Limpiar Datos de Prueba
 
-- [Estado del Proyecto](PROJECT_STATUS.md) - Estado actual, limpieza y organización
+```bash
+cd infrastructure/scripts
+.\cleanup-test-rooms.ps1
+```
+
+## 📱 Build de Producción
+
+### Android APK
+
+```bash
+cd mobile
+npx eas build --platform android --profile production
+```
+
+### iOS
+
+```bash
+cd mobile
+npx eas build --platform ios --profile production
+```
+
+## 🛠️ Scripts Útiles
+
+### Infrastructure
+
+```bash
+# Compilar TypeScript
+npm run build
+
+# Desplegar a AWS
+npm run deploy
+
+# Ver diferencias antes de desplegar
+cdk diff
+
+# Destruir stack (¡cuidado!)
+cdk destroy
+```
+
+### Mobile
+
+```bash
+# Desarrollo
+npx expo start
+
+# Build Android
+npx eas build --platform android
+
+# Build iOS
+npx eas build --platform ios
+```
+
+### Utilidades
+
+```bash
+# Limpiar proyecto
+.\cleanup.ps1
+
+# Sincronizar desde AWS
+node infrastructure/scripts/sync-from-aws.js
+
+# Limpiar salas de prueba
+.\infrastructure\scripts\cleanup-test-rooms.ps1
+```
+
+## 📚 Documentación Adicional
+
 - [Guía de Deployment](docs/DEPLOYMENT_GUIDE.md)
 - [Guía de Build de Producción](docs/PRODUCTION_BUILD_GUIDE.md)
 - [Especificación Maestra](docs/TRINITY_MASTER_SPEC.md)
 - [Documentación Técnica](docs/technical/README.md)
-- [Arquitectura de la App](docs/technical/01-app-architecture.md)
-- [Funciones Lambda](docs/technical/04-lambda-functions.md)
-- [Esquema GraphQL](docs/technical/05-graphql-schema.md)
-- [Flujos de Aplicación](docs/technical/07-application-flows.md)
+- [Scripts de Infrastructure](infrastructure/scripts/README.md)
 
-## 🤝 Contribución
+## 🐛 Troubleshooting
+
+### Error: "Room not found"
+- Verifica que la sala no haya expirado (24h TTL)
+- Comprueba que el código sea correcto (6 caracteres)
+
+### Error: "TMDB_API_KEY not found"
+- Configura la variable de entorno en `infrastructure/.env`
+- Redespliega el stack: `cdk deploy`
+
+### Notificaciones no llegan
+- Verifica que AppSync subscriptions estén activas
+- Comprueba los logs de CloudWatch
+- Asegúrate de que el usuario esté autenticado
+
+### Build de Android falla
+- Limpia el build: `cd mobile/android && ./gradlew clean`
+- Verifica que tengas Java 11 instalado
+- Revisa `mobile/android/gradle.properties`
+
+## 🤝 Contribuir
 
 1. Fork el proyecto
 2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
@@ -300,34 +378,9 @@ npm test
 4. Push a la rama (`git push origin feature/AmazingFeature`)
 5. Abre un Pull Request
 
-### Guías de Estilo
-
-- **TypeScript**: Strict mode habilitado
-- **Naming**: camelCase para variables, PascalCase para tipos
-- **Commits**: Mensajes descriptivos en inglés
-- **Documentación**: Comentarios en código cuando sea necesario
-
-Ver [.kiro/steering/trinity-project-guide.md](.kiro/steering/trinity-project-guide.md) para guías detalladas.
-
-## 📝 Changelog
-
-### v1.0.0 (2026-02-05)
-- ✅ Pantalla de celebración de match con póster grande
-- ✅ Navegación contextual inteligente
-- ✅ Corrección de notificaciones duplicadas
-- ✅ Corrección de errores de tipo GraphQL
-- ✅ Sistema de auto-dismiss de notificaciones
-- ✅ Integración completa con TMDB API
-- ✅ Sistema de votación colaborativa
-- ✅ Notificaciones en tiempo real
-
-## 🐛 Problemas Conocidos
-
-Ninguno actualmente. Reporta issues en GitHub.
-
 ## 📄 Licencia
 
-Este proyecto está bajo la Licencia MIT. Ver [LICENSE](LICENSE) para más detalles.
+Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para más detalles.
 
 ## 👥 Autores
 
@@ -335,17 +388,12 @@ Este proyecto está bajo la Licencia MIT. Ver [LICENSE](LICENSE) para más detal
 
 ## 🙏 Agradecimientos
 
-- [The Movie Database (TMDB)](https://www.themoviedb.org/) por la API de películas
+- [TMDB](https://www.themoviedb.org/) por su excelente API de películas
 - [AWS](https://aws.amazon.com/) por la infraestructura serverless
-- [Expo](https://expo.dev/) por el framework de React Native
-- Comunidad de React Native y AWS CDK
-
-## 📞 Contacto
-
-- Email: tu-email@ejemplo.com
-- GitHub: [@tu-usuario](https://github.com/tu-usuario)
-- LinkedIn: [Tu Nombre](https://linkedin.com/in/tu-perfil)
+- [Expo](https://expo.dev/) por simplificar el desarrollo móvil
 
 ---
 
-**Hecho con ❤️ usando React Native, AWS y TypeScript**
+**Versión**: 2.2.0  
+**Última actualización**: 2026-02-05  
+**Estado**: ✅ Producción Ready

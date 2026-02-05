@@ -8,6 +8,7 @@ export interface Room {
   genreIds: number[];
   candidates: MovieCandidate[];
   createdAt: string;
+  maxParticipants: number;
 }
 
 export interface MovieCandidate {
@@ -32,6 +33,7 @@ export interface Match {
 export interface CreateRoomInput {
   mediaType: 'MOVIE' | 'TV';
   genreIds: number[];
+  maxParticipants: number;
 }
 
 export interface VoteInput {

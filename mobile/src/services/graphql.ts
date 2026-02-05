@@ -9,6 +9,7 @@ export const CREATE_ROOM = `
       mediaType
       genreIds
       createdAt
+      maxParticipants
     }
   }
 `;
@@ -30,6 +31,7 @@ export const JOIN_ROOM = `
         mediaType
       }
       createdAt
+      maxParticipants
     }
   }
 `;
@@ -51,6 +53,7 @@ export const GET_ROOM = `
         mediaType
       }
       createdAt
+      maxParticipants
     }
   }
 `;
@@ -120,6 +123,7 @@ export const GET_MY_ROOMS = `
       mediaType
       genreIds
       createdAt
+      maxParticipants
     }
   }
 `;
