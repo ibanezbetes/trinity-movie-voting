@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { GET_MATCHES } from '../services/graphql';
@@ -469,54 +468,14 @@ export function MatchNotificationProvider({
   };
 
   const showMatchNotification = (match: Match, wasInRoom: boolean, originalAction?: () => void) => {
-    const title = wasInRoom ? '🎉 ¡MATCH EN TU SALA!' : '🎉 ¡MATCH ENCONTRADO!';
-    const message = wasInRoom 
-      ? `¡Se encontró una película en común en tu sala!\n\n${match.title}`
-      : `¡Se encontró una película en común en una de tus salas!\n\n${match.title}`;
+    // Don't show Alert - let the navigation handler show the MatchCelebration screen
+    logger.match('Match notification handled', {
+      matchTitle: match.title,
+      wasInRoom,
+      currentRoute: 'context'
+    });
 
-    const buttons = wasInRoom 
-      ? [
-          { 
-            text: 'Ver Mis Matches', 
-            onPress: () => {
-              dismissNotification(match.id);
-              // Navigate to matches and then home
-              if (onNavigateToHome) {
-                onNavigateToHome();
-              }
-            }
-          },
-          { 
-            text: 'Ir al Inicio', 
-            onPress: () => {
-              dismissNotification(match.id);
-              if (onNavigateToHome) {
-                onNavigateToHome();
-              }
-            }
-          }
-        ]
-      : [
-          { 
-            text: 'Ver Mis Matches', 
-            onPress: () => {
-              dismissNotification(match.id);
-              // Navigate to matches but stay in current location
-            }
-          },
-          { 
-            text: 'Continuar', 
-            onPress: () => {
-              dismissNotification(match.id);
-              // Execute the original action if provided
-              if (originalAction) {
-                originalAction();
-              }
-            } 
-          }
-        ];
-
-    Alert.alert(title, message, buttons);
+    // The onMatchFound callback will handle navigation to MatchCelebration screen
   };
 
   const subscribeToRoom = (roomId: string) => {

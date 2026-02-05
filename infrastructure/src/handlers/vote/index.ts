@@ -303,37 +303,24 @@ class VoteService {
       timestamp,
     };
 
-    // Store the main match record
-    await docClient.send(new PutCommand({
-      TableName: this.matchesTable,
-      Item: match,
-      ConditionExpression: 'attribute_not_exists(roomId) AND attribute_not_exists(movieId)', // Prevent duplicates
-    }));
-
-    // CRITICAL: Create individual match records for each user to enable GSI queries
-    // This allows efficient querying of matches by userId using the new GSI
-    const userMatchPromises = matchedUsers.map(async (userId) => {
-      const userMatch = {
-        ...match,
-        userId, // Add userId field for GSI
-        id: `${userId}#${matchId}`, // Unique ID per user
-        roomId: `${userId}#${roomId}`, // Composite key to avoid conflicts
-      };
-
-      try {
-        await docClient.send(new PutCommand({
-          TableName: this.matchesTable,
-          Item: userMatch,
-        }));
-        console.log(`User match record created for user ${userId}`);
-      } catch (error) {
-        console.error(`Error creating user match record for ${userId}:`, error);
-        // Continue with other users even if one fails
+    // Store ONLY the main match record - no duplicates per user
+    // The match handler will filter by matchedUsers array when querying
+    try {
+      await docClient.send(new PutCommand({
+        TableName: this.matchesTable,
+        Item: match,
+        ConditionExpression: 'attribute_not_exists(roomId) AND attribute_not_exists(movieId)', // Prevent duplicates
+      }));
+      console.log(`✅ Match created: ${match.title} for ${matchedUsers.length} users`);
+    } catch (error) {
+      const err = error as any;
+      if (err.name === 'ConditionalCheckFailedException') {
+        console.log(`Match already exists for room ${roomId} and movie ${movieId}`);
+      } else {
+        console.error('Error creating match:', error);
+        throw error;
       }
-    });
-
-    // Wait for all user match records to be created
-    await Promise.allSettled(userMatchPromises);
+    }
 
     // CRITICAL: Trigger AppSync subscription FIRST before any cleanup
     // This ensures all users get notified before any changes
@@ -694,7 +681,8 @@ export const handler: Handler = async (event) => {
     // Extract user ID from AppSync context
     const userId = event.identity?.claims?.sub || event.identity?.username;
     if (!userId) {
-      throw new Error('User not authenticated');
+      console.error('User not authenticated for vote');
+      return { success: false }; // Return proper VoteResult instead of throwing
     }
 
     // Get arguments from AppSync
@@ -703,26 +691,32 @@ export const handler: Handler = async (event) => {
 
     // Validate input
     if (!roomId) {
-      throw new Error('Room ID is required');
+      console.error('Room ID is required');
+      return { success: false }; // Return proper VoteResult instead of throwing
     }
 
     if (typeof movieId !== 'number') {
-      throw new Error('Movie ID must be a number');
+      console.error('Movie ID must be a number');
+      return { success: false }; // Return proper VoteResult instead of throwing
     }
 
     if (typeof vote !== 'boolean') {
-      throw new Error('Vote must be a boolean');
+      console.error('Vote must be a boolean');
+      return { success: false }; // Return proper VoteResult instead of throwing
     }
 
     const voteService = new VoteService();
-    const result = await voteService.processVote(userId, roomId, movieId, vote);
-
-    return result;
+    
+    try {
+      const result = await voteService.processVote(userId, roomId, movieId, vote);
+      return result; // This already returns { success: true, match?: Match }
+    } catch (error) {
+      console.error('Error processing vote:', error);
+      return { success: false }; // Return proper VoteResult on error
+    }
 
   } catch (error) {
     console.error('Vote Lambda error:', error);
-    
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    throw new Error(errorMessage);
+    return { success: false }; // Always return proper VoteResult, never throw
   }
 };

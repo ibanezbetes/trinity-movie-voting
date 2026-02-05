@@ -97,10 +97,15 @@ class MatchService {
 
   constructor() {
     this.matchesTable = process.env.MATCHES_TABLE || '';
-    this.usersTable = process.env.USERS_TABLE || '';
 
-    if (!this.matchesTable || !this.usersTable) {
-      throw new Error('Required table environment variables are missing');
+    if (!this.matchesTable) {
+      throw new Error('MATCHES_TABLE environment variable is required');
+    }
+    
+    // USERS_TABLE is optional - we can work without it
+    this.usersTable = process.env.USERS_TABLE || '';
+    if (!this.usersTable) {
+      console.warn('USERS_TABLE not configured - user activity tracking disabled');
     }
   }
 
@@ -271,6 +276,12 @@ class MatchService {
   }
 
   private async updateUserActivity(userIds: string[]): Promise<void> {
+    // Skip if USERS_TABLE is not configured
+    if (!this.usersTable) {
+      console.log('Skipping user activity update - USERS_TABLE not configured');
+      return;
+    }
+
     const timestamp = new Date().toISOString();
 
     // Update lastActiveAt for all matched users
@@ -315,6 +326,11 @@ class MatchService {
   }
 
   private async getUser(userId: string): Promise<User | null> {
+    // Skip if USERS_TABLE is not configured
+    if (!this.usersTable) {
+      return null;
+    }
+
     try {
       const result = await docClient.send(new GetCommand({
         TableName: this.usersTable,
@@ -359,20 +375,32 @@ export const handler: Handler = async (event) => {
     switch (fieldName) {
       case 'getMyMatches': {
         if (!userId) {
-          throw new Error('User not authenticated');
+          console.error('User not authenticated for getMyMatches');
+          return []; // Return empty array instead of throwing
         }
 
-        const matches = await matchService.getUserMatches(userId);
-        return matches;
+        try {
+          const matches = await matchService.getUserMatches(userId);
+          return matches || []; // Ensure we always return an array
+        } catch (error) {
+          console.error('Error in getMyMatches:', error);
+          return []; // Return empty array on error
+        }
       }
 
       case 'checkUserMatches': {
         if (!userId) {
-          throw new Error('User not authenticated');
+          console.error('User not authenticated for checkUserMatches');
+          return []; // Return empty array instead of throwing
         }
 
-        const matches = await matchService.checkUserMatches(userId);
-        return matches;
+        try {
+          const matches = await matchService.checkUserMatches(userId);
+          return matches || []; // Ensure we always return an array
+        } catch (error) {
+          console.error('Error in checkUserMatches:', error);
+          return []; // Return empty array on error
+        }
       }
 
       case 'checkRoomMatch': {

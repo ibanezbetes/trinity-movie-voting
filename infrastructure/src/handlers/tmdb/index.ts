@@ -84,6 +84,9 @@ class TMDBClient {
     console.log('Base URL:', this.baseUrl);
     console.log('Token configured:', this.readToken ? 'YES' : 'NO');
     console.log('Token length:', this.readToken.length);
+    console.log('Token first 20 chars:', this.readToken.substring(0, 20));
+    console.log('All env vars:', Object.keys(process.env));
+    console.log('TMDB env vars:', Object.keys(process.env).filter(key => key.includes('TMDB')));
     
     if (!this.readToken) {
       console.error('Available environment variables:', Object.keys(process.env).filter(key => key.includes('TMDB')));

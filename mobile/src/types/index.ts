@@ -26,6 +26,7 @@ export interface Match {
   title: string;
   posterPath?: string;
   timestamp: string;
+  matchedUsers?: string[];
 }
 
 export interface CreateRoomInput {
@@ -54,6 +55,7 @@ export type RootStackParamList = {
   MyMatches: undefined;
   Recommendations: undefined;
   Profile: undefined;
+  MatchCelebration: { match: Match; wasInRoom: boolean };
 };
 
 // Genre Types (TMDB Genre IDs)

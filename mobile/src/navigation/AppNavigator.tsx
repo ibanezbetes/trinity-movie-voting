@@ -15,6 +15,7 @@ import MyRoomsScreen from '../screens/MyRoomsScreen';
 import MyMatchesScreen from '../screens/MyMatchesScreen';
 import RecommendationsScreen from '../screens/RecommendationsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import MatchCelebrationScreen from '../screens/MatchCelebrationScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -39,6 +40,11 @@ export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
       wasInRoom,
       currentRoute: navigationRef.current?.getCurrentRoute()?.name
     });
+
+    // Navigate to MatchCelebration screen
+    if (navigationRef.current) {
+      navigationRef.current.navigate('MatchCelebration', { match, wasInRoom });
+    }
   };
 
   return (
@@ -109,6 +115,14 @@ export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
             <Stack.Screen 
               name="Profile" 
               component={ProfileScreen}
+            />
+            <Stack.Screen 
+              name="MatchCelebration" 
+              component={MatchCelebrationScreen}
+              options={{
+                presentation: 'modal',
+                gestureEnabled: false,
+              }}
             />
           </Stack.Navigator>
         </NavigationContainer>

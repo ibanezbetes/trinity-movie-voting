@@ -1,8 +1,9 @@
 {
-  "name": "trinity-tmdb-handler",
+  "name": "tmdb-handler",
   "version": "1.0.0",
+  "description": "TMDB integration handler",
   "main": "index.js",
   "dependencies": {
-    "axios": "^1.13.4"
+    "axios": "^1.6.0"
   }
 }

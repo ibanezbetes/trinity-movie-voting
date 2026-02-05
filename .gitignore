@@ -28,6 +28,8 @@ mobile/android/app/.cxx/
 mobile/android/build/
 mobile/android/.gradle/
 mobile/android/local.properties
+mobile/android/gradlew
+mobile/android/gradlew.bat
 *.apk
 *.aab
 
@@ -129,11 +131,22 @@ deploy-*.js
 check-*.bat
 check-*.js
 create-*.js
+create-*.bat
+get-*.bat
+update-*.js
+update-*.bat
+
+# Mantener script de limpieza oficial
+!cleanup.ps1
 
 # Archive files
 *.zip
 *.rar
 *.7z
+*.tar.gz
+
+# Exclude lambda-zips (needed for deployment)
+!infrastructure/lambda-zips/*.zip
 
 # Backup files
 *.bak
@@ -156,3 +169,9 @@ infrastructure/*.report.json
 *_WIP*.md
 *_DRAFT*.md
 *_NOTES*.md
+*_CELEBRATION*.md
+*_INSTALACION*.md
+
+# Duplicate documentation folders
+docu_trinity/
+docs_backup/

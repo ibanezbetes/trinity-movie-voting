@@ -1,347 +1,380 @@
 # Trinity Mobile App
 
-Aplicación móvil React Native para Trinity Movie Matching, construida con Expo.
+Aplicación móvil de Trinity construida con React Native y Expo para iOS y Android.
 
 ## 📱 Descripción
 
-Aplicación móvil que permite a los usuarios crear y unirse a salas de votación de películas, votar de forma anónima y recibir notificaciones cuando se encuentran matches.
+Trinity Mobile es la interfaz de usuario para el sistema de votación colaborativa de películas. Permite a los usuarios crear salas, unirse a ellas, votar por películas y recibir notificaciones en tiempo real cuando hay un match.
 
 ## 🏗️ Arquitectura
 
 ### Stack Tecnológico
-- **React Native**: Framework de desarrollo móvil
-- **Expo**: Plataforma de desarrollo y deployment
-- **TypeScript**: Tipado estático
-- **AWS Amplify**: SDK para servicios AWS
-- **GraphQL**: Cliente para API
-- **React Navigation**: Navegación entre pantallas
 
-### Estructura del Proyecto
+- **React Native**: 0.81.5
+- **Expo SDK**: 54
+- **TypeScript**: 5.9.2
+- **React Navigation**: 7.x
+- **AWS Amplify**: 6.16.0
+- **AsyncStorage**: 2.2.0
+
+### Arquitectura de la App
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    App.tsx                              │
+│                 (Entry Point)                           │
+└────────┬────────────────────────────────────────────────┘
+         │
+         ├─── AuthContext (Authentication State)
+         │
+         ├─── MatchNotificationContext (Match Notifications)
+         │
+         └─── AppNavigator (Navigation)
+                   │
+                   ├─── Dashboard
+                   ├─── CreateRoom
+                   ├─── JoinRoom
+                   ├─── VotingRoom
+                   ├─── MatchCelebration
+                   ├─── MyRooms
+                   ├─── MyMatches
+                   └─── Profile
+```
+
+## 📁 Estructura
 
 ```
 mobile/
 ├── src/
-│   ├── components/          # Componentes reutilizables
-│   ├── config/             # Configuración AWS
-│   │   └── aws-config.ts   # Configuración Amplify
-│   ├── context/            # React Context
-│   │   ├── AuthContext.tsx # Contexto de autenticación
-│   │   └── MatchNotificationContext.tsx # Contexto de notificaciones
-│   ├── data/               # Datos estáticos
-│   │   └── staticRecommendations.ts
-│   ├── hooks/              # Custom hooks
+│   ├── screens/                # Pantallas de la app
+│   │   ├── AuthScreen.tsx
+│   │   ├── DashboardScreen.tsx
+│   │   ├── CreateRoomScreen.tsx
+│   │   ├── JoinRoomScreen.tsx
+│   │   ├── VotingRoomScreen.tsx
+│   │   ├── MatchCelebrationScreen.tsx
+│   │   ├── MyRoomsScreen.tsx
+│   │   ├── MyMatchesScreen.tsx
+│   │   ├── RecommendationsScreen.tsx
+│   │   └── ProfileScreen.tsx
+│   │
+│   ├── services/               # Servicios
+│   │   ├── amplify.ts         # Configuración AWS Amplify
+│   │   ├── auth.ts            # Servicio de autenticación
+│   │   ├── graphql.ts         # Queries y mutations GraphQL
+│   │   ├── logger.ts          # Servicio de logging
+│   │   └── subscriptions.ts   # GraphQL subscriptions
+│   │
+│   ├── hooks/                  # Custom hooks
 │   │   ├── useMatchPolling.ts
 │   │   └── useProactiveMatchCheck.ts
-│   ├── navigation/         # Configuración de navegación
+│   │
+│   ├── context/                # React Context
+│   │   ├── AuthContext.tsx
+│   │   └── MatchNotificationContext.tsx
+│   │
+│   ├── navigation/             # Navegación
 │   │   └── AppNavigator.tsx
-│   ├── screens/            # Pantallas de la aplicación
-│   │   ├── AuthScreen.tsx
-│   │   ├── CreateRoomScreen.tsx
-│   │   ├── DashboardScreen.tsx
-│   │   ├── JoinRoomScreen.tsx
-│   │   ├── MyMatchesScreen.tsx
-│   │   ├── MyRoomsScreen.tsx
-│   │   ├── ProfileScreen.tsx
-│   │   ├── RecommendationsScreen.tsx
-│   │   └── VotingRoomScreen.tsx
-│   ├── services/           # Servicios y utilidades
-│   │   ├── amplify.ts      # Configuración Amplify
-│   │   ├── auth.ts         # Servicios de autenticación
-│   │   ├── graphql.ts      # Queries y mutations GraphQL
-│   │   ├── logger.ts       # Sistema de logging
-│   │   └── subscriptions.ts # GraphQL subscriptions
-│   └── types/              # Definiciones de tipos
+│   │
+│   ├── config/                 # Configuración
+│   │   └── aws-config.ts
+│   │
+│   ├── data/                   # Datos estáticos
+│   │   └── staticRecommendations.ts
+│   │
+│   └── types/                  # Tipos TypeScript
 │       └── index.ts
-├── android/                # Configuración Android
-├── assets/                 # Recursos estáticos
-├── App.tsx                 # Componente principal
-├── app.json               # Configuración Expo
-├── eas.json               # Configuración EAS Build
-├── metro.config.js        # Configuración Metro bundler
-├── package.json           # Dependencias
-└── tsconfig.json          # Configuración TypeScript
+│
+├── android/                    # Configuración Android
+│   ├── app/
+│   │   ├── build.gradle
+│   │   └── src/main/
+│   ├── gradle/
+│   ├── build.gradle
+│   └── settings.gradle
+│
+├── assets/                     # Assets estáticos
+│   ├── icon.png
+│   ├── splash-icon.png
+│   └── adaptive-icon.png
+│
+├── App.tsx                     # Componente principal
+├── index.ts                    # Entry point
+├── app.json                    # Configuración Expo
+├── eas.json                    # Configuración EAS Build
+├── metro.config.js             # Configuración Metro bundler
+├── tsconfig.json               # Configuración TypeScript
+├── package.json                # Dependencias
+├── .env.example                # Template de variables de entorno
+└── README.md                   # Este archivo
 ```
 
-## 🔧 Configuración
+## 🚀 Instalación
 
-### Variables de Entorno
+### Prerrequisitos
 
-Crear archivo `.env` en la raíz del proyecto mobile:
+- Node.js 18+
+- npm o yarn
+- Expo CLI: `npm install -g expo-cli`
+- Para Android: Android Studio y SDK
+- Para iOS: Xcode (solo en macOS)
+
+### Configuración Inicial
+
+1. **Instalar dependencias**:
+   ```bash
+   npm install
+   ```
+
+2. **Configurar variables de entorno**:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Editar `.env` con los valores de tu infraestructura AWS:
+   ```bash
+   EXPO_PUBLIC_AWS_REGION=eu-west-1
+   EXPO_PUBLIC_USER_POOL_ID=tu_user_pool_id
+   EXPO_PUBLIC_USER_POOL_CLIENT_ID=tu_client_id
+   EXPO_PUBLIC_GRAPHQL_ENDPOINT=tu_graphql_endpoint
+   EXPO_PUBLIC_APP_NAME=Trinity
+   EXPO_PUBLIC_APP_VERSION=1.0.0
+   ```
+
+3. **Iniciar en desarrollo**:
+   ```bash
+   npx expo start
+   ```
+
+## 📱 Desarrollo
+
+### Comandos Disponibles
 
 ```bash
-# AWS Configuration
-EXPO_PUBLIC_AWS_REGION=eu-west-1
-EXPO_PUBLIC_USER_POOL_ID=eu-west-1_XXXXXXXXX
-EXPO_PUBLIC_USER_POOL_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
-EXPO_PUBLIC_GRAPHQL_ENDPOINT=https://xxxxxxxxxx.appsync-api.eu-west-1.amazonaws.com/graphql
-
-# App Configuration
-EXPO_PUBLIC_APP_NAME=Trinity
-EXPO_PUBLIC_APP_VERSION=1.0.0
-```
-
-### Instalación
-
-```bash
-# Instalar dependencias
-npm install
-
-# Instalar Expo CLI (si no está instalado)
-npm install -g @expo/cli
-
-# Iniciar desarrollo
+# Iniciar Metro bundler
 npx expo start
+
+# Limpiar cache e iniciar
+npx expo start --clear
+
+# Ejecutar en Android
+npx expo run:android
+
+# Ejecutar en iOS (solo macOS)
+npx expo run:ios
+
+# Ejecutar en web
+npx expo start --web
+```
+
+### Desarrollo con Expo Go
+
+1. Instala Expo Go en tu dispositivo móvil
+2. Ejecuta `npx expo start`
+3. Escanea el QR code con Expo Go
+
+### Desarrollo con Emulador
+
+**Android**:
+```bash
+# Asegúrate de tener Android Studio instalado
+npx expo run:android
+```
+
+**iOS** (solo macOS):
+```bash
+# Asegúrate de tener Xcode instalado
+npx expo run:ios
+```
+
+## 🏗️ Build de Producción
+
+### Build APK (Android)
+
+#### Método 1: Gradle (Tradicional)
+
+```bash
+# Prebuild
+npx expo prebuild --clean
+
+# Build APK
+cd android
+./gradlew assembleRelease
+
+# APK generada en:
+# android/app/build/outputs/apk/release/app-release.apk
+```
+
+#### Método 2: EAS Build
+
+```bash
+# Configurar EAS
+eas build:configure
+
+# Build para Android
+eas build --platform android --profile production
+
+# Build para iOS
+eas build --platform ios --profile production
+```
+
+### Configuración de Build
+
+**app.json**:
+```json
+{
+  "expo": {
+    "name": "Trinity",
+    "slug": "trinity",
+    "version": "1.0.0",
+    "android": {
+      "package": "com.trinityapp.mobile",
+      "versionCode": 1
+    },
+    "ios": {
+      "bundleIdentifier": "com.trinityapp.mobile",
+      "buildNumber": "1.0.0"
+    }
+  }
+}
 ```
 
 ## 📱 Pantallas
 
 ### AuthScreen
-**Propósito**: Autenticación de usuarios con Amazon Cognito
+
+**Ruta**: `/`  
+**Descripción**: Pantalla de autenticación (login/registro)
 
 **Funcionalidades**:
 - Login con email/password
 - Registro de nuevos usuarios
-- Recuperación de contraseña
-- Validación de email
-
-**Componentes**:
-- Formularios de login/registro
-- Validación en tiempo real
-- Manejo de errores
+- Validación de formularios
+- Integración con AWS Cognito
 
 ### DashboardScreen
-**Propósito**: Pantalla principal con opciones de navegación
+
+**Ruta**: `/dashboard`  
+**Descripción**: Pantalla principal de la app
 
 **Funcionalidades**:
 - Crear nueva sala
 - Unirse a sala existente
 - Ver mis salas
 - Ver mis matches
-- Acceder a recomendaciones
-- Perfil de usuario
+- Acceso a perfil
 
 ### CreateRoomScreen
-**Propósito**: Crear nueva sala de votación
+
+**Ruta**: `/create-room`  
+**Descripción**: Creación de nueva sala de votación
 
 **Funcionalidades**:
-- Seleccionar tipo de media (Película/Serie)
-- Elegir hasta 2 géneros
-- Generar código de sala único
-- Obtener candidatos de TMDB
+- Selección de tipo de media (Película/Serie)
+- Selección de géneros (máximo 2)
+- Generación automática de código de sala
+- Obtención de candidatos de TMDB
 
 **Flujo**:
 1. Usuario selecciona tipo de media
-2. Elige géneros de lista
-3. Sistema crea sala y genera código
-4. Navega a pantalla de votación
+2. Usuario selecciona hasta 2 géneros
+3. Sistema genera código único
+4. Sistema obtiene candidatos de TMDB
+5. Sala creada → Redirige a VotingRoom
 
 ### JoinRoomScreen
-**Propósito**: Unirse a sala existente mediante código
+
+**Ruta**: `/join-room`  
+**Descripción**: Unirse a sala existente con código
 
 **Funcionalidades**:
-- Ingresar código de 6 caracteres
-- Validar código en tiempo real
-- Unirse a sala activa
-- Manejo de errores (sala no encontrada, expirada)
+- Input de código de sala (6 caracteres)
+- Validación de código
+- Verificación de sala activa
+- Registro de participación
 
-### MyRoomsScreen
-**Propósito**: Ver salas donde el usuario participa
-
-**Funcionalidades**:
-- Listar salas activas (sin matches)
-- Mostrar información de sala (código, tipo, géneros)
-- Indicar si es host o participante
-- Navegar a sala para votar
-- Pull-to-refresh
-
-**Filtros**:
-- Solo salas donde el usuario participa
-- Solo salas sin matches
-- Solo salas no expiradas
+**Flujo**:
+1. Usuario ingresa código de 6 caracteres
+2. Sistema valida código
+3. Sistema verifica que sala existe y está activa
+4. Usuario se une → Redirige a VotingRoom
 
 ### VotingRoomScreen
-**Propósito**: Votar por películas en la sala
+
+**Ruta**: `/voting-room/:roomId`  
+**Descripción**: Sala de votación de películas
 
 **Funcionalidades**:
-- Mostrar candidatos de películas
-- Votar positivo/negativo
-- Ver progreso de votación
-- Recibir notificaciones de matches
-- Información de película (título, año, sinopsis)
+- Visualización de candidatos
+- Votación positiva/negativa
+- Contador de votos
+- Detección automática de matches
+- Subscriptions en tiempo real
 
-**Estados**:
-- Cargando candidatos
-- Votando
-- Esperando otros usuarios
-- Match encontrado
+**Flujo**:
+1. Usuario ve candidato actual
+2. Usuario vota positivo (👍) o negativo (👎)
+3. Sistema registra voto
+4. Sistema verifica si hay match
+5. Si hay match → Notificación + MatchCelebration
+
+### MatchCelebrationScreen
+
+**Ruta**: `/match-celebration`  
+**Descripción**: Pantalla de celebración cuando hay match
+
+**Funcionalidades**:
+- Póster grande de la película
+- Título y detalles del match
+- Número de usuarios que coincidieron
+- Navegación contextual
+
+**Navegación**:
+- Si `wasInRoom: true`: "Ver Mis Matches" + "Ir al Inicio"
+- Si `wasInRoom: false`: "Ver Mis Matches" + "Continuar"
+
+### MyRoomsScreen
+
+**Ruta**: `/my-rooms`  
+**Descripción**: Historial de salas del usuario
+
+**Funcionalidades**:
+- Lista de salas creadas
+- Lista de salas donde participó
+- Filtrado de salas activas
+- Acceso rápido a salas
 
 ### MyMatchesScreen
-**Propósito**: Ver historial de matches
+
+**Ruta**: `/my-matches`  
+**Descripción**: Historial de matches del usuario
 
 **Funcionalidades**:
-- Listar todos los matches del usuario
-- Mostrar detalles de película
-- Información de sala y participantes
-- Ordenar por fecha
-
-### RecommendationsScreen
-**Propósito**: Recomendaciones basadas en matches
-
-**Funcionalidades**:
-- Recomendaciones personalizadas
-- Basadas en géneros de matches anteriores
-- Integración con TMDB para sugerencias
+- Lista de todas las películas con match
+- Póster y título de cada película
+- Fecha del match
+- Usuarios que coincidieron
 
 ### ProfileScreen
-**Propósito**: Gestión de perfil de usuario
+
+**Ruta**: `/profile`  
+**Descripción**: Perfil y configuración del usuario
 
 **Funcionalidades**:
-- Ver información de usuario
-- Estadísticas (salas creadas, matches)
+- Información del usuario
 - Cerrar sesión
-- Configuraciones
+- Configuración de la app
 
-## 🔄 Servicios
+## 🔧 Servicios
 
-### AuthService
-**Archivo**: `src/services/auth.ts`
+### amplify.ts
 
-**Funcionalidades**:
-- Wrapper para AWS Amplify Auth
-- Gestión de sesiones
-- Manejo de tokens JWT
-- Refresh automático de tokens
+Configuración de AWS Amplify:
 
 ```typescript
-export const authService = {
-  signIn: (email: string, password: string) => Promise<AuthResult>,
-  signUp: (email: string, password: string) => Promise<AuthResult>,
-  signOut: () => Promise<void>,
-  getCurrentUser: () => Promise<User | null>,
-  confirmSignUp: (email: string, code: string) => Promise<AuthResult>
-};
-```
+import { Amplify } from 'aws-amplify';
 
-### GraphQL Service
-**Archivo**: `src/services/graphql.ts`
-
-**Funcionalidades**:
-- Queries y mutations predefinidas
-- Cliente GraphQL configurado
-- Manejo de errores
-- Tipado TypeScript
-
-**Operaciones Principales**:
-```typescript
-// Mutations
-CREATE_ROOM_MUTATION
-JOIN_ROOM_MUTATION  
-VOTE_MUTATION
-
-// Queries
-GET_MY_ROOMS
-GET_MY_MATCHES
-GET_ROOM
-
-// Subscriptions
-USER_MATCH_SUBSCRIPTION
-ROOM_MATCH_SUBSCRIPTION
-```
-
-### Logger Service
-**Archivo**: `src/services/logger.ts`
-
-**Funcionalidades**:
-- Logging estructurado
-- Diferentes niveles (info, error, debug)
-- Contexto de usuario
-- Integración con servicios de monitoreo
-
-```typescript
-export const logger = {
-  userAction: (action: string, data?: any) => void,
-  apiRequest: (operation: string, data?: any) => void,
-  apiResponse: (operation: string, data?: any) => void,
-  error: (message: string, error: any, context?: any) => void
-};
-```
-
-### Subscription Service
-**Archivo**: `src/services/subscriptions.ts`
-
-**Funcionalidades**:
-- Gestión de GraphQL subscriptions
-- Reconexión automática
-- Manejo de errores de conexión
-- Cleanup automático
-
-## 🔔 Sistema de Notificaciones
-
-### Match Notifications
-**Contexto**: `MatchNotificationContext.tsx`
-
-**Funcionalidades**:
-- Escuchar matches en tiempo real
-- Mostrar notificaciones in-app
-- Polling de respaldo
-- Gestión de estado de notificaciones
-
-### Hooks de Notificaciones
-
-#### useMatchPolling
-**Propósito**: Polling de respaldo para matches
-
-```typescript
-const { isPolling, startPolling, stopPolling } = useMatchPolling(
-  userId,
-  onMatchFound
-);
-```
-
-#### useProactiveMatchCheck
-**Propósito**: Verificación proactiva de matches
-
-```typescript
-const { checkForMatches, isChecking } = useProactiveMatchCheck(
-  userId,
-  onMatchFound
-);
-```
-
-## 🎨 Navegación
-
-### Stack Navigator
-**Archivo**: `src/navigation/AppNavigator.tsx`
-
-**Estructura**:
-```typescript
-type RootStackParamList = {
-  Auth: undefined;
-  Dashboard: undefined;
-  CreateRoom: undefined;
-  JoinRoom: undefined;
-  VotingRoom: { roomId: string; roomCode: string };
-  MyRooms: undefined;
-  MyMatches: undefined;
-  Recommendations: undefined;
-  Profile: undefined;
-};
-```
-
-**Flujo de Navegación**:
-1. **Auth** → Dashboard (después de login)
-2. **Dashboard** → CreateRoom/JoinRoom/MyRooms/MyMatches
-3. **CreateRoom** → VotingRoom (después de crear)
-4. **JoinRoom** → VotingRoom (después de unirse)
-5. **MyRooms** → VotingRoom (seleccionar sala)
-
-## 🔐 Autenticación
-
-### AWS Amplify Configuration
-**Archivo**: `src/config/aws-config.ts`
-
-```typescript
-const awsConfig = {
+Amplify.configure({
   Auth: {
     region: process.env.EXPO_PUBLIC_AWS_REGION,
     userPoolId: process.env.EXPO_PUBLIC_USER_POOL_ID,
@@ -354,208 +387,204 @@ const awsConfig = {
       defaultAuthMode: 'userPool',
     },
   },
+});
+```
+
+### auth.ts
+
+Servicio de autenticación:
+
+```typescript
+export const signIn = async (email: string, password: string);
+export const signUp = async (email: string, password: string);
+export const signOut = async ();
+export const getCurrentUser = async ();
+```
+
+### graphql.ts
+
+Queries y mutations GraphQL:
+
+```typescript
+// Queries
+export const GET_ROOM_BY_CODE = `query GetRoomByCode($code: String!) { ... }`;
+export const GET_MY_ROOMS = `query GetMyRooms { ... }`;
+export const GET_MY_MATCHES = `query GetMyMatches { ... }`;
+
+// Mutations
+export const CREATE_ROOM = `mutation CreateRoom($input: CreateRoomInput!) { ... }`;
+export const VOTE = `mutation Vote($input: VoteInput!) { ... }`;
+
+// Subscriptions
+export const USER_MATCH_SUBSCRIPTION = `subscription OnUserMatch($userId: ID!) { ... }`;
+export const ROOM_MATCH_SUBSCRIPTION = `subscription OnRoomMatch($roomId: ID!) { ... }`;
+```
+
+### subscriptions.ts
+
+Gestión de subscriptions GraphQL:
+
+```typescript
+export const matchSubscriptionService = {
+  subscribe: (userId: string, callback: (match: Match) => void),
+  unsubscribe: (),
+};
+
+export const roomSubscriptionService = {
+  subscribeToRoom: (roomId: string, userId: string, callback),
+  unsubscribeFromRoom: (roomId: string),
+  unsubscribeFromAllRooms: (),
 };
 ```
 
-### Auth Context
-**Archivo**: `src/context/AuthContext.tsx`
+### logger.ts
 
-**Estado Global**:
-- Usuario actual
-- Estado de autenticación
-- Funciones de login/logout
-- Loading states
+Servicio de logging estructurado:
 
-## 📊 Estado y Datos
-
-### Tipos TypeScript
-**Archivo**: `src/types/index.ts`
-
-**Tipos Principales**:
 ```typescript
-interface User {
-  userId: string;
-  email: string;
-  name?: string;
-}
-
-interface Room {
-  id: string;
-  code: string;
-  hostId: string;
-  mediaType: 'MOVIE' | 'TV';
-  genreIds: number[];
-  candidates: MovieCandidate[];
-  createdAt: string;
-}
-
-interface Match {
-  id: string;
-  roomId: string;
-  movieId: number;
-  title: string;
-  posterPath?: string;
-  timestamp: string;
-  matchedUsers: string[];
-}
-
-interface Vote {
-  roomId: string;
-  userId: string;
-  movieId: number;
-  vote: boolean;
-}
+export const logger = {
+  info: (category: string, message: string, data?: any),
+  error: (category: string, message: string, error: any, data?: any),
+  userAction: (action: string, data?: any),
+  apiRequest: (operation: string, data?: any),
+  apiResponse: (operation: string, data?: any),
+  match: (message: string, data?: any),
+  matchError: (message: string, error: any, data?: any),
+};
 ```
 
-## 🚀 Build y Deployment
+## 🎣 Custom Hooks
 
-### Development Build
-```bash
-# Ejecutar en simulador
-npx expo start
+### useMatchPolling
 
-# Ejecutar en dispositivo físico
-npx expo start --tunnel
-```
+Hook para polling de matches como fallback:
 
-### Production Build
-
-#### Android APK
-```bash
-# Build local
-npx expo build:android
-
-# EAS Build (recomendado)
-npx eas build --platform android
-```
-
-#### Android AAB (Play Store)
-```bash
-npx eas build --platform android --profile production
-```
-
-### Configuración EAS
-**Archivo**: `eas.json`
-
-```json
-{
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal"
-    },
-    "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      }
-    },
-    "production": {
-      "android": {
-        "buildType": "aab"
-      }
-    }
+```typescript
+const { startPolling, stopPolling } = useMatchPolling(
+  roomId,
+  (match) => {
+    // Handle match
   }
-}
+);
 ```
+
+### useProactiveMatchCheck
+
+Hook para verificación proactiva de matches:
+
+```typescript
+const { checkForMatchesBeforeAction, isCheckingMatches } = useProactiveMatchCheck();
+
+// Verificar antes de una acción
+await checkForMatchesBeforeAction(() => {
+  // Acción a ejecutar si no hay matches
+});
+```
+
+## 🌐 Context Providers
+
+### AuthContext
+
+Gestión del estado de autenticación:
+
+```typescript
+const { user, isAuthenticated, signIn, signUp, signOut } = useAuth();
+```
+
+### MatchNotificationContext
+
+Gestión de notificaciones de matches:
+
+```typescript
+const {
+  checkForMatchesBeforeAction,
+  isCheckingMatches,
+  activeRooms,
+  addActiveRoom,
+  removeActiveRoom,
+  dismissNotification,
+} = useMatchNotification();
+```
+
+## 🎨 Estilos y Temas
+
+### Colores Principales
+
+```typescript
+const colors = {
+  primary: '#e94560',      // Rojo/Rosa
+  background: '#1a1a2e',   // Oscuro
+  card: '#2a2a3e',         // Gris oscuro
+  text: '#ffffff',         // Blanco
+  textSecondary: '#a0a0a0', // Gris
+  success: '#4caf50',      // Verde
+  error: '#f44336',        // Rojo
+};
+```
+
+### Componentes Estilizados
+
+- **TouchableOpacity**: Botones con feedback táctil
+- **ScrollView**: Listas scrolleables
+- **Image**: Imágenes con lazy loading
+- **View**: Contenedores con flexbox
 
 ## 🧪 Testing
 
-### Unit Tests
 ```bash
+# Ejecutar tests
 npm test
+
+# Tests con coverage
+npm run test:coverage
+
+# Tests en modo watch
+npm run test:watch
 ```
 
-### E2E Tests
+## 🐛 Troubleshooting
+
+### Error: "Metro bundler not starting"
+
 ```bash
-npm run test:e2e
+npx expo start --clear
 ```
 
-### Manual Testing
-1. **Flujo de Autenticación**
-   - Registro de usuario
-   - Login/logout
-   - Recuperación de contraseña
+### Error: "Unable to resolve module"
 
-2. **Flujo de Salas**
-   - Crear sala
-   - Unirse a sala
-   - Ver mis salas
-
-3. **Flujo de Votación**
-   - Votar por películas
-   - Recibir notificaciones
-   - Ver matches
-
-## 🔧 Desarrollo
-
-### Hot Reload
-Expo proporciona hot reload automático durante el desarrollo.
-
-### Debugging
 ```bash
-# Abrir debugger
-npx expo start --dev-client
-
-# Logs en tiempo real
-npx expo logs
+rm -rf node_modules
+npm install
+npx expo start --clear
 ```
 
-### Linting
+### Error: "Android build failed"
+
 ```bash
-npm run lint
+cd android
+./gradlew clean
+cd ..
+npx expo prebuild --clean
 ```
 
-### TypeScript Check
-```bash
-npm run type-check
-```
+### Subscriptions no funcionan
 
-## 📱 Configuración Android
+1. Verificar que el endpoint GraphQL es correcto
+2. Verificar que el usuario está autenticado
+3. Verificar permisos en AppSync
+4. Revisar logs de CloudWatch
 
-### Permisos
-**Archivo**: `android/app/src/main/AndroidManifest.xml`
+## 📚 Recursos
 
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-```
-
-### Configuración de Build
-**Archivo**: `android/app/build.gradle`
-
-- Configuración de signing
-- Versioning automático
-- Optimizaciones de build
-
-## 🚨 Troubleshooting
-
-### Errores Comunes
-
-#### "Network request failed"
-- Verificar configuración de AWS
-- Comprobar conectividad de red
-- Validar endpoints
-
-#### "Authentication failed"
-- Verificar User Pool configuration
-- Comprobar tokens expirados
-- Validar permisos
-
-#### "GraphQL errors"
-- Verificar schema compatibility
-- Comprobar autenticación
-- Validar variables de queries
-
-### Debug Tools
-- **Flipper**: Para debugging avanzado
-- **React Native Debugger**: Para inspección de estado
-- **AWS CloudWatch**: Para logs de backend
-
-## 📚 Referencias
-
-- [Expo Documentation](https://docs.expo.dev/)
 - [React Native Documentation](https://reactnative.dev/)
-- [AWS Amplify Documentation](https://docs.amplify.aws/)
-- [React Navigation Documentation](https://reactnavigation.org/)
-- [TypeScript Documentation](https://www.typescriptlang.org/)
+- [Expo Documentation](https://docs.expo.dev/)
+- [React Navigation](https://reactnavigation.org/)
+- [AWS Amplify for React Native](https://docs.amplify.aws/react-native/)
+
+## 🤝 Contribución
+
+Ver [../README.md](../README.md) para guías de contribución.
+
+## 📄 Licencia
+
+MIT License - Ver [../LICENSE](../LICENSE)
