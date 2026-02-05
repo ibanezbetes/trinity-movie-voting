@@ -142,3 +142,17 @@ create-*.js
 
 # Lambda fixes folder (temporal)
 lambda-fixes/
+
+# Generated reports and sync files
+infrastructure/sync-report.json
+infrastructure/*.report.json
+
+# Backup directories (if created locally)
+*_backup_*/
+*.backup/
+
+# Additional temporary documentation patterns
+*_TEMP*.md
+*_WIP*.md
+*_DRAFT*.md
+*_NOTES*.md
