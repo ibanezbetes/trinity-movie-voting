@@ -60,9 +60,9 @@ class TMDBIntegration {
             const payload = {
                 mediaType,
                 genreIds,
-                page: 1,
+                // Note: page parameter removed - Smart Random Discovery handles pagination internally
             };
-            console.log('Invoking TMDB Lambda with payload:', JSON.stringify(payload));
+            console.log('Invoking TMDB Lambda with Smart Random Discovery payload:', JSON.stringify(payload));
             const command = new client_lambda_1.InvokeCommand({
                 FunctionName: this.lambdaArn,
                 Payload: JSON.stringify(payload),
@@ -75,7 +75,9 @@ class TMDBIntegration {
             if (result.statusCode !== 200) {
                 throw new Error(`TMDB Lambda error: ${JSON.stringify(result.body)}`);
             }
-            return result.body.candidates || [];
+            const candidates = result.body.candidates || [];
+            console.log(`Smart Random Discovery returned ${candidates.length} candidates`);
+            return candidates;
         }
         catch (error) {
             console.error('TMDB Integration error:', error);
@@ -92,10 +94,17 @@ class RoomService {
         }
         this.tmdbIntegration = new TMDBIntegration();
     }
-    async createRoom(userId, mediaType, genreIds) {
+    async createRoom(userId, mediaType, genreIds, maxParticipants) {
         // Validate input
         if (!mediaType || !['MOVIE', 'TV'].includes(mediaType)) {
             throw new Error('Invalid mediaType. Must be MOVIE or TV');
+        }
+        // Validate maxParticipants
+        if (!maxParticipants || typeof maxParticipants !== 'number') {
+            throw new Error('maxParticipants is required and must be a number');
+        }
+        if (maxParticipants < 2 || maxParticipants > 6) {
+            throw new Error('maxParticipants must be between 2 and 6');
         }
         // Enforce genre limit (max 2 as per master spec)
         if (genreIds.length > 2) {
@@ -122,6 +131,7 @@ class RoomService {
             candidates,
             createdAt: now,
             ttl,
+            maxParticipants,
         };
         // Store in DynamoDB
         await docClient.send(new lib_dynamodb_1.PutCommand({
@@ -131,7 +141,7 @@ class RoomService {
         }));
         // Record user participation when creating room (host automatically participates)
         await this.recordRoomParticipation(userId, roomId);
-        console.log(`Room created successfully: ${roomId} with code: ${code}`);
+        console.log(`Room created successfully: ${roomId} with code: ${code}, maxParticipants: ${maxParticipants}`);
         return room;
     }
     async joinRoom(userId, code) {
@@ -378,8 +388,8 @@ const handler = async (event) => {
             case 'createRoom': {
                 console.log('Processing createRoom mutation');
                 const { input } = event.arguments;
-                const { mediaType, genreIds } = input;
-                const room = await roomService.createRoom(userId, mediaType, genreIds);
+                const { mediaType, genreIds, maxParticipants } = input;
+                const room = await roomService.createRoom(userId, mediaType, genreIds, maxParticipants);
                 return room;
             }
             case 'joinRoom': {

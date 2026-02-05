@@ -28,6 +28,7 @@ interface Room {
   candidates: MovieCandidate[];
   createdAt: string;
   ttl: number;
+  maxParticipants: number;
 }
 
 interface CreateRoomEvent {
@@ -36,6 +37,7 @@ interface CreateRoomEvent {
   input: {
     mediaType: 'MOVIE' | 'TV';
     genreIds: number[];
+    maxParticipants: number;
   };
 }
 
@@ -171,10 +173,19 @@ class RoomService {
     this.tmdbIntegration = new TMDBIntegration();
   }
 
-  async createRoom(userId: string, mediaType: 'MOVIE' | 'TV', genreIds: number[]): Promise<Room> {
+  async createRoom(userId: string, mediaType: 'MOVIE' | 'TV', genreIds: number[], maxParticipants: number): Promise<Room> {
     // Validate input
     if (!mediaType || !['MOVIE', 'TV'].includes(mediaType)) {
       throw new Error('Invalid mediaType. Must be MOVIE or TV');
+    }
+
+    // Validate maxParticipants
+    if (!maxParticipants || typeof maxParticipants !== 'number') {
+      throw new Error('maxParticipants is required and must be a number');
+    }
+
+    if (maxParticipants < 2 || maxParticipants > 6) {
+      throw new Error('maxParticipants must be between 2 and 6');
     }
 
     // Enforce genre limit (max 2 as per master spec)
@@ -207,6 +218,7 @@ class RoomService {
       candidates,
       createdAt: now,
       ttl,
+      maxParticipants,
     };
 
     // Store in DynamoDB
@@ -219,7 +231,7 @@ class RoomService {
     // Record user participation when creating room (host automatically participates)
     await this.recordRoomParticipation(userId, roomId);
 
-    console.log(`Room created successfully: ${roomId} with code: ${code}`);
+    console.log(`Room created successfully: ${roomId} with code: ${code}, maxParticipants: ${maxParticipants}`);
     return room;
   }
 
@@ -505,9 +517,9 @@ export const handler: Handler = async (event) => {
       case 'createRoom': {
         console.log('Processing createRoom mutation');
         const { input } = event.arguments;
-        const { mediaType, genreIds } = input;
+        const { mediaType, genreIds, maxParticipants } = input;
 
-        const room = await roomService.createRoom(userId, mediaType, genreIds);
+        const room = await roomService.createRoom(userId, mediaType, genreIds, maxParticipants);
         return room;
       }
 

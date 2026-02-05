@@ -42,6 +42,7 @@ interface Room {
   candidates: MovieCandidate[];
   createdAt: string;
   ttl: number;
+  maxParticipants: number;
 }
 
 interface MovieCandidate {
@@ -210,7 +211,21 @@ class VoteService {
 
   private async checkForMatch(roomId: string, movieId: number, movieCandidate: MovieCandidate): Promise<Match | undefined> {
     try {
+      // Get room details to know maxParticipants
+      const room = await this.getRoom(roomId);
+      if (!room) {
+        console.error(`Room ${roomId} not found when checking for match`);
+        return undefined;
+      }
+
+      // Get maxParticipants from room (with backward compatibility)
+      const maxParticipants = room.maxParticipants || 2; // Default to 2 for old rooms
+      console.log(`Room ${roomId} requires ${maxParticipants} positive votes for a match`);
+
       // Get all votes for this movie in this room (excluding participation records)
+      // CRITICAL: Use ConsistentRead to ensure we see the vote that was just written
+      // Without this, DynamoDB's eventual consistency can cause race conditions where
+      // two users voting simultaneously don't see each other's votes
       const votesResult = await docClient.send(new QueryCommand({
         TableName: this.votesTable,
         KeyConditionExpression: 'roomId = :roomId',
@@ -221,34 +236,21 @@ class VoteService {
           ':vote': true, // Only positive votes
           ':participationMarker': -1, // Exclude participation records
         },
+        ConsistentRead: true, // ✅ FIXED: Force strong consistency to see recent writes
       }));
 
       const positiveVotes = votesResult.Items || [];
-      console.log(`Found ${positiveVotes.length} positive votes for movie ${movieId} in room ${roomId}`);
-
-      // Get all unique users who have voted in this room (excluding participation records)
-      const allVotesResult = await docClient.send(new QueryCommand({
-        TableName: this.votesTable,
-        KeyConditionExpression: 'roomId = :roomId',
-        FilterExpression: 'movieId <> :participationMarker', // Exclude participation records
-        ExpressionAttributeValues: {
-          ':roomId': roomId,
-          ':participationMarker': -1,
-        },
-      }));
-
-      const allVotes = allVotesResult.Items || [];
-      const uniqueUsers = new Set(allVotes.map(vote => (vote as Vote).userId));
-      const totalUsers = uniqueUsers.size;
-
-      console.log(`Total unique users who have voted in room: ${totalUsers}`);
-
-      // Check if all users voted positively for this movie
       const positiveUserIds = new Set(positiveVotes.map(vote => (vote as Vote).userId));
-      
-      if (positiveUserIds.size === totalUsers && totalUsers > 1) {
-        // We have a match! All users voted positively
-        console.log(`MATCH DETECTED! All ${totalUsers} users voted positively for movie ${movieId}`);
+      const positiveVoteCount = positiveUserIds.size;
+
+      console.log(`Found ${positiveVoteCount} unique positive votes for movie ${movieId} in room ${roomId}`);
+
+      // NEW LOGIC: Match occurs when positive votes === maxParticipants
+      // It doesn't matter how many users are in the room or have voted
+      // Only the configured maxParticipants matters
+      if (positiveVoteCount === maxParticipants) {
+        // We have a match! Exactly maxParticipants users voted positively
+        console.log(`🎉 MATCH DETECTED! ${positiveVoteCount} users (= maxParticipants) voted positively for movie ${movieId}`);
         
         // Check if match already exists
         const existingMatch = await this.getExistingMatch(roomId, movieId);
@@ -262,7 +264,7 @@ class VoteService {
         return match;
       }
 
-      console.log(`No match yet. Positive votes: ${positiveUserIds.size}, Total users: ${totalUsers}`);
+      console.log(`No match yet. Positive votes: ${positiveVoteCount}, Required: ${maxParticipants}`);
       return undefined;
 
     } catch (error) {

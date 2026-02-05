@@ -6,6 +6,7 @@ interface MovieCandidate {
     posterPath: string | null;
     releaseDate: string;
     mediaType: 'MOVIE' | 'TV';
+    genreIds?: number[];
 }
 interface TMDBEvent {
     mediaType: 'MOVIE' | 'TV';

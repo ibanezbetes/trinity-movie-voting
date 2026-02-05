@@ -6,6 +6,7 @@ type Room {
   genreIds: [Int!]!
   candidates: [MovieCandidate!]!
   createdAt: AWSDateTime!
+  maxParticipants: Int!
 }
 
 type MovieCandidate {
@@ -85,6 +86,7 @@ type Subscription {
 input CreateRoomInput {
   mediaType: MediaType!
   genreIds: [Int!]!
+  maxParticipants: Int!
 }
 
 input VoteInput {
