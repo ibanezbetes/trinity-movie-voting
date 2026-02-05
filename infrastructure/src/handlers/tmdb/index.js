@@ -42,102 +42,188 @@ class TMDBClient {
         }
     }
     /**
-     * Smart Random Discovery Algorithm (Enhanced)
-     * 1. Phase 1: Strict Search (AND logic) - All genres must match, random deep page
-     * 2. Phase 2: Fallback Search (OR logic) - Any genre matches, different random page
-     * 3. Phase 3: Multiple fetches if needed to reach 50 candidates
-     * 4. Shuffle final results for maximum variety
+     * Smart Random Discovery Algorithm (Enhanced with Strict Priority)
+     * 1. Phase 1: Check total results with STRICT (AND) logic
+     * 2. If total_results >= 50: Use only AND logic (prioritize intersection)
+     * 3. If total_results < 50: Fallback to OR logic (broader search)
+     * 4. Fetch from random pages to ensure variety
+     * 5. Shuffle final results for maximum randomness
      */
     async discoverContent(mediaType, genreIds) {
         const candidatesMap = new Map(); // Use Map to prevent duplicates
+        const MIN_RESULTS_THRESHOLD = 50; // Minimum results to use strict AND logic
         try {
             console.log(`Starting Smart Random Discovery for ${mediaType} with genres: ${genreIds?.join(',') || 'none'}`);
-            // PHASE 1: STRICT SEARCH (AND Logic) - Deep random page exploration
-            if (genreIds && genreIds.length > 0) {
-                console.log('PHASE 1: Strict search with ALL genres (AND logic)');
-                const randomPageA = Math.floor(Math.random() * 50) + 1; // Explore pages 1-50
-                console.log(`  → Fetching page ${randomPageA} with AND logic`);
-                const strictResults = await this.fetchFromTmdb(mediaType, {
+            let useStrictLogic = false;
+            let totalAvailableResults = 0;
+            let totalAvailablePages = 1;
+            // PHASE 1: CHECK AVAILABILITY WITH STRICT (AND) LOGIC
+            if (genreIds && genreIds.length > 1) {
+                console.log('PHASE 1: Checking availability with STRICT (AND) logic');
+                // First, check how many results exist with strict AND logic
+                const checkResponse = await this.fetchFromTmdbWithMetadata(mediaType, {
                     genreIds,
                     logicType: 'AND',
-                    page: randomPageA
+                    page: 1
                 });
-                const filteredStrict = this.applyBaseFilters(strictResults, mediaType);
-                filteredStrict.forEach(candidate => candidatesMap.set(candidate.id, candidate));
-                console.log(`  → Phase 1 found ${filteredStrict.length} candidates (total: ${candidatesMap.size})`);
+                totalAvailableResults = checkResponse.total_results;
+                totalAvailablePages = checkResponse.total_pages;
+                console.log(`  → Strict AND search found ${totalAvailableResults} total results across ${totalAvailablePages} pages`);
+                // Decide strategy based on available results
+                if (totalAvailableResults >= MIN_RESULTS_THRESHOLD) {
+                    useStrictLogic = true;
+                    console.log(`  ✅ Using STRICT (AND) logic - sufficient results available`);
+                }
+                else {
+                    useStrictLogic = false;
+                    console.log(`  ⚠️ Using FALLBACK (OR) logic - only ${totalAvailableResults} strict results available`);
+                }
             }
-            // PHASE 2: FALLBACK SEARCH (OR Logic) - Different random page
-            if (candidatesMap.size < this.TARGET_COUNT && genreIds && genreIds.length > 0) {
-                const needed = this.TARGET_COUNT - candidatesMap.size;
-                console.log(`PHASE 2: Fallback search with ANY genre (OR logic) - need ${needed} more`);
-                // Use a different random page range to avoid overlap
-                const randomPageB = Math.floor(Math.random() * 50) + 1;
-                console.log(`  → Fetching page ${randomPageB} with OR logic`);
-                const looseResults = await this.fetchFromTmdb(mediaType, {
+            else if (genreIds && genreIds.length === 1) {
+                // Single genre always uses AND (which is the same as OR for one genre)
+                useStrictLogic = true;
+                console.log('Single genre selected - using standard logic');
+            }
+            // PHASE 2: FETCH CONTENT BASED ON CHOSEN STRATEGY
+            const logicType = useStrictLogic ? 'AND' : 'OR';
+            console.log(`PHASE 2: Fetching content with ${logicType} logic`);
+            // If we're using strict logic and checked availability, use those results
+            if (useStrictLogic && genreIds && genreIds.length > 1) {
+                // Re-fetch with metadata to get total pages for random selection
+                const metadataResponse = await this.fetchFromTmdbWithMetadata(mediaType, {
+                    genreIds,
+                    logicType: 'AND',
+                    page: 1
+                });
+                totalAvailablePages = Math.min(metadataResponse.total_pages, 500); // TMDB limits to 500 pages
+                // Fetch from multiple random pages to reach target
+                const pagesToFetch = Math.min(3, totalAvailablePages); // Fetch up to 3 random pages
+                console.log(`  → Fetching from ${pagesToFetch} random pages (out of ${totalAvailablePages} available)`);
+                for (let i = 0; i < pagesToFetch && candidatesMap.size < this.TARGET_COUNT; i++) {
+                    const randomPage = Math.floor(Math.random() * totalAvailablePages) + 1;
+                    console.log(`  → Fetching page ${randomPage} with AND logic`);
+                    const results = await this.fetchFromTmdb(mediaType, {
+                        genreIds,
+                        logicType: 'AND',
+                        page: randomPage
+                    });
+                    const filtered = this.applyBaseFilters(results, mediaType);
+                    filtered.forEach(candidate => {
+                        if (candidatesMap.size < this.TARGET_COUNT) {
+                            candidatesMap.set(candidate.id, candidate);
+                        }
+                    });
+                    console.log(`  → Added ${filtered.length} candidates (total: ${candidatesMap.size})`);
+                }
+            }
+            else if (!useStrictLogic && genreIds && genreIds.length > 1) {
+                // Using OR logic fallback
+                const metadataResponse = await this.fetchFromTmdbWithMetadata(mediaType, {
                     genreIds,
                     logicType: 'OR',
-                    page: randomPageB
+                    page: 1
                 });
-                const filteredLoose = this.applyBaseFilters(looseResults, mediaType);
-                filteredLoose.forEach(candidate => {
-                    if (candidatesMap.size < this.TARGET_COUNT) {
-                        candidatesMap.set(candidate.id, candidate);
-                    }
-                });
-                console.log(`  → Phase 2 added ${filteredLoose.length} results (total: ${candidatesMap.size})`);
+                totalAvailablePages = Math.min(metadataResponse.total_pages, 500);
+                // Fetch from multiple random pages
+                const pagesToFetch = Math.min(3, totalAvailablePages);
+                console.log(`  → Fetching from ${pagesToFetch} random pages with OR logic`);
+                for (let i = 0; i < pagesToFetch && candidatesMap.size < this.TARGET_COUNT; i++) {
+                    const randomPage = Math.floor(Math.random() * totalAvailablePages) + 1;
+                    console.log(`  → Fetching page ${randomPage} with OR logic`);
+                    const results = await this.fetchFromTmdb(mediaType, {
+                        genreIds,
+                        logicType: 'OR',
+                        page: randomPage
+                    });
+                    const filtered = this.applyBaseFilters(results, mediaType);
+                    // When using OR logic, prioritize movies that match ALL genres
+                    const prioritized = this.prioritizeMultiGenreMatches(filtered, genreIds);
+                    prioritized.forEach(candidate => {
+                        if (candidatesMap.size < this.TARGET_COUNT) {
+                            candidatesMap.set(candidate.id, candidate);
+                        }
+                    });
+                    console.log(`  → Added ${prioritized.length} candidates (total: ${candidatesMap.size})`);
+                }
             }
-            // PHASE 3: ADDITIONAL FETCHES - Keep fetching until we reach target
+            else {
+                // No genres or single genre - standard fetch
+                const randomPage = Math.floor(Math.random() * 50) + 1;
+                console.log(`  → Fetching page ${randomPage} (no genre filter or single genre)`);
+                const results = await this.fetchFromTmdb(mediaType, {
+                    genreIds,
+                    page: randomPage
+                });
+                const filtered = this.applyBaseFilters(results, mediaType);
+                filtered.forEach(candidate => candidatesMap.set(candidate.id, candidate));
+                console.log(`  → Added ${filtered.length} candidates`);
+            }
+            // PHASE 3: ADDITIONAL FETCHES IF NEEDED
             let fetchAttempts = 0;
-            const maxAttempts = 5; // Prevent infinite loops
+            const maxAttempts = 3;
             while (candidatesMap.size < this.TARGET_COUNT && fetchAttempts < maxAttempts) {
                 fetchAttempts++;
                 const needed = this.TARGET_COUNT - candidatesMap.size;
-                console.log(`PHASE 3 (Attempt ${fetchAttempts}): Additional fetch - need ${needed} more`);
-                // Use progressively deeper random pages
-                const randomPageC = Math.floor(Math.random() * 50) + 1;
-                console.log(`  → Fetching page ${randomPageC}`);
-                const additionalResults = await this.fetchFromTmdb(mediaType, {
+                console.log(`PHASE 3 (Attempt ${fetchAttempts}): Need ${needed} more candidates`);
+                const randomPage = Math.floor(Math.random() * 50) + 1;
+                const results = await this.fetchFromTmdb(mediaType, {
                     genreIds: genreIds && genreIds.length > 0 ? genreIds : undefined,
-                    logicType: genreIds && genreIds.length > 0 ? 'OR' : undefined,
-                    page: randomPageC
+                    logicType: genreIds && genreIds.length > 1 ? logicType : undefined,
+                    page: randomPage
                 });
-                const filteredAdditional = this.applyBaseFilters(additionalResults, mediaType);
+                const filtered = this.applyBaseFilters(results, mediaType);
                 let addedCount = 0;
-                filteredAdditional.forEach(candidate => {
-                    if (candidatesMap.size < this.TARGET_COUNT) {
-                        if (!candidatesMap.has(candidate.id)) {
-                            candidatesMap.set(candidate.id, candidate);
-                            addedCount++;
-                        }
+                filtered.forEach(candidate => {
+                    if (candidatesMap.size < this.TARGET_COUNT && !candidatesMap.has(candidate.id)) {
+                        candidatesMap.set(candidate.id, candidate);
+                        addedCount++;
                     }
                 });
-                console.log(`  → Phase 3 added ${addedCount} new candidates (total: ${candidatesMap.size})`);
-                // If we didn't add any new candidates, break to avoid wasting API calls
-                if (addedCount === 0) {
-                    console.log(`  → No new candidates found, stopping additional fetches`);
+                console.log(`  → Added ${addedCount} new candidates (total: ${candidatesMap.size})`);
+                if (addedCount === 0)
                     break;
-                }
             }
             // PHASE 4: SHUFFLE - Fisher-Yates shuffle for maximum randomness
             const candidatesArray = Array.from(candidatesMap.values());
             const shuffledCandidates = this.shuffleArray(candidatesArray);
             const finalCandidates = shuffledCandidates.slice(0, this.TARGET_COUNT);
             console.log(`✅ Smart Random Discovery complete: ${finalCandidates.length} candidates (target: ${this.TARGET_COUNT})`);
-            console.log(`   Phases executed: ${fetchAttempts + 2}, Unique IDs: ${candidatesMap.size}`);
+            console.log(`   Strategy: ${useStrictLogic ? 'STRICT (AND)' : 'FALLBACK (OR)'}, Total available: ${totalAvailableResults}`);
             return finalCandidates;
         }
         catch (error) {
             console.error('❌ Smart Random Discovery Error:', error);
-            // Return whatever we managed to collect
             const fallbackCandidates = Array.from(candidatesMap.values());
             console.log(`   Returning ${fallbackCandidates.length} candidates as fallback`);
             return fallbackCandidates;
         }
     }
     /**
-     * Fetch content from TMDB with specified parameters
+     * Prioritize candidates that match ALL selected genres (for OR searches)
+     */
+    prioritizeMultiGenreMatches(candidates, selectedGenreIds) {
+        // Sort candidates: those matching ALL genres first, then others
+        return candidates.sort((a, b) => {
+            const aMatchesAll = selectedGenreIds.every(genreId => a.genreIds?.includes(genreId));
+            const bMatchesAll = selectedGenreIds.every(genreId => b.genreIds?.includes(genreId));
+            // If both match all or both don't, maintain original order
+            if (aMatchesAll === bMatchesAll)
+                return 0;
+            // Put items matching all genres first
+            return aMatchesAll ? -1 : 1;
+        });
+    }
+    /**
+     * Fetch content from TMDB with specified parameters (returns only results)
      */
     async fetchFromTmdb(mediaType, options = {}) {
+        const response = await this.fetchFromTmdbWithMetadata(mediaType, options);
+        return response.results;
+    }
+    /**
+     * Fetch content from TMDB with metadata (total_results, total_pages)
+     */
+    async fetchFromTmdbWithMetadata(mediaType, options = {}) {
         const { genreIds, logicType, page = 1 } = options;
         const endpoint = mediaType === 'MOVIE' ? '/discover/movie' : '/discover/tv';
         const params = {
@@ -166,8 +252,10 @@ class TMDBClient {
             params
         });
         const results = response.data.results || [];
-        console.log(`TMDB returned ${results.length} raw results for page ${page}`);
-        return results;
+        const total_results = response.data.total_results || 0;
+        const total_pages = response.data.total_pages || 1;
+        console.log(`TMDB returned ${results.length} results for page ${page} (total: ${total_results} across ${total_pages} pages)`);
+        return { results, total_results, total_pages };
     }
     /**
      * Apply base quality filters to TMDB results
@@ -214,6 +302,7 @@ class TMDBClient {
                     posterPath: `https://image.tmdb.org/t/p/w500${item.poster_path}`,
                     releaseDate,
                     mediaType: mediaType === 'MOVIE' ? 'MOVIE' : 'TV',
+                    genreIds: item.genre_ids || [], // Store genre IDs for prioritization
                 };
                 candidates.push(candidate);
             }

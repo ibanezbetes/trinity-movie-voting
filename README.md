@@ -151,7 +151,7 @@ cp .env.example .env
 # Editar .env con los endpoints de AWS generados en el paso anterior
 
 # Iniciar en desarrollo
-npx expo start
+npx expo start --clear
 ```
 
 ## � Uso de la Aplicación
@@ -282,6 +282,7 @@ npm test
 
 ## 📚 Documentación
 
+- [Estado del Proyecto](PROJECT_STATUS.md) - Estado actual, limpieza y organización
 - [Guía de Deployment](docs/DEPLOYMENT_GUIDE.md)
 - [Guía de Build de Producción](docs/PRODUCTION_BUILD_GUIDE.md)
 - [Especificación Maestra](docs/TRINITY_MASTER_SPEC.md)
