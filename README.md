@@ -137,7 +137,7 @@ cp .env.example .env
 
 5. **Ejecutar Mobile App**
 ```bash
-npx expo start
+npx expo start --clear
 ```
 
 ## 🗄️ Base de Datos

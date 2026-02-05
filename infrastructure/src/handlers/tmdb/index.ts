@@ -10,6 +10,7 @@ interface TMDBDiscoveryParams {
   sort_by: string;
   include_adult: boolean;
   with_original_language: string; // Western languages only
+  'vote_count.gte'?: number; // Minimum vote count filter
 }
 
 interface TMDBMovieResponse {
@@ -23,6 +24,7 @@ interface TMDBMovieResponse {
   genre_ids: number[];
   original_language: string;
   media_type?: 'movie' | 'tv';
+  vote_count?: number;
 }
 
 interface MovieCandidate {
@@ -65,11 +67,12 @@ class LatinScriptValidator {
   }
 }
 
-// TMDB Client
+// TMDB Client with Smart Random Discovery
 class TMDBClient {
   private readonly baseUrl: string;
   private readonly readToken: string;
   private readonly validator: LatinScriptValidator;
+  private readonly TARGET_COUNT = 50; // Target number of candidates
 
   constructor() {
     this.baseUrl = process.env.TMDB_BASE_URL || 'https://api.themoviedb.org/3';
@@ -81,53 +84,140 @@ class TMDBClient {
     }
   }
 
-  async discoverContent(mediaType: 'MOVIE' | 'TV', genreIds?: number[], page = 1): Promise<MovieCandidate[]> {
+  /**
+   * Smart Random Discovery Algorithm
+   * 1. Priority Search (AND logic): All genres must match
+   * 2. Fallback Search (OR logic): Any genre can match
+   * 3. Random page selection to avoid repetitive content
+   * 4. Shuffle final results for variety
+   */
+  async discoverContent(mediaType: 'MOVIE' | 'TV', genreIds?: number[]): Promise<MovieCandidate[]> {
     try {
-      const endpoint = mediaType === 'MOVIE' ? '/discover/movie' : '/discover/tv';
+      let candidates: MovieCandidate[] = [];
       
-      const params: TMDBDiscoveryParams = {
-        page,
-        language: 'es-ES', // Default language
-        sort_by: 'popularity.desc',
-        include_adult: false,
-        with_original_language: 'en|es|fr|it|de|pt', // Western languages only - NO ja,ko
-      };
+      console.log(`Starting Smart Random Discovery for ${mediaType} with genres: ${genreIds?.join(',') || 'none'}`);
 
-      // Add genre filter if provided
+      // STEP A: Priority Search (AND Logic for Genres)
       if (genreIds && genreIds.length > 0) {
-        params.with_genres = genreIds.join(',');
+        console.log('STEP A: Priority search with ALL genres (AND logic)');
+        const randomPageA = Math.floor(Math.random() * 20) + 1;
+        const strictResults = await this.fetchFromTmdb(mediaType, {
+          genreIds,
+          logicType: 'AND',
+          page: randomPageA
+        });
+        
+        const filteredStrict = this.applyBaseFilters(strictResults, mediaType);
+        candidates.push(...filteredStrict);
+        console.log(`Priority search found ${filteredStrict.length} candidates (page ${randomPageA})`);
       }
 
-      console.log(`Querying TMDB ${endpoint} with params:`, JSON.stringify(params));
+      // STEP B: Fallback Search (OR Logic) if needed
+      if (candidates.length < this.TARGET_COUNT && genreIds && genreIds.length > 0) {
+        console.log(`STEP B: Fallback search with ANY genre (OR logic) - need ${this.TARGET_COUNT - candidates.length} more`);
+        const randomPageB = Math.floor(Math.random() * 20) + 1;
+        const looseResults = await this.fetchFromTmdb(mediaType, {
+          genreIds,
+          logicType: 'OR',
+          page: randomPageB
+        });
+        
+        const filteredLoose = this.applyBaseFilters(looseResults, mediaType);
+        
+        // Add unique items until we reach target
+        for (const item of filteredLoose) {
+          if (candidates.length >= this.TARGET_COUNT) break;
+          if (!candidates.find(c => c.id === item.id)) {
+            candidates.push(item);
+          }
+        }
+        console.log(`After fallback search: ${candidates.length} total candidates`);
+      }
 
-      const response = await axios.get(`${this.baseUrl}${endpoint}`, {
-        headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${this.readToken}`
-        },
-        params
-      });
+      // STEP C: General Discovery if still not enough content
+      if (candidates.length < this.TARGET_COUNT) {
+        console.log(`STEP C: General discovery - need ${this.TARGET_COUNT - candidates.length} more`);
+        const randomPageC = Math.floor(Math.random() * 20) + 1;
+        const generalResults = await this.fetchFromTmdb(mediaType, {
+          page: randomPageC
+        });
+        
+        const filteredGeneral = this.applyBaseFilters(generalResults, mediaType);
+        
+        // Add unique items until we reach target
+        for (const item of filteredGeneral) {
+          if (candidates.length >= this.TARGET_COUNT) break;
+          if (!candidates.find(c => c.id === item.id)) {
+            candidates.push(item);
+          }
+        }
+        console.log(`After general discovery: ${candidates.length} total candidates`);
+      }
 
-      const results: TMDBMovieResponse[] = response.data.results || [];
-      console.log(`TMDB returned ${results.length} raw results`);
-
-      // Apply Latin Script Validator and media type enforcement
-      const filteredCandidates = this.filterAndTransformResults(results, mediaType);
+      // STEP D: Shuffle final results for variety
+      const shuffledCandidates = this.shuffleArray(candidates).slice(0, this.TARGET_COUNT);
+      console.log(`Final result: ${shuffledCandidates.length} shuffled candidates`);
       
-      console.log(`After filtering: ${filteredCandidates.length} candidates`);
-      return filteredCandidates;
+      return shuffledCandidates;
 
     } catch (error) {
-      console.error('TMDB API Error:', error);
-      if (axios.isAxiosError(error)) {
-        console.error('Response data:', error.response?.data);
-        console.error('Response status:', error.response?.status);
-      }
-      throw new Error(`TMDB API request failed: ${error}`);
+      console.error('Smart Random Discovery Error:', error);
+      throw new Error(`Smart Random Discovery failed: ${error}`);
     }
   }
 
-  private filterAndTransformResults(results: TMDBMovieResponse[], expectedMediaType: 'MOVIE' | 'TV'): MovieCandidate[] {
+  /**
+   * Fetch content from TMDB with specified parameters
+   */
+  private async fetchFromTmdb(
+    mediaType: 'MOVIE' | 'TV', 
+    options: {
+      genreIds?: number[];
+      logicType?: 'AND' | 'OR';
+      page?: number;
+    } = {}
+  ): Promise<TMDBMovieResponse[]> {
+    const { genreIds, logicType, page = 1 } = options;
+    const endpoint = mediaType === 'MOVIE' ? '/discover/movie' : '/discover/tv';
+    
+    const params: TMDBDiscoveryParams = {
+      page,
+      language: 'es-ES', // Default language
+      sort_by: 'popularity.desc',
+      include_adult: false,
+      with_original_language: 'en|es|fr|it|de|pt', // Western languages only
+      'vote_count.gte': 100, // Minimum 100 votes to avoid garbage content
+    };
+
+    // Add genre filter based on logic type
+    if (genreIds && genreIds.length > 0) {
+      if (logicType === 'OR') {
+        params.with_genres = genreIds.join('|'); // OR logic: any genre matches
+      } else {
+        params.with_genres = genreIds.join(','); // AND logic: all genres must match
+      }
+    }
+
+    console.log(`Fetching from TMDB ${endpoint} with params:`, JSON.stringify(params));
+
+    const response = await axios.get(`${this.baseUrl}${endpoint}`, {
+      headers: {
+        'accept': 'application/json',
+        'Authorization': `Bearer ${this.readToken}`
+      },
+      params
+    });
+
+    const results: TMDBMovieResponse[] = response.data.results || [];
+    console.log(`TMDB returned ${results.length} raw results for page ${page}`);
+    
+    return results;
+  }
+
+  /**
+   * Apply base quality filters to TMDB results
+   */
+  private applyBaseFilters(results: TMDBMovieResponse[], mediaType: 'MOVIE' | 'TV'): MovieCandidate[] {
     const candidates: MovieCandidate[] = [];
 
     for (const item of results) {
@@ -136,15 +226,36 @@ class TMDBClient {
         const title = item.title || item.name || '';
         const overview = item.overview || '';
         
+        // Base quality filters
+        if (!item.poster_path) {
+          console.log(`Filtered out item without poster: "${title}"`);
+          continue;
+        }
+        
+        if (!overview || overview.trim() === '') {
+          console.log(`Filtered out item without overview: "${title}"`);
+          continue;
+        }
+
+        // Vote count filter (additional safety check)
+        if (item.vote_count && item.vote_count < 100) {
+          console.log(`Filtered out low-vote item: "${title}" (${item.vote_count} votes)`);
+          continue;
+        }
+
+        // Language filter - ensure Western languages only
+        const allowedLanguages = ['en', 'es', 'fr', 'it', 'de', 'pt'];
+        if (!allowedLanguages.includes(item.original_language)) {
+          console.log(`Filtered out non-Western language: "${title}" (${item.original_language})`);
+          continue;
+        }
+        
         // Apply Latin Script Validator
         if (!this.validator.validateContent(title, overview)) {
           console.log(`Filtered out non-Latin content: "${title}"`);
           continue;
         }
 
-        // Media type enforcement - crucial check from master spec
-        const actualMediaType = expectedMediaType; // We query the correct endpoint, so type matches
-        
         // Extract release date
         const releaseDate = item.release_date || item.first_air_date || '';
         
@@ -153,9 +264,9 @@ class TMDBClient {
           id: item.id,
           title,
           overview,
-          posterPath: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+          posterPath: `https://image.tmdb.org/t/p/w500${item.poster_path}`,
           releaseDate,
-          mediaType: actualMediaType,
+          mediaType: mediaType === 'MOVIE' ? 'MOVIE' : 'TV',
         };
 
         candidates.push(candidate);
@@ -168,6 +279,24 @@ class TMDBClient {
 
     return candidates;
   }
+
+  /**
+   * Shuffle array using Fisher-Yates algorithm
+   */
+  private shuffleArray<T>(array: T[]): T[] {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
+
+  // Legacy method for backward compatibility (deprecated)
+  async discoverContentLegacy(mediaType: 'MOVIE' | 'TV', genreIds?: number[], page = 1): Promise<MovieCandidate[]> {
+    console.warn('Using legacy discoverContentLegacy method - consider upgrading to discoverContent');
+    return this.discoverContent(mediaType, genreIds);
+  }
 }
 
 // Lambda Handler
@@ -175,7 +304,7 @@ export const handler: Handler<TMDBEvent, TMDBResponse> = async (event) => {
   console.log('TMDB Lambda received event:', JSON.stringify(event));
 
   try {
-    const { mediaType, genreIds, page = 1 } = event;
+    const { mediaType, genreIds } = event;
 
     // Validate input
     if (!mediaType || !['MOVIE', 'TV'].includes(mediaType)) {
@@ -188,17 +317,19 @@ export const handler: Handler<TMDBEvent, TMDBResponse> = async (event) => {
     }
 
     const tmdbClient = new TMDBClient();
-    const candidates = await tmdbClient.discoverContent(mediaType, genreIds, page);
+    
+    // Use Smart Random Discovery algorithm
+    console.log('Using Smart Random Discovery algorithm');
+    const candidates = await tmdbClient.discoverContent(mediaType, genreIds);
 
-    // Quality over quantity - return what we have, don't try to fill gaps
-    console.log(`Returning ${candidates.length} filtered candidates`);
+    console.log(`Smart Random Discovery returned ${candidates.length} candidates`);
 
     return {
       statusCode: 200,
       body: {
         candidates,
         totalResults: candidates.length,
-        page,
+        page: 1, // Page is now abstracted in Smart Random Discovery
       },
     };
 

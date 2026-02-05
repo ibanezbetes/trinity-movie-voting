@@ -124,10 +124,10 @@ class TMDBIntegration {
       const payload = {
         mediaType,
         genreIds,
-        page: 1,
+        // Note: page parameter removed - Smart Random Discovery handles pagination internally
       };
 
-      console.log('Invoking TMDB Lambda with payload:', JSON.stringify(payload));
+      console.log('Invoking TMDB Lambda with Smart Random Discovery payload:', JSON.stringify(payload));
 
       const command = new InvokeCommand({
         FunctionName: this.lambdaArn,
@@ -146,7 +146,10 @@ class TMDBIntegration {
         throw new Error(`TMDB Lambda error: ${JSON.stringify(result.body)}`);
       }
 
-      return result.body.candidates || [];
+      const candidates = result.body.candidates || [];
+      console.log(`Smart Random Discovery returned ${candidates.length} candidates`);
+      
+      return candidates;
 
     } catch (error) {
       console.error('TMDB Integration error:', error);
