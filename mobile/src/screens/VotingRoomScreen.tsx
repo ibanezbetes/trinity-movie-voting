@@ -37,7 +37,6 @@ export default function VotingRoomScreen() {
   const [candidates, setCandidates] = useState<MovieCandidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [isVoting, setIsVoting] = useState(false);
   const [hasExistingMatch, setHasExistingMatch] = useState(false);
   const [existingMatch, setExistingMatch] = useState<any>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -292,11 +291,11 @@ export default function VotingRoomScreen() {
   };
 
   const handleVote = async (vote: boolean) => {
-    if (isVoting || currentIndex >= candidates.length) return;
+    if (currentIndex >= candidates.length) return;
 
     const currentMovie = candidates[currentIndex];
     
-    logger.vote('🚨 CRITICAL: Vote attempt - checking for matches FIRST', {
+    logger.vote('🚀 OPTIMISTIC UI: Vote attempt with immediate card transition', {
       movieId: currentMovie.id,
       movieTitle: currentMovie.title,
       vote,
@@ -307,30 +306,43 @@ export default function VotingRoomScreen() {
       hasExistingMatch
     });
 
-    // Check for existing matches but don't block votes (rooms persist now)
-    const hasMatch = await checkForExistingMatch();
-    if (hasMatch) {
-      logger.vote('ℹ️ Match exists in room but allowing vote (rooms persist now)', {
-        movieId: currentMovie.id,
-        movieTitle: currentMovie.title,
-        vote,
-        roomId
-      });
-    }
+    // 1. OPTIMISTIC UPDATE: Move to next card IMMEDIATELY (UI First)
+    const nextIndex = currentIndex + 1;
+    setCurrentIndex(nextIndex);
+    
+    logger.vote('✅ IMMEDIATE UI UPDATE: Card transitioned optimistically', {
+      previousIndex: currentIndex,
+      nextIndex,
+      remainingCandidates: candidates.length - nextIndex,
+      movieTitle: currentMovie.title,
+      vote
+    });
 
-    // Use proactive match check as additional layer
-    await executeWithMatchCheck(async () => {
-      logger.vote('✅ Vote proceeding after match checks', {
-        movieId: currentMovie.id,
-        movieTitle: currentMovie.title,
-        vote,
-        currentIndex,
+    // Check if we've reached the end of candidates
+    if (nextIndex >= candidates.length) {
+      logger.vote('All candidates voted - showing completion message', {
         totalCandidates: candidates.length,
         roomId,
         roomCode
       });
+      
+      Alert.alert(
+        'Votación Completada',
+        'Has votado todas las películas. Espera a que otros usuarios terminen de votar.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    }
 
-      setIsVoting(true);
+    // 2. FIRE AND FORGET: Send vote to server in background (Network Background)
+    // This runs in parallel without blocking the UI
+    executeWithMatchCheck(async () => {
+      logger.vote('🔄 BACKGROUND PROCESSING: Sending vote to server', {
+        movieId: currentMovie.id,
+        movieTitle: currentMovie.title,
+        vote,
+        roomId,
+        roomCode
+      });
 
       try {
         // Verify authentication status first
@@ -339,7 +351,8 @@ export default function VotingRoomScreen() {
         
         if (!authStatus.isAuthenticated) {
           logger.authError('User not authenticated for voting', null);
-          Alert.alert('Error de Autenticación', 'Por favor inicia sesión nuevamente');
+          // Don't show alert here as it would interrupt the flow
+          console.error('Authentication failed during background vote');
           return;
         }
 
@@ -363,6 +376,7 @@ export default function VotingRoomScreen() {
             vote
           });
           
+          // 3. INTERRUPT ON MATCH: Show match notification if room doesn't exist
           Alert.alert(
             '🎉 ¡MATCH ENCONTRADO!',
             'La sala ya no existe porque se encontró una película en común. Serás redirigido a tus matches.',
@@ -393,7 +407,7 @@ export default function VotingRoomScreen() {
               vote,
             },
           },
-          authMode: 'userPool', // Explicitly specify auth mode
+          authMode: 'userPool',
         });
 
         logger.apiResponse('vote mutation success', {
@@ -404,95 +418,83 @@ export default function VotingRoomScreen() {
 
         const result = response.data.vote;
       
-      if (result.match) {
-        logger.vote('MATCH DETECTED!', {
-          matchId: result.match.id,
-          movieTitle: result.match.title,
-          movieId: result.match.movieId,
-          roomId: result.match.roomId,
-          timestamp: result.match.timestamp
-        });
-
-        // Update state to prevent further voting
-        setHasExistingMatch(true);
-        setExistingMatch(result.match);
-
-        // Show match notification with navigation to home
-        Alert.alert(
-          '🎉 ¡MATCH!',
-          `¡Encontraste una película en común!\n\n${result.match.title}`,
-          [
-            { 
-              text: 'Ver mis matches', 
-              onPress: () => navigation.navigate('MyMatches' as any)
-            },
-            { 
-              text: 'Ir al inicio', 
-              onPress: () => navigation.navigate('Dashboard' as any)
-            }
-          ]
-        );
-      } else {
-        logger.vote('No match - continuing voting', {
-          movieTitle: currentMovie.title,
-          vote
-        });
-
-        // Move to next card only if no match
-        const nextIndex = currentIndex + 1;
-        setCurrentIndex(nextIndex);
-        
-        logger.vote('Moving to next card', {
-          previousIndex: currentIndex,
-          nextIndex,
-          remainingCandidates: candidates.length - nextIndex
-        });
-
-        if (nextIndex >= candidates.length) {
-          logger.vote('All candidates voted - no matches found', {
-            totalCandidates: candidates.length,
-            roomId,
-            roomCode
+        // 3. INTERRUPT ON MATCH: If match detected, interrupt current flow
+        if (result.match) {
+          logger.vote('🎉 MATCH DETECTED - INTERRUPTING USER FLOW!', {
+            matchId: result.match.id,
+            movieTitle: result.match.title,
+            movieId: result.match.movieId,
+            roomId: result.match.roomId,
+            timestamp: result.match.timestamp
           });
-          
+
+          // Update state to prevent further voting
+          setHasExistingMatch(true);
+          setExistingMatch(result.match);
+
+          // INTERRUPT: Show match notification immediately
           Alert.alert(
-            'Votación Completada',
-            'Has votado todas las películas. Espera a que otros usuarios terminen de votar.',
-            [{ text: 'OK', onPress: () => navigation.goBack() }]
+            '🎉 ¡MATCH!',
+            `¡Encontraste una película en común!\n\n${result.match.title}`,
+            [
+              { 
+                text: 'Ver mis matches', 
+                onPress: () => navigation.navigate('MyMatches' as any)
+              },
+              { 
+                text: 'Ir al inicio', 
+                onPress: () => navigation.navigate('Dashboard' as any)
+              }
+            ]
+          );
+        } else {
+          logger.vote('✅ BACKGROUND VOTE COMPLETED: No match, continuing flow', {
+            movieTitle: currentMovie.title,
+            vote,
+            nextIndex
+          });
+        }
+
+      } catch (error) {
+        logger.voteError('Background vote failed', error, {
+          movieId: currentMovie.id,
+          movieTitle: currentMovie.title,
+          vote,
+          roomId,
+          roomCode
+        });
+        console.error('Error in background vote:', error);
+        
+        // Check if error is due to room not found (potential match)
+        const errorMessage = error?.message || error?.toString() || '';
+        if (errorMessage.includes('Room not found') || errorMessage.includes('has expired')) {
+          // 3. INTERRUPT ON MATCH: Room disappeared, likely due to match
+          Alert.alert(
+            '🎉 ¡MATCH ENCONTRADO!',
+            'La sala ya no existe porque se encontró una película en común. Serás redirigido a tus matches.',
+            [
+              { 
+                text: 'Ver mis matches', 
+                onPress: () => navigation.navigate('MyMatches' as any)
+              }
+            ]
           );
         }
+        // For other errors, don't interrupt the user flow
+        // The vote failed but the user can continue voting
       }
-
-    } catch (error) {
-      logger.voteError('Vote failed', error, {
+    }, ACTION_NAMES.SUBMIT_VOTE)
+    .catch((error) => {
+      // Handle any errors from executeWithMatchCheck
+      logger.voteError('ExecuteWithMatchCheck failed', error, {
         movieId: currentMovie.id,
         movieTitle: currentMovie.title,
         vote,
         roomId,
         roomCode
       });
-      console.error('Error voting:', error);
-      
-      // Check if error is due to room not found
-      const errorMessage = error?.message || error?.toString() || '';
-      if (errorMessage.includes('Room not found') || errorMessage.includes('has expired')) {
-        Alert.alert(
-          '🎉 ¡MATCH ENCONTRADO!',
-          'La sala ya no existe porque se encontró una película en común. Serás redirigido a tus matches.',
-          [
-            { 
-              text: 'Ver mis matches', 
-              onPress: () => navigation.navigate('MyMatches' as any)
-            }
-          ]
-        );
-      } else {
-        Alert.alert('Error', 'No se pudo registrar el voto. Inténtalo de nuevo.');
-      }
-    } finally {
-      setIsVoting(false);
-    }
-    }, ACTION_NAMES.SUBMIT_VOTE);
+      console.error('Error in executeWithMatchCheck:', error);
+    });
   };
 
   const panResponder = PanResponder.create({
@@ -526,29 +528,33 @@ export default function VotingRoomScreen() {
       
       if (gestureState.dx > swipeThreshold) {
         // Swipe right - Like
-        logger.userAction('Swipe right detected - processing like vote');
+        logger.userAction('Swipe right detected - processing like vote with optimistic UI');
         Animated.timing(pan, {
           toValue: { x: screenWidth, y: gestureState.dy },
           duration: 200,
           useNativeDriver: false,
         }).start(() => {
-          // Process vote directly (rooms persist now)
-          executeWithMatchCheck(async () => {
-            handleVote(true);
-          }, 'Swipe Right Like');
+          // Reset animation for next card
+          pan.setValue({ x: 0, y: 0 });
+          scale.setValue(1);
+          
+          // Process vote with optimistic UI
+          handleVote(true);
         });
       } else if (gestureState.dx < -swipeThreshold) {
         // Swipe left - Dislike
-        logger.userAction('Swipe left detected - processing dislike vote');
+        logger.userAction('Swipe left detected - processing dislike vote with optimistic UI');
         Animated.timing(pan, {
           toValue: { x: -screenWidth, y: gestureState.dy },
           duration: 200,
           useNativeDriver: false,
         }).start(() => {
-          // Process vote directly (rooms persist now)
-          executeWithMatchCheck(async () => {
-            handleVote(false);
-          }, 'Swipe Left Dislike');
+          // Reset animation for next card
+          pan.setValue({ x: 0, y: 0 });
+          scale.setValue(1);
+          
+          // Process vote with optimistic UI
+          handleVote(false);
         });
       } else {
         // Snap back
@@ -711,21 +717,10 @@ export default function VotingRoomScreen() {
             styles.actionButton, 
             styles.dislikeButton
           ]}
-          onPress={async () => {
-            logger.userAction('Dislike button pressed - checking for matches first');
-            
-            // CRITICAL: Check for matches before ANY button action
-            const hasMatch = await checkForExistingMatch();
-            if (hasMatch) {
-              logger.userAction('Match exists but allowing vote (rooms persist now)');
-            }
-            
-            // Additional proactive check
-            await executeWithMatchCheck(async () => {
-              handleVote(false);
-            }, 'Dislike Button Action');
+          onPress={() => {
+            logger.userAction('Dislike button pressed - using optimistic UI');
+            handleVote(false);
           }}
-          disabled={isVoting}
         >
           <Text style={styles.actionButtonText}>👎</Text>
         </TouchableOpacity>
@@ -735,21 +730,10 @@ export default function VotingRoomScreen() {
             styles.actionButton, 
             styles.likeButton
           ]}
-          onPress={async () => {
-            logger.userAction('Like button pressed - checking for matches first');
-            
-            // CRITICAL: Check for matches before ANY button action
-            const hasMatch = await checkForExistingMatch();
-            if (hasMatch) {
-              logger.userAction('Match exists but allowing vote (rooms persist now)');
-            }
-            
-            // Additional proactive check
-            await executeWithMatchCheck(async () => {
-              handleVote(true);
-            }, 'Like Button Action');
+          onPress={() => {
+            logger.userAction('Like button pressed - using optimistic UI');
+            handleVote(true);
           }}
-          disabled={isVoting}
         >
           <Text style={styles.actionButtonText}>👍</Text>
         </TouchableOpacity>
