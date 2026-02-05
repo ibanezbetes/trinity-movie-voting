@@ -95,22 +95,24 @@ class TMDBClient {
   }
 
   /**
-   * Smart Random Discovery Algorithm
-   * 1. Priority Search (AND logic): All genres must match
-   * 2. Fallback Search (OR logic): Any genre can match
-   * 3. Random page selection to avoid repetitive content
-   * 4. Shuffle final results for variety
+   * Smart Random Discovery Algorithm (Enhanced)
+   * 1. Phase 1: Strict Search (AND logic) - All genres must match, random deep page
+   * 2. Phase 2: Fallback Search (OR logic) - Any genre matches, different random page
+   * 3. Phase 3: Multiple fetches if needed to reach 50 candidates
+   * 4. Shuffle final results for maximum variety
    */
   async discoverContent(mediaType: 'MOVIE' | 'TV', genreIds?: number[]): Promise<MovieCandidate[]> {
+    const candidatesMap = new Map<number, MovieCandidate>(); // Use Map to prevent duplicates
+    
     try {
-      let candidates: MovieCandidate[] = [];
-      
       console.log(`Starting Smart Random Discovery for ${mediaType} with genres: ${genreIds?.join(',') || 'none'}`);
 
-      // STEP A: Priority Search (AND Logic for Genres)
+      // PHASE 1: STRICT SEARCH (AND Logic) - Deep random page exploration
       if (genreIds && genreIds.length > 0) {
-        console.log('STEP A: Priority search with ALL genres (AND logic)');
-        const randomPageA = Math.floor(Math.random() * 20) + 1;
+        console.log('PHASE 1: Strict search with ALL genres (AND logic)');
+        const randomPageA = Math.floor(Math.random() * 50) + 1; // Explore pages 1-50
+        console.log(`  → Fetching page ${randomPageA} with AND logic`);
+        
         const strictResults = await this.fetchFromTmdb(mediaType, {
           genreIds,
           logicType: 'AND',
@@ -118,14 +120,19 @@ class TMDBClient {
         });
         
         const filteredStrict = this.applyBaseFilters(strictResults, mediaType);
-        candidates.push(...filteredStrict);
-        console.log(`Priority search found ${filteredStrict.length} candidates (page ${randomPageA})`);
+        filteredStrict.forEach(candidate => candidatesMap.set(candidate.id, candidate));
+        console.log(`  → Phase 1 found ${filteredStrict.length} candidates (total: ${candidatesMap.size})`);
       }
 
-      // STEP B: Fallback Search (OR Logic) if needed
-      if (candidates.length < this.TARGET_COUNT && genreIds && genreIds.length > 0) {
-        console.log(`STEP B: Fallback search with ANY genre (OR logic) - need ${this.TARGET_COUNT - candidates.length} more`);
-        const randomPageB = Math.floor(Math.random() * 20) + 1;
+      // PHASE 2: FALLBACK SEARCH (OR Logic) - Different random page
+      if (candidatesMap.size < this.TARGET_COUNT && genreIds && genreIds.length > 0) {
+        const needed = this.TARGET_COUNT - candidatesMap.size;
+        console.log(`PHASE 2: Fallback search with ANY genre (OR logic) - need ${needed} more`);
+        
+        // Use a different random page range to avoid overlap
+        const randomPageB = Math.floor(Math.random() * 50) + 1;
+        console.log(`  → Fetching page ${randomPageB} with OR logic`);
+        
         const looseResults = await this.fetchFromTmdb(mediaType, {
           genreIds,
           logicType: 'OR',
@@ -133,46 +140,70 @@ class TMDBClient {
         });
         
         const filteredLoose = this.applyBaseFilters(looseResults, mediaType);
-        
-        // Add unique items until we reach target
-        for (const item of filteredLoose) {
-          if (candidates.length >= this.TARGET_COUNT) break;
-          if (!candidates.find(c => c.id === item.id)) {
-            candidates.push(item);
+        filteredLoose.forEach(candidate => {
+          if (candidatesMap.size < this.TARGET_COUNT) {
+            candidatesMap.set(candidate.id, candidate);
           }
-        }
-        console.log(`After fallback search: ${candidates.length} total candidates`);
+        });
+        console.log(`  → Phase 2 added ${filteredLoose.length} results (total: ${candidatesMap.size})`);
       }
 
-      // STEP C: General Discovery if still not enough content
-      if (candidates.length < this.TARGET_COUNT) {
-        console.log(`STEP C: General discovery - need ${this.TARGET_COUNT - candidates.length} more`);
-        const randomPageC = Math.floor(Math.random() * 20) + 1;
-        const generalResults = await this.fetchFromTmdb(mediaType, {
+      // PHASE 3: ADDITIONAL FETCHES - Keep fetching until we reach target
+      let fetchAttempts = 0;
+      const maxAttempts = 5; // Prevent infinite loops
+      
+      while (candidatesMap.size < this.TARGET_COUNT && fetchAttempts < maxAttempts) {
+        fetchAttempts++;
+        const needed = this.TARGET_COUNT - candidatesMap.size;
+        console.log(`PHASE 3 (Attempt ${fetchAttempts}): Additional fetch - need ${needed} more`);
+        
+        // Use progressively deeper random pages
+        const randomPageC = Math.floor(Math.random() * 50) + 1;
+        console.log(`  → Fetching page ${randomPageC}`);
+        
+        const additionalResults = await this.fetchFromTmdb(mediaType, {
+          genreIds: genreIds && genreIds.length > 0 ? genreIds : undefined,
+          logicType: genreIds && genreIds.length > 0 ? 'OR' : undefined,
           page: randomPageC
         });
         
-        const filteredGeneral = this.applyBaseFilters(generalResults, mediaType);
+        const filteredAdditional = this.applyBaseFilters(additionalResults, mediaType);
         
-        // Add unique items until we reach target
-        for (const item of filteredGeneral) {
-          if (candidates.length >= this.TARGET_COUNT) break;
-          if (!candidates.find(c => c.id === item.id)) {
-            candidates.push(item);
+        let addedCount = 0;
+        filteredAdditional.forEach(candidate => {
+          if (candidatesMap.size < this.TARGET_COUNT) {
+            if (!candidatesMap.has(candidate.id)) {
+              candidatesMap.set(candidate.id, candidate);
+              addedCount++;
+            }
           }
+        });
+        
+        console.log(`  → Phase 3 added ${addedCount} new candidates (total: ${candidatesMap.size})`);
+        
+        // If we didn't add any new candidates, break to avoid wasting API calls
+        if (addedCount === 0) {
+          console.log(`  → No new candidates found, stopping additional fetches`);
+          break;
         }
-        console.log(`After general discovery: ${candidates.length} total candidates`);
       }
 
-      // STEP D: Shuffle final results for variety
-      const shuffledCandidates = this.shuffleArray(candidates).slice(0, this.TARGET_COUNT);
-      console.log(`Final result: ${shuffledCandidates.length} shuffled candidates`);
+      // PHASE 4: SHUFFLE - Fisher-Yates shuffle for maximum randomness
+      const candidatesArray = Array.from(candidatesMap.values());
+      const shuffledCandidates = this.shuffleArray(candidatesArray);
+      const finalCandidates = shuffledCandidates.slice(0, this.TARGET_COUNT);
       
-      return shuffledCandidates;
+      console.log(`✅ Smart Random Discovery complete: ${finalCandidates.length} candidates (target: ${this.TARGET_COUNT})`);
+      console.log(`   Phases executed: ${fetchAttempts + 2}, Unique IDs: ${candidatesMap.size}`);
+      
+      return finalCandidates;
 
     } catch (error) {
-      console.error('Smart Random Discovery Error:', error);
-      throw new Error(`Smart Random Discovery failed: ${error}`);
+      console.error('❌ Smart Random Discovery Error:', error);
+      // Return whatever we managed to collect
+      const fallbackCandidates = Array.from(candidatesMap.values());
+      console.log(`   Returning ${fallbackCandidates.length} candidates as fallback`);
+      return fallbackCandidates;
     }
   }
 
@@ -196,7 +227,7 @@ class TMDBClient {
       sort_by: 'popularity.desc',
       include_adult: false,
       with_original_language: 'en|es|fr|it|de|pt', // Western languages only
-      'vote_count.gte': 100, // Minimum 100 votes to avoid garbage content
+      'vote_count.gte': 50, // Minimum 50 votes to avoid garbage content while allowing more variety
     };
 
     // Add genre filter based on logic type
@@ -248,7 +279,7 @@ class TMDBClient {
         }
 
         // Vote count filter (additional safety check)
-        if (item.vote_count && item.vote_count < 100) {
+        if (item.vote_count && item.vote_count < 50) {
           console.log(`Filtered out low-vote item: "${title}" (${item.vote_count} votes)`);
           continue;
         }
