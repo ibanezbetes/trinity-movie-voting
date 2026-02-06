@@ -272,6 +272,21 @@ class RoomService {
         throw new Error('Room has expired. Please create a new room.');
       }
 
+      // Check if user is already in the room (to avoid counting them twice)
+      const isAlreadyInRoom = await this.isUserInRoom(userId, room.id);
+      
+      if (!isAlreadyInRoom) {
+        // Check if room is full before allowing new participant
+        const currentParticipants = await this.getRoomParticipantCount(room.id);
+        const maxParticipants = room.maxParticipants || 2; // Default to 2 for backward compatibility
+        
+        console.log(`Room ${room.id} has ${currentParticipants}/${maxParticipants} participants`);
+        
+        if (currentParticipants >= maxParticipants) {
+          throw new Error('Esta sala está llena.');
+        }
+      }
+
       // Record user participation when joining room
       await this.recordRoomParticipation(userId, room.id);
 
@@ -304,6 +319,21 @@ class RoomService {
     const now = Math.floor(Date.now() / 1000);
     if (room.ttl && room.ttl < now) {
       throw new Error('Room has expired. Please create a new room.');
+    }
+
+    // Check if user is already in the room (to avoid counting them twice)
+    const isAlreadyInRoom = await this.isUserInRoom(userId, room.id);
+    
+    if (!isAlreadyInRoom) {
+      // Check if room is full before allowing new participant
+      const currentParticipants = await this.getRoomParticipantCount(room.id);
+      const maxParticipants = room.maxParticipants || 2; // Default to 2 for backward compatibility
+      
+      console.log(`Room ${room.id} has ${currentParticipants}/${maxParticipants} participants (scan method)`);
+      
+      if (currentParticipants >= maxParticipants) {
+        throw new Error('Esta sala está llena.');
+      }
     }
 
     // Record user participation when joining room
@@ -343,6 +373,65 @@ class RoomService {
     } catch (error) {
       console.error(`Error recording participation for user ${userId} in room ${roomId}:`, error);
       // Don't fail the join operation if participation tracking fails
+    }
+  }
+
+  private async getRoomParticipantCount(roomId: string): Promise<number> {
+    try {
+      const votesTable = process.env.VOTES_TABLE || '';
+      if (!votesTable) {
+        console.warn('VOTES_TABLE not configured, cannot count participants');
+        return 0;
+      }
+
+      // Query all participation records for this room
+      const result = await docClient.send(new QueryCommand({
+        TableName: votesTable,
+        KeyConditionExpression: 'roomId = :roomId',
+        FilterExpression: 'isParticipation = :isParticipation',
+        ExpressionAttributeValues: {
+          ':roomId': roomId,
+          ':isParticipation': true,
+        },
+      }));
+
+      const participants = result.Items || [];
+      const uniqueUserIds = new Set(participants.map(p => p.userId));
+      
+      console.log(`Room ${roomId} has ${uniqueUserIds.size} unique participants`);
+      return uniqueUserIds.size;
+    } catch (error) {
+      console.error(`Error counting participants for room ${roomId}:`, error);
+      return 0;
+    }
+  }
+
+  private async isUserInRoom(userId: string, roomId: string): Promise<boolean> {
+    try {
+      const votesTable = process.env.VOTES_TABLE || '';
+      if (!votesTable) {
+        return false;
+      }
+
+      // Check if user has a participation record in this room
+      const result = await docClient.send(new QueryCommand({
+        TableName: votesTable,
+        KeyConditionExpression: 'roomId = :roomId',
+        FilterExpression: 'userId = :userId AND isParticipation = :isParticipation',
+        ExpressionAttributeValues: {
+          ':roomId': roomId,
+          ':userId': userId,
+          ':isParticipation': true,
+        },
+        Limit: 1,
+      }));
+
+      const isInRoom = !!(result.Items && result.Items.length > 0);
+      console.log(`User ${userId} ${isInRoom ? 'is already' : 'is not'} in room ${roomId}`);
+      return isInRoom;
+    } catch (error) {
+      console.error(`Error checking if user ${userId} is in room ${roomId}:`, error);
+      return false;
     }
   }
 

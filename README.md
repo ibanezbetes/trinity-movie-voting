@@ -2,14 +2,19 @@
 
 Trinity es una aplicación móvil que ayuda a grupos de amigos a encontrar la película o serie perfecta para ver juntos. Usando un sistema de votación tipo "Tinder", todos los participantes votan sobre opciones hasta encontrar un match perfecto.
 
+**Versión Actual**: 2.2.2  
+**Última Actualización**: 2026-02-06
+
 ## 🎯 Características Principales
 
 - **Salas de Votación**: Crea salas privadas con código único de 6 caracteres
+- **Límite de Participantes**: Configura salas de 2 a 6 participantes (el host cuenta como 1)
 - **Votación Intuitiva**: Sistema de swipe (like/dislike) para películas y series
 - **Match Automático**: Detecta cuando todos los participantes coinciden en una opción
 - **Recomendaciones Inteligentes**: Integración con TMDB para sugerencias personalizadas
 - **Notificaciones en Tiempo Real**: AppSync subscriptions para notificar matches instantáneamente
-- **Configuración Flexible**: Salas de 2 a 6 participantes con hasta 2 géneros
+- **Configuración Flexible**: Hasta 2 géneros por sala
+- **Control de Capacidad**: Validación automática de límite de participantes
 
 ## 🏗️ Arquitectura
 
@@ -394,7 +399,30 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para
 
 ---
 
-**Version**: 2.2.1  
+**Version**: 2.2.2  
 **Last Updated**: 2026-02-06  
-**Status**: ✅ Production Ready  
+**Status**: ✅ Production Ready (Pendiente deployment)  
 **Region**: eu-west-1 (Ireland)
+
+## 📝 Changelog
+
+### v2.2.2 (2026-02-06)
+- ✅ **Room Capacity Limit**: Implementado límite real de participantes en salas
+  - Validación en backend al unirse a sala
+  - El host cuenta como 1 participante
+  - Mensaje de error "Sala llena" cuando se alcanza el límite
+  - Re-entrada permitida para usuarios ya en la sala
+- ✅ Mejoras en manejo de errores en JoinRoomScreen
+- ✅ Documentación completa en `ROOM_CAPACITY_LIMIT_v2.2.2.md`
+
+### v2.2.1 (2026-02-06)
+- ✅ Fix de notificaciones duplicadas de match
+- ✅ Eliminados Alerts nativos, solo MatchCelebrationScreen
+- ✅ Navegación contextual mejorada
+- ✅ Documentación completa actualizada
+
+### v2.2.0 (2026-02-05)
+- ✅ Smart Random Discovery en TMDB Handler
+- ✅ Algoritmo de priorización de géneros (AND/OR)
+- ✅ Filtros de calidad mejorados
+- ✅ Proyecto limpio y organizado

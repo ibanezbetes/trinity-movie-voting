@@ -116,28 +116,60 @@ response*.json
 *_BUILD*.md
 *_APK*.md
 *_CLIENTS*.md
+*_TEMP*.md
+*_WIP*.md
+*_DRAFT*.md
+*_NOTES*.md
+*_CELEBRATION*.md
+*_INSTALACION*.md
+*_IMPROVEMENT*.md
+*_STATUS*.md
+*_CAPACITY*.md
+*_LIMIT*.md
+*_INFO*.md
 FIXES_*.md
 TESTING_*.md
+QUICK_START_*.md
+RESUMEN_*.md
+PROJECT_STATUS_*.md
+ROOM_CAPACITY_*.md
+MATCH_NOTIFICATION_*.md
+BACKUP_INFO*.md
 test-*.md
 
 # Build scripts temporales
 build-*.bat
 build-*.js
+build-*.sh
 install-*.bat
+install-*.sh
 verify-*.bat
+verify-*.sh
 test-*.js
 deploy-*.bat
 deploy-*.js
+deploy-*.ps1
+deploy-*.sh
 check-*.bat
 check-*.js
+check-*.sh
 create-*.js
 create-*.bat
+create-*.sh
 get-*.bat
+get-*.sh
 update-*.js
 update-*.bat
+update-*.sh
+upload-*.ps1
+upload-*.sh
 
-# Mantener script de limpieza oficial
+# Mantener scripts oficiales
 !cleanup.ps1
+!infrastructure/create-zips.ps1
+!infrastructure/scripts/*.ps1
+!infrastructure/scripts/*.js
+!infrastructure/scripts/*.sh
 
 # Archive files
 *.zip
@@ -208,6 +240,7 @@ cleanup-project.ps1
 # Quick start guides (versioned)
 QUICK_START_*.md
 SYNC_FROM_AWS_*.md
+RESUMEN_*.md
 
 # Rollback and deployment status files
 ROLLBACK_*.md
@@ -219,7 +252,10 @@ VOTE_HANDLER_FIX*.md
 KIRO_PROMPT_*.md
 UPLOAD_LAMBDAS_*.md
 README_DEPLOYMENT_*.md
+PROJECT_STATUS_*.md
+ROOM_CAPACITY_*.md
+MATCH_NOTIFICATION_*.md
+BACKUP_INFO*.md
 
 # Keep only official cleanup script
 !cleanup.ps1
-cleanup-project.ps1

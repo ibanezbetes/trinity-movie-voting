@@ -102,13 +102,25 @@ export default function JoinRoomScreen() {
         logger.roomError('Room join failed - no room data returned', null, response);
         Alert.alert('Error', 'Sala no encontrada. Verifica el código.');
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.roomError('Room join failed', error, {
         roomCode,
         timestamp: new Date().toISOString()
       });
       console.error('Error joining room:', error);
-      Alert.alert('Error', 'No se pudo unir a la sala. Verifica el código.');
+      
+      // Check for specific error messages
+      const errorMessage = error?.errors?.[0]?.message || error?.message || 'Error desconocido';
+      
+      if (errorMessage.includes('está llena')) {
+        Alert.alert('Sala Llena', 'Esta sala ya tiene el máximo de participantes permitidos.');
+      } else if (errorMessage.includes('not found')) {
+        Alert.alert('Error', 'Sala no encontrada. Verifica el código.');
+      } else if (errorMessage.includes('expired')) {
+        Alert.alert('Error', 'Esta sala ha expirado.');
+      } else {
+        Alert.alert('Error', 'No se pudo unir a la sala. Inténtalo de nuevo.');
+      }
     } finally {
       setIsJoining(false);
       logger.room('Room join process completed', { isJoining: false });
