@@ -432,20 +432,12 @@ export function MatchNotificationProvider({
         logger.matchError('❌ Error in aggressive match check', error, { actionName });
         setIsCheckingMatches(false);
         
-        // CRITICAL: On error, still try to check for matches using fallback method
-        // Don't execute action if there might be matches
-        logger.match('🔄 Using fallback match check due to error', { actionName });
+        // CRITICAL FIX: Don't block votes even if getMyMatches fails
+        // The error is in getMyMatches query, not in the voting system
+        // We MUST allow votes to reach the backend so matches can be detected
+        logger.match('🔄 Using fallback - allowing action despite error', { actionName });
         
-        // Simple fallback: if we have active rooms, assume there might be matches
-        if (activeRooms.size > 0) {
-          logger.match('⚠️ Blocking action due to active rooms and check error', { 
-            actionName,
-            activeRoomsCount: activeRooms.size 
-          });
-          return; // BLOCK action on error if there are active rooms
-        }
-        
-        // Only execute if no active rooms
+        // ALWAYS execute the action, don't block votes
         action();
       }
 
@@ -453,16 +445,11 @@ export function MatchNotificationProvider({
       logger.matchError('❌ Critical error in match check', error, { actionName });
       setIsCheckingMatches(false);
       
-      // CRITICAL: On critical error, be conservative and block action if there are active rooms
-      if (activeRooms.size > 0) {
-        logger.match('⚠️ Blocking action due to critical error and active rooms', { 
-          actionName,
-          activeRoomsCount: activeRooms.size 
-        });
-        return; // BLOCK action on critical error if there are active rooms
-      }
+      // CRITICAL FIX: Don't block votes even on critical error
+      // We MUST allow votes to reach the backend
+      logger.match('🔄 Allowing action despite critical error', { actionName });
       
-      // Only execute if no active rooms
+      // ALWAYS execute the action
       action();
     }
   };

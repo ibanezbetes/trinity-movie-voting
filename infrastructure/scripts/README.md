@@ -190,5 +190,5 @@ aws dynamodb scan --table-name trinity-rooms --region eu-west-1 > rooms-backup.j
 
 ---
 
-**Última actualización**: 2026-02-05  
-**Versión**: 2.2.0
+**Última actualización**: 2026-02-06  
+**Versión**: 2.2.1

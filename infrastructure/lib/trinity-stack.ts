@@ -199,6 +199,8 @@ export class TrinityStack extends cdk.Stack {
     });
 
     // Subscription resolvers (no-op resolvers for triggering subscriptions)
+    // CRITICAL FIX: Return complete object from arguments, not from result
+    // AppSync subscriptions need the full object to trigger properly
     api.createResolver('PublishRoomMatchResolver', {
       typeName: 'Mutation',
       fieldName: 'publishRoomMatch',
@@ -206,11 +208,31 @@ export class TrinityStack extends cdk.Stack {
       requestMappingTemplate: appsync.MappingTemplate.fromString(`
         {
           "version": "2017-02-28",
-          "payload": $util.toJson($context.arguments)
+          "payload": {
+            "roomId": "$context.arguments.roomId",
+            "matchId": "$context.arguments.matchData.matchId",
+            "movieId": "$context.arguments.matchData.movieId",
+            "movieTitle": "$context.arguments.matchData.movieTitle",
+            "posterPath": "$context.arguments.matchData.posterPath",
+            "matchedUsers": $util.toJson($context.arguments.matchData.matchedUsers),
+            "timestamp": "$context.arguments.matchData.timestamp",
+            "matchDetails": $util.toJson($context.arguments.matchData.matchDetails)
+          }
         }
       `),
       responseMappingTemplate: appsync.MappingTemplate.fromString(`
-        $util.toJson($context.result)
+        ## CRITICAL: Return the complete object from the request arguments
+        ## This is what triggers the subscription with the full data
+        {
+          "roomId": "$context.arguments.roomId",
+          "matchId": "$context.arguments.matchData.matchId",
+          "movieId": "$context.arguments.matchData.movieId",
+          "movieTitle": "$context.arguments.matchData.movieTitle",
+          "posterPath": "$context.arguments.matchData.posterPath",
+          "matchedUsers": $util.toJson($context.arguments.matchData.matchedUsers),
+          "timestamp": "$context.arguments.matchData.timestamp",
+          "matchDetails": $util.toJson($context.arguments.matchData.matchDetails)
+        }
       `),
     });
 
@@ -221,11 +243,33 @@ export class TrinityStack extends cdk.Stack {
       requestMappingTemplate: appsync.MappingTemplate.fromString(`
         {
           "version": "2017-02-28",
-          "payload": $util.toJson($context.arguments)
+          "payload": {
+            "userId": "$context.arguments.userId",
+            "roomId": "$context.arguments.matchData.roomId",
+            "matchId": "$context.arguments.matchData.matchId",
+            "movieId": "$context.arguments.matchData.movieId",
+            "movieTitle": "$context.arguments.matchData.movieTitle",
+            "posterPath": "$context.arguments.matchData.posterPath",
+            "matchedUsers": $util.toJson($context.arguments.matchData.matchedUsers),
+            "timestamp": "$context.arguments.matchData.timestamp",
+            "matchDetails": $util.toJson($context.arguments.matchData.matchDetails)
+          }
         }
       `),
       responseMappingTemplate: appsync.MappingTemplate.fromString(`
-        $util.toJson($context.result)
+        ## CRITICAL: Return the complete object from the request arguments
+        ## This is what triggers the subscription with the full data
+        {
+          "userId": "$context.arguments.userId",
+          "roomId": "$context.arguments.matchData.roomId",
+          "matchId": "$context.arguments.matchData.matchId",
+          "movieId": "$context.arguments.matchData.movieId",
+          "movieTitle": "$context.arguments.matchData.movieTitle",
+          "posterPath": "$context.arguments.matchData.posterPath",
+          "matchedUsers": $util.toJson($context.arguments.matchData.matchedUsers),
+          "timestamp": "$context.arguments.matchData.timestamp",
+          "matchDetails": $util.toJson($context.arguments.matchData.matchDetails)
+        }
       `),
     });
 

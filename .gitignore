@@ -208,3 +208,19 @@ cleanup-project.ps1
 # Quick start guides (versioned)
 QUICK_START_*.md
 SYNC_FROM_AWS_*.md
+
+# Rollback and deployment status files
+ROLLBACK_*.md
+DEPLOYMENT_STATUS*.md
+LAMBDA_ZIPS_STATUS*.md
+AUTO_CLEANUP_*.md
+NOTIFICATION_FIX_*.md
+VOTE_HANDLER_FIX*.md
+MATCH_*.md
+KIRO_PROMPT_*.md
+UPLOAD_LAMBDAS_*.md
+README_DEPLOYMENT_*.md
+
+# Keep only official cleanup script
+!cleanup.ps1
+cleanup-project.ps1

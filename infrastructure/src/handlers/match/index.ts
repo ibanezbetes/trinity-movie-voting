@@ -381,7 +381,16 @@ export const handler: Handler = async (event) => {
 
         try {
           const matches = await matchService.getUserMatches(userId);
-          return matches || []; // Ensure we always return an array
+          // CRITICAL FIX: Always return an array, never null or undefined
+          if (!matches) {
+            console.log('No matches found for user, returning empty array');
+            return [];
+          }
+          if (!Array.isArray(matches)) {
+            console.error('getUserMatches returned non-array value:', typeof matches);
+            return [];
+          }
+          return matches;
         } catch (error) {
           console.error('Error in getMyMatches:', error);
           return []; // Return empty array on error

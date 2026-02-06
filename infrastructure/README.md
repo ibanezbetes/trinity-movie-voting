@@ -94,165 +94,461 @@ Este directorio contiene toda la infraestructura como código (IaC) de Trinity, 
 
 ### 1. Room Handler (`src/handlers/room/`)
 
-**Operaciones**:
+**Propósito**: Gestión completa del ciclo de vida de salas de votación.
+
+**Operaciones GraphQL**:
 - `createRoom`: Crea nueva sala de votación
 - `joinRoom`: Usuario se une a sala existente
-- `getRoom`: Obtiene detalles de sala
+- `getRoom`: Obtiene detalles de una sala específica
 - `getMyRooms`: Lista salas del usuario (host o participante)
-- `getRoomByCode`: Busca sala por código de 6 caracteres
 
 **Flujo de createRoom**:
 ```typescript
-1. Validar input (mediaType, genreIds)
-2. Generar código único de 6 caracteres
-3. Llamar a TMDB Handler para obtener candidatos
-4. Crear registro en trinity-rooms con TTL de 24h
-5. Registrar participación automática del host
-6. Retornar sala creada
+1. Validar input:
+   - mediaType: 'MOVIE' o 'TV'
+   - genreIds: array de IDs (máximo 2)
+   - maxParticipants: número entre 2 y 6
+
+2. Generar código único:
+   - 6 caracteres alfanuméricos (A-Z, 0-9)
+   - Verificar unicidad contra GSI code-index
+   - Máximo 10 intentos de generación
+
+3. Obtener candidatos de TMDB:
+   - Invocar TMDB Lambda con Smart Random Discovery
+   - Recibir 50 candidatos filtrados y aleatorizados
+
+4. Crear registro en trinity-rooms:
+   - UUID único como ID
+   - TTL de 24 horas (auto-eliminación)
+   - Almacenar todos los candidatos
+
+5. Registrar participación automática:
+   - Crear registro especial en trinity-votes
+   - userMovieId: "userId#JOINED"
+   - movieId: -1 (marcador de participación)
+   - isParticipation: true
+
+6. Retornar sala creada con código
+```
+
+**Flujo de joinRoom**:
+```typescript
+1. Validar código de sala (6 caracteres)
+
+2. Buscar sala por código:
+   - Query en GSI code-index
+   - Fallback a Scan si GSI no disponible
+
+3. Validar sala:
+   - Verificar que existe
+   - Verificar que no ha expirado (TTL)
+
+4. Registrar participación:
+   - Crear registro en trinity-votes
+   - Mismo formato que createRoom
+
+5. Retornar sala con candidatos
+```
+
+**Flujo de getMyRooms**:
+```typescript
+1. Obtener salas donde usuario es host:
+   - Scan con FilterExpression hostId = userId
+   - (Futuro: Query en GSI hostId-index)
+
+2. Obtener salas donde usuario participó:
+   - Scan en trinity-votes con userId
+   - Extraer roomIds únicos
+   - Fetch detalles de cada sala
+
+3. Filtrar salas:
+   - Eliminar salas expiradas (TTL < now)
+   - Eliminar salas con matches (Query en trinity-matches)
+
+4. Ordenar por fecha de creación (descendente)
+
+5. Retornar array de salas activas
 ```
 
 **Modelo de Datos (Room)**:
 ```typescript
 interface Room {
-  id: string;              // UUID
+  id: string;              // UUID único
   code: string;            // 6 chars (A-Z0-9)
   hostId: string;          // User ID del creador
   mediaType: 'MOVIE' | 'TV';
   genreIds: number[];      // Máximo 2 géneros
-  candidates: MovieCandidate[];
+  maxParticipants: number; // 2-6 participantes
+  candidates: MovieCandidate[];  // 50 películas
   createdAt: string;       // ISO timestamp
   ttl: number;             // Unix timestamp (24h)
 }
+
+interface MovieCandidate {
+  id: number;              // TMDB ID
+  title: string;
+  overview: string;
+  posterPath: string | null;
+  releaseDate: string;
+  mediaType: 'MOVIE' | 'TV';
+}
 ```
+
+**Variables de Entorno**:
+- `ROOMS_TABLE`: Nombre de tabla trinity-rooms
+- `VOTES_TABLE`: Nombre de tabla trinity-votes (para participación)
+- `MATCHES_TABLE`: Nombre de tabla trinity-matches (para filtrado)
+- `TMDB_LAMBDA_ARN`: ARN de TMDB Lambda
+- `AWS_REGION`: Región de AWS
+
+**Características Especiales**:
+- **Código Único**: Generación con verificación de unicidad
+- **Participación Automática**: Host se registra automáticamente al crear
+- **Filtrado Inteligente**: getMyRooms excluye salas con matches
+- **Fallback a Scan**: Si GSI no está disponible, usa Scan
+- **Error Handling**: Retorna array vacío en lugar de null para evitar errores GraphQL
 
 ### 2. Vote Handler (`src/handlers/vote/`)
 
-**Operaciones**:
-- `vote`: Registra voto de usuario
-- `getVotes`: Obtiene votos de una sala
+**Propósito**: Procesamiento de votos y detección automática de matches.
 
-**Flujo de vote**:
+**Operaciones GraphQL**:
+- `vote`: Registra voto de usuario y verifica matches
+
+**Flujo Completo de vote**:
 ```typescript
-1. Validar input (roomId, movieId, vote)
-2. Verificar que sala existe y está activa
-3. Registrar voto en trinity-votes
-4. Obtener todos los votos de la sala
-5. Verificar si hay match:
-   - Obtener usuarios activos (con votos)
-   - Para cada película, verificar si todos votaron positivo
-   - Si hay match, crear registro en trinity-matches
-   - Publicar notificación via GraphQL subscription
-6. Retornar resultado del voto
+1. Validar sala:
+   - Obtener sala de trinity-rooms
+   - Verificar que no ha expirado (TTL)
+   - Verificar que existe
+
+2. Validar acceso del usuario:
+   - Usuario es host de la sala, O
+   - Usuario ha participado previamente (registro en votes), O
+   - MVP: Permitir acceso a cualquier usuario autenticado
+
+3. Validar película:
+   - Verificar que movieId está en room.candidates
+   - Obtener detalles de la película
+
+4. Registrar voto:
+   - Crear registro en trinity-votes
+   - userMovieId: "userId#movieId"
+   - Timestamp ISO
+
+5. Verificar match (solo si vote = true):
+   a. Obtener todos los votos de la sala
+   b. Identificar usuarios activos:
+      - Excluir votos de participación (movieId: -1)
+      - Contar usuarios únicos con votos reales
+   c. Para la película votada:
+      - Contar votos positivos
+      - Si positiveVotes === activeUsers → MATCH!
+   d. Si hay match:
+      - Crear registro en trinity-matches
+      - Invocar Match Lambda para notificaciones
+      - Publicar via AppSync subscription
+
+6. Retornar resultado:
+   - success: true
+   - match: Match object (si hay match)
+```
+
+**Algoritmo de Detección de Match**:
+```typescript
+// Obtener usuarios activos (con votos reales)
+const activeUsers = new Set(
+  allVotes
+    .filter(v => v.movieId !== -1 && !v.isParticipation)
+    .map(v => v.userId)
+);
+
+// Contar votos positivos para la película
+const positiveVotes = allVotes.filter(v => 
+  v.movieId === targetMovieId && 
+  v.vote === true
+);
+
+// Match si todos los usuarios activos votaron positivo
+if (positiveVotes.length === activeUsers.size && activeUsers.size > 0) {
+  // ¡MATCH DETECTADO!
+  createMatch(roomId, movieId, matchedUsers);
+}
 ```
 
 **Modelo de Datos (Vote)**:
 ```typescript
 interface Vote {
   roomId: string;          // Partition Key
-  userMovieId: string;     // Sort Key: userId#movieId
+  userMovieId: string;     // Sort Key: "userId#movieId"
   userId: string;
   movieId: number;         // TMDB ID (-1 para participación)
-  vote: boolean;
-  timestamp: string;
-  isParticipation?: boolean;
+  vote: boolean;           // true = like, false = dislike
+  timestamp: string;       // ISO timestamp
+  isParticipation?: boolean; // true para registros de join
 }
 ```
 
-**Detección de Match**:
-- Se considera match cuando TODOS los usuarios activos votan positivo
-- Usuario activo = tiene al menos un voto en la sala
-- Se excluyen votos de participación (movieId: -1)
+**Variables de Entorno**:
+- `VOTES_TABLE`: Nombre de tabla trinity-votes
+- `MATCHES_TABLE`: Nombre de tabla trinity-matches
+- `ROOMS_TABLE`: Nombre de tabla trinity-rooms
+- `MATCH_LAMBDA_ARN`: ARN de Match Lambda (para notificaciones)
+- `GRAPHQL_ENDPOINT`: Endpoint de AppSync (para subscriptions)
+- `AWS_REGION`: Región de AWS
+
+**Características Especiales**:
+- **Detección Automática**: Match se detecta inmediatamente después de votar
+- **Usuarios Activos**: Solo cuenta usuarios con votos reales (excluye participación)
+- **Notificaciones**: Publica via AppSync subscription para tiempo real
+- **Validación de Acceso**: Verifica que usuario tiene permiso para votar
+- **Dependencies**: Requiere `@aws-crypto/sha256-js` y `@aws-sdk/signature-v4` para subscriptions
+
+**⚠️ Importante**: Este Lambda DEBE incluir `node_modules/` en el ZIP de deployment (2.95 MB) debido a las dependencias de firma de AppSync.
 
 ### 3. Match Handler (`src/handlers/match/`)
 
-**Operaciones**:
-- `getMyMatches`: Lista matches del usuario
-- `getRoomMatches`: Lista matches de una sala
-- `publishUserMatch`: Publica notificación de match (interno)
+**Propósito**: Gestión de matches y notificaciones a usuarios.
+
+**Operaciones GraphQL**:
+- `getMyMatches`: Lista todos los matches del usuario
+- `checkRoomMatch`: Verifica si una sala tiene match
+- `matchCreated`: Procesa match recién creado (interno)
+- `notifyMatch`: Envía notificaciones de match (interno)
 
 **Flujo de getMyMatches**:
 ```typescript
-1. Obtener todas las salas donde el usuario participó
-2. Para cada sala, buscar matches en trinity-matches
-3. Filtrar matches donde el usuario está en matchedUsers
-4. Ordenar por timestamp descendente
-5. Retornar lista de matches
+1. Scan en trinity-matches:
+   - FilterExpression: contains(matchedUsers, userId)
+   - Limit: 50 matches más recientes
+
+2. Para cada match encontrado:
+   - Incluir detalles completos de la película
+   - Incluir lista de usuarios que coincidieron
+   - Incluir timestamp del match
+
+3. Ordenar por timestamp descendente
+
+4. Retornar array de matches
+   - IMPORTANTE: Siempre retornar array (nunca null)
+   - Array vacío si no hay matches
+```
+
+**Flujo de checkRoomMatch**:
+```typescript
+1. Query en trinity-matches:
+   - KeyConditionExpression: roomId = :roomId
+   - Limit: 1 (solo necesitamos saber si existe)
+
+2. Si encuentra match:
+   - Retornar primer match encontrado
+   - Incluir todos los detalles
+
+3. Si no encuentra:
+   - Retornar null
+```
+
+**Flujo de matchCreated** (interno):
+```typescript
+1. Recibir match del Vote Handler
+
+2. Actualizar actividad de usuarios:
+   - Actualizar lastActiveAt en trinity-users (si existe)
+   - Para cada usuario en matchedUsers
+
+3. Enviar notificaciones:
+   - AppSync subscription (tiempo real)
+   - Push notifications (futuro)
+   - Email notifications (futuro)
+
+4. Log para analytics:
+   - Registrar match creado
+   - Métricas de usuarios
+   - Tipo de contenido
 ```
 
 **Modelo de Datos (Match)**:
 ```typescript
 interface Match {
+  id: string;              // UUID único (matchId)
   roomId: string;          // Partition Key
-  movieId: number;         // Sort Key
-  matchId: string;         // UUID único
-  title: string;
-  posterPath?: string;
-  matchedUsers: string[];  // IDs de usuarios
-  timestamp: string;
+  movieId: number;         // Sort Key (TMDB ID)
+  title: string;           // Título de la película/serie
+  posterPath?: string;     // URL del póster
+  mediaType: 'MOVIE' | 'TV';
+  matchedUsers: string[];  // Array de userIds
+  timestamp: string;       // ISO timestamp
 }
 ```
 
+**Variables de Entorno**:
+- `MATCHES_TABLE`: Nombre de tabla trinity-matches
+- `USERS_TABLE`: Nombre de tabla trinity-users (opcional)
+- `AWS_REGION`: Región de AWS
+
+**Características Especiales**:
+- **Scan con FilterExpression**: Usa `contains()` para buscar userId en array
+- **Retorno Seguro**: Siempre retorna array (nunca null) para evitar errores GraphQL
+- **Notificaciones Múltiples**: Notifica a todos los usuarios del match
+- **Activity Tracking**: Actualiza última actividad de usuarios
+- **Límite de Resultados**: Máximo 50 matches por query
+
 ### 4. TMDB Handler (`src/handlers/tmdb/`)
 
-**Operaciones**:
-- `discoverContent`: Obtiene candidatos de películas/series
+**Propósito**: Integración con The Movie Database API usando algoritmo Smart Random Discovery.
 
-**Algoritmo Smart Random Discovery**:
+**Operaciones**:
+- `discoverContent`: Obtiene 50 candidatos de películas/series con priorización de géneros
+
+**Algoritmo Smart Random Discovery** (Versión Mejorada):
+
 ```typescript
 PHASE 1: Verificación de Disponibilidad
-  - Hacer llamada inicial con lógica AND (intersección)
-  - Verificar total_results disponibles
-  - Umbral: 50 resultados mínimos
+  1. Hacer llamada inicial con lógica AND (intersección)
+     - Ejemplo: Drama + Animación → with_genres: "18,16"
+  2. Verificar total_results disponibles
+  3. Umbral de decisión: 50 resultados mínimos
 
 PHASE 2: Decisión Estratégica
   IF total_results >= 50:
-    - Usar SOLO lógica AND (intersección estricta)
+    ✅ Usar SOLO lógica AND (intersección estricta)
+    - Solo películas que cumplen TODOS los géneros
     - Fetch de 3 páginas aleatorias
+    - Ejemplo: Solo películas que son Drama Y Animación
+    - Log: "Using STRICT (AND) logic"
+  
   ELSE:
-    - Usar lógica OR (unión amplia)
-    - Priorizar películas que cumplen TODOS los géneros
+    ⚠️ Usar lógica OR (unión amplia) con priorización
+    - Películas que cumplen CUALQUIER género
+    - Priorizar las que cumplen TODOS los géneros primero
     - Fetch de 3 páginas aleatorias
+    - Ejemplo: Drama Y Animación primero, luego Drama O Animación
+    - Log: "Using FALLBACK (OR) logic"
 
 PHASE 3: Fetches Adicionales
-  - Si no se alcanza TARGET_COUNT (50)
-  - Máximo 3 intentos adicionales
-  - Evitar duplicados con Map
+  WHILE candidatos < 50 AND intentos < 3:
+    - Fetch de páginas aleatorias adicionales
+    - Evitar duplicados con Map<id, candidate>
+    - Aplicar filtros de calidad
 
 PHASE 4: Shuffle Final
-  - Fisher-Yates shuffle
-  - Retornar 50 candidatos
+  - Fisher-Yates shuffle para máxima aleatoriedad
+  - Retornar exactamente 50 candidatos
 ```
 
-**Filtros de Calidad**:
+**Filtros de Calidad Aplicados**:
 ```typescript
-- Poster obligatorio (poster_path)
-- Overview no vacío
-- Mínimo 50 votos (vote_count >= 50)
-- Idiomas occidentales (en, es, fr, it, de, pt)
-- Script latino (validación de caracteres)
+✅ Poster obligatorio (poster_path !== null)
+✅ Overview no vacío (overview.length > 0)
+✅ Mínimo 50 votos (vote_count >= 50)
+✅ Idiomas occidentales (en, es, fr, it, de, pt)
+✅ Script latino (validación de caracteres)
+   - Regex: /^[\u0000-\u007F\u00A0-\u00FF\u0100-\u017F...]*$/u
+   - Excluye CJK (chino/japonés/coreano) y cirílico
+❌ Contenido adulto (include_adult: false)
 ```
 
-**Lógica de Géneros TMDB**:
-- **AND**: `with_genres: "18,16"` (coma = intersección)
-- **OR**: `with_genres: "18|16"` (pipe = unión)
+**Lógica de Géneros TMDB API**:
+```typescript
+// AND (intersección) - Debe tener TODOS los géneros
+with_genres: "18,16"  // Drama Y Animación (coma = AND)
 
-**Ejemplo de Comportamiento**:
-
-*Caso 1: Drama + Animación (pocos resultados)*
-```
-PHASE 1: Strict AND found 23 results
-⚠️ Using FALLBACK (OR) logic
-PHASE 2: Fetching with OR, prioritizing multi-genre
-✅ Strategy: FALLBACK (OR), Total: 23
+// OR (unión) - Debe tener CUALQUIER género
+with_genres: "18|16"  // Drama O Animación (pipe = OR)
 ```
 
-*Caso 2: Acción + Aventura (muchos resultados)*
+**Ejemplos de Comportamiento Real**:
+
+**Caso 1: Acción + Aventura** (géneros populares)
 ```
 PHASE 1: Strict AND found 1,247 results
 ✅ Using STRICT (AND) logic
 PHASE 2: Fetching with AND only
-✅ Strategy: STRICT (AND), Total: 1,247
+Result: 50 películas que son Acción Y Aventura
+Strategy: STRICT (AND), Total: 1,247
 ```
+
+**Caso 2: Drama + Animación** (géneros menos comunes juntos)
+```
+PHASE 1: Strict AND found 23 results
+⚠️ Using FALLBACK (OR) logic
+PHASE 2: Fetching with OR, prioritizing multi-genre
+Result: 23 películas Drama+Animación + 27 Drama o Animación
+Strategy: FALLBACK (OR), Total: 23
+```
+
+**Caso 3: Western + Documental** (géneros muy raros juntos)
+```
+PHASE 1: Strict AND found 2 results
+⚠️ Using FALLBACK (OR) logic
+PHASE 2: Fetching with OR
+Result: 2 Western+Documental + 48 Western o Documental
+Strategy: FALLBACK (OR), Total: 2
+```
+
+**Caso 4: Un solo género** (Acción)
+```
+Single genre selected - using standard logic
+PHASE 2: Fetching with standard logic
+Result: 50 películas de Acción
+Strategy: SINGLE GENRE, Total: varies
+```
+
+**Modelo de Datos (MovieCandidate)**:
+```typescript
+interface MovieCandidate {
+  id: number;              // TMDB ID
+  title: string;           // Título (movies) o name (TV)
+  overview: string;        // Descripción
+  posterPath: string | null; // URL del póster
+  releaseDate: string;     // Fecha de estreno
+  mediaType: 'MOVIE' | 'TV';
+  genreIds?: number[];     // IDs de géneros (para priorización)
+}
+```
+
+**Parámetros de Búsqueda TMDB**:
+```typescript
+interface TMDBDiscoveryParams {
+  page: number;                    // Página aleatoria
+  with_genres?: string;            // "18,16" (AND) o "18|16" (OR)
+  language: 'en-US';               // Idioma de metadatos
+  region?: 'US';                   // Región (opcional)
+  sort_by: 'popularity.desc';      // Ordenar por popularidad
+  include_adult: false;            // Sin contenido adulto
+  with_original_language: 'en|es|fr|it|de|pt'; // Idiomas occidentales
+  'vote_count.gte': 50;            // Mínimo 50 votos
+}
+```
+
+**Variables de Entorno**:
+- `TMDB_API_KEY`: API Key de TMDB (v3 auth)
+- `TMDB_READ_TOKEN`: Read Access Token (v4 auth) - alternativa a API_KEY
+- `TMDB_BASE_URL`: Base URL de API (default: https://api.themoviedb.org/3)
+- `AWS_REGION`: Región de AWS
+
+**Características Especiales**:
+- **Priorización Inteligente**: AND primero, OR como fallback
+- **Páginas Aleatorias**: Fetch de páginas random para variedad
+- **Deduplicación**: Map para evitar duplicados
+- **Validación de Script**: Solo contenido en alfabeto latino
+- **Logging Detallado**: Logs de cada fase para debugging
+- **Fallback Robusto**: Maneja casos con pocos resultados
+- **Target Count**: Siempre intenta retornar 50 candidatos
+
+**Obtener TMDB API Key**:
+1. Crear cuenta en [TMDB](https://www.themoviedb.org/)
+2. Ir a Settings > API
+3. Solicitar API Key (gratis)
+4. Copiar "API Read Access Token" o "API Key (v3 auth)"
+5. Configurar en `infrastructure/.env`
+
+**Troubleshooting**:
+- Si retorna pocos candidatos: Verificar filtros de calidad
+- Si retorna contenido no latino: Verificar validación de script
+- Si falla autenticación: Verificar TMDB_API_KEY en .env
+- Si timeout: Reducir número de páginas a fetch
 
 ## ⚙️ Configuración
 
@@ -568,5 +864,6 @@ console.log(JSON.stringify({
 
 ---
 
-**Última actualización**: 2026-02-05  
-**Versión**: 2.1.0
+**Última actualización**: 2026-02-06  
+**Versión**: 2.2.1  
+**Estado**: ✅ Production Ready

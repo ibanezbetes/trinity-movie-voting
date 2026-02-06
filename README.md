@@ -149,7 +149,7 @@ cp .env.example .env
 # Editar .env con los valores de AWS
 
 # Iniciar en desarrollo
-npx expo start
+npx expo start --clear
 ```
 
 ## 📊 Modelo de Datos
@@ -394,6 +394,7 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para
 
 ---
 
-**Versión**: 2.2.0  
-**Última actualización**: 2026-02-05  
-**Estado**: ✅ Producción Ready
+**Version**: 2.2.1  
+**Last Updated**: 2026-02-06  
+**Status**: ✅ Production Ready  
+**Region**: eu-west-1 (Ireland)
