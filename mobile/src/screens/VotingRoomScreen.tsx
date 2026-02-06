@@ -77,17 +77,9 @@ export default function VotingRoomScreen() {
       logger.room('🔍 AGGRESSIVE periodic match check', { roomId });
       const hasMatch = await checkForExistingMatch();
       if (hasMatch) {
-        // If match found, navigate back to home
-        Alert.alert(
-          '🎉 ¡MATCH ENCONTRADO!',
-          'Se ha encontrado una película en común. Serás redirigido al inicio.',
-          [
-            { 
-              text: 'OK', 
-              onPress: () => navigation.navigate('Dashboard' as any)
-            }
-          ]
-        );
+        // If match found, navigate to MatchCelebration screen
+        // The navigation will be handled by the context provider
+        logger.room('Match found via periodic check - navigation handled by context');
       }
     }, 2000); // Verificar cada 2 segundos (más agresivo)
 
@@ -129,21 +121,8 @@ export default function VotingRoomScreen() {
           timestamp: roomMatchEvent.timestamp,
         });
 
-        // Show immediate match notification
-        Alert.alert(
-          '🎉 ¡MATCH ENCONTRADO!',
-          `¡Se encontró una película en común!\n\n${roomMatchEvent.movieTitle}`,
-          [
-            { 
-              text: 'Ver mis matches', 
-              onPress: () => navigation.navigate('MyMatches' as any)
-            },
-            { 
-              text: 'Ir al inicio', 
-              onPress: () => navigation.navigate('Dashboard' as any)
-            }
-          ]
-        );
+        // Navigation to MatchCelebration will be handled by the context provider
+        logger.room('Match notification received - navigation handled by context');
       });
       
       logger.room('✅ Room subscription system established for real-time notifications', { roomId, userId });
@@ -196,21 +175,8 @@ export default function VotingRoomScreen() {
         setHasExistingMatch(true);
         setExistingMatch(roomMatch);
         
-        // Show match notification to user
-        Alert.alert(
-          '🎉 ¡MATCH ENCONTRADO!',
-          `Ya hay una película seleccionada en esta sala:\n\n${roomMatch.title}`,
-          [
-            { 
-              text: 'Ver mis matches', 
-              onPress: () => navigation.navigate('MyMatches' as any)
-            },
-            { 
-              text: 'Ir al inicio', 
-              onPress: () => navigation.navigate('Dashboard' as any)
-            }
-          ]
-        );
+        // Navigation to MatchCelebration will be handled by the context provider
+        logger.room('Existing match found - navigation handled by context');
         
         return true;
       } else {
@@ -376,17 +342,9 @@ export default function VotingRoomScreen() {
             vote
           });
           
-          // 3. INTERRUPT ON MATCH: Show match notification if room doesn't exist
-          Alert.alert(
-            '🎉 ¡MATCH ENCONTRADO!',
-            'La sala ya no existe porque se encontró una película en común. Serás redirigido a tus matches.',
-            [
-              { 
-                text: 'Ver mis matches', 
-                onPress: () => navigation.navigate('MyMatches' as any)
-              }
-            ]
-          );
+          // Room no longer exists - likely due to match
+          // Navigation will be handled by the context provider
+          logger.vote('Room disappeared - navigation handled by context');
           return;
         }
 
@@ -432,21 +390,8 @@ export default function VotingRoomScreen() {
           setHasExistingMatch(true);
           setExistingMatch(result.match);
 
-          // INTERRUPT: Show match notification immediately
-          Alert.alert(
-            '🎉 ¡MATCH!',
-            `¡Encontraste una película en común!\n\n${result.match.title}`,
-            [
-              { 
-                text: 'Ver mis matches', 
-                onPress: () => navigation.navigate('MyMatches' as any)
-              },
-              { 
-                text: 'Ir al inicio', 
-                onPress: () => navigation.navigate('Dashboard' as any)
-              }
-            ]
-          );
+          // Navigation to MatchCelebration will be handled by the context provider
+          logger.vote('Match detected - navigation handled by context');
         } else {
           logger.vote('✅ BACKGROUND VOTE COMPLETED: No match, continuing flow', {
             movieTitle: currentMovie.title,
@@ -468,17 +413,9 @@ export default function VotingRoomScreen() {
         // Check if error is due to room not found (potential match)
         const errorMessage = error?.message || error?.toString() || '';
         if (errorMessage.includes('Room not found') || errorMessage.includes('has expired')) {
-          // 3. INTERRUPT ON MATCH: Room disappeared, likely due to match
-          Alert.alert(
-            '🎉 ¡MATCH ENCONTRADO!',
-            'La sala ya no existe porque se encontró una película en común. Serás redirigido a tus matches.',
-            [
-              { 
-                text: 'Ver mis matches', 
-                onPress: () => navigation.navigate('MyMatches' as any)
-              }
-            ]
-          );
+          // Room disappeared, likely due to match
+          // Navigation will be handled by the context provider
+          logger.voteError('Room not found error - navigation handled by context', error);
         }
         // For other errors, don't interrupt the user flow
         // The vote failed but the user can continue voting

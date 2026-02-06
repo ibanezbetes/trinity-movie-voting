@@ -49,10 +49,11 @@ export default function MatchCelebrationScreen() {
     });
 
     if (wasInRoom) {
-      // User was in the room when match happened - go to Dashboard
+      // User was in the voting room when match happened - go to Dashboard
       navigation.navigate('Dashboard');
     } else {
-      // User was not in the room - go back to where they were
+      // User was NOT in the voting room (received notification from another room)
+      // Return to where they were before the notification
       navigation.goBack();
     }
   };
