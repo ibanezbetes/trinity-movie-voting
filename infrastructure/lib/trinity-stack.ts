@@ -43,6 +43,15 @@ export class TrinityStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    // Lambda Trigger for Cognito - Auto-confirm users
+    const preSignUpTrigger = new lambda.Function(this, 'PreSignUpTrigger', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'pre-signup.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../src/handlers/cognito-triggers')),
+      timeout: cdk.Duration.seconds(10),
+      description: 'Auto-confirms users on sign-up',
+    });
+
     // Cognito User Pool
     const userPool = new cognito.UserPool(this, 'TrinityUserPool', {
       userPoolName: 'trinity-users',
@@ -51,7 +60,7 @@ export class TrinityStack extends cdk.Stack {
         email: true,
       },
       autoVerify: {
-        email: true,
+        email: false, // Disabled - using Lambda trigger for auto-confirmation
       },
       passwordPolicy: {
         minLength: 8,
@@ -59,6 +68,9 @@ export class TrinityStack extends cdk.Stack {
         requireUppercase: true,
         requireDigits: true,
         requireSymbols: false,
+      },
+      lambdaTriggers: {
+        preSignUp: preSignUpTrigger,
       },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });

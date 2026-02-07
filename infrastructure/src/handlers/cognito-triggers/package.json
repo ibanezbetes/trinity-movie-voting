@@ -1,0 +1,9 @@
+{
+  "name": "cognito-triggers",
+  "version": "1.0.0",
+  "description": "Cognito Lambda Triggers for Trinity",
+  "main": "pre-signup.js",
+  "dependencies": {
+    "@types/aws-lambda": "^8.10.145"
+  }
+}

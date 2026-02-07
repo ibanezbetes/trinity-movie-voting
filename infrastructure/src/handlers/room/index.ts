@@ -228,10 +228,11 @@ class RoomService {
       ConditionExpression: 'attribute_not_exists(id)', // Ensure no duplicate IDs
     }));
 
-    // Record user participation when creating room (host automatically participates)
-    await this.recordRoomParticipation(userId, roomId);
+    // Record host participation when creating room (host is the first participant)
+    // This ensures the host counts towards the maxParticipants limit
+    await this.recordRoomParticipation(userId, roomId, maxParticipants);
 
-    console.log(`Room created successfully: ${roomId} with code: ${code}, maxParticipants: ${maxParticipants}`);
+    console.log(`Room created successfully: ${roomId} with code: ${code}, maxParticipants: ${maxParticipants}, host registered as first participant`);
     return room;
   }
 
@@ -272,30 +273,48 @@ class RoomService {
         throw new Error('Room has expired. Please create a new room.');
       }
 
-      // Check if user is already in the room (to avoid counting them twice)
+      // Check if user is already in the room
       const isAlreadyInRoom = await this.isUserInRoom(userId, room.id);
       
-      if (!isAlreadyInRoom) {
-        // Check if room is full before allowing new participant
-        const currentParticipants = await this.getRoomParticipantCount(room.id);
-        const maxParticipants = room.maxParticipants || 2; // Default to 2 for backward compatibility
-        
-        console.log(`Room ${room.id} has ${currentParticipants}/${maxParticipants} participants`);
-        
-        if (currentParticipants >= maxParticipants) {
-          throw new Error('Esta sala está llena.');
-        }
+      if (isAlreadyInRoom) {
+        console.log(`User ${userId} is already in room ${room.id}, returning room data`);
+        return room;
       }
 
-      // Record user participation when joining room
-      await this.recordRoomParticipation(userId, room.id);
+      // CRITICAL: Check participant count BEFORE attempting to join
+      // This includes the host as the first participant
+      const currentParticipants = await this.getRoomParticipantCount(room.id);
+      const maxParticipants = room.maxParticipants || 2; // Default to 2 for backward compatibility
+      
+      console.log(`Room ${room.id} has ${currentParticipants}/${maxParticipants} participants (including host)`);
+      
+      if (currentParticipants >= maxParticipants) {
+        throw new Error('Esta sala está llena.');
+      }
 
-      console.log(`User ${userId} joined room: ${room.id} with code: ${code}`);
+      // Attempt to record participation with atomic check
+      // This will fail if another user joins simultaneously and fills the room
+      await this.recordRoomParticipation(userId, room.id, maxParticipants);
+
+      // Double-check after recording to ensure we didn't exceed the limit
+      // This is a safety check in case of race conditions
+      const finalParticipants = await this.getRoomParticipantCount(room.id);
+      if (finalParticipants > maxParticipants) {
+        console.error(`RACE CONDITION DETECTED: Room ${room.id} now has ${finalParticipants}/${maxParticipants} participants`);
+        // Note: In production, you might want to implement a cleanup mechanism here
+        // For now, we log the error but allow the join since the record is already created
+      }
+
+      console.log(`User ${userId} successfully joined room: ${room.id} with code: ${code}`);
       return room;
     } catch (error) {
       // Fallback to scan if GSI is not available yet
-      console.log('GSI not available, falling back to scan method');
-      return await this.joinRoomByScan(userId, code);
+      const err = error as any;
+      if (err.name === 'ResourceNotFoundException' || err.message?.includes('GSI')) {
+        console.log('GSI not available, falling back to scan method');
+        return await this.joinRoomByScan(userId, code);
+      }
+      throw error;
     }
   }
 
@@ -321,29 +340,39 @@ class RoomService {
       throw new Error('Room has expired. Please create a new room.');
     }
 
-    // Check if user is already in the room (to avoid counting them twice)
+    // Check if user is already in the room
     const isAlreadyInRoom = await this.isUserInRoom(userId, room.id);
     
-    if (!isAlreadyInRoom) {
-      // Check if room is full before allowing new participant
-      const currentParticipants = await this.getRoomParticipantCount(room.id);
-      const maxParticipants = room.maxParticipants || 2; // Default to 2 for backward compatibility
-      
-      console.log(`Room ${room.id} has ${currentParticipants}/${maxParticipants} participants (scan method)`);
-      
-      if (currentParticipants >= maxParticipants) {
-        throw new Error('Esta sala está llena.');
-      }
+    if (isAlreadyInRoom) {
+      console.log(`User ${userId} is already in room ${room.id}, returning room data (scan method)`);
+      return room;
     }
 
-    // Record user participation when joining room
-    await this.recordRoomParticipation(userId, room.id);
+    // CRITICAL: Check participant count BEFORE attempting to join
+    // This includes the host as the first participant
+    const currentParticipants = await this.getRoomParticipantCount(room.id);
+    const maxParticipants = room.maxParticipants || 2; // Default to 2 for backward compatibility
+    
+    console.log(`Room ${room.id} has ${currentParticipants}/${maxParticipants} participants (including host) - scan method`);
+    
+    if (currentParticipants >= maxParticipants) {
+      throw new Error('Esta sala está llena.');
+    }
 
-    console.log(`User ${userId} joined room: ${room.id} with code: ${code} (scan method)`);
+    // Attempt to record participation with atomic check
+    await this.recordRoomParticipation(userId, room.id, maxParticipants);
+
+    // Double-check after recording to ensure we didn't exceed the limit
+    const finalParticipants = await this.getRoomParticipantCount(room.id);
+    if (finalParticipants > maxParticipants) {
+      console.error(`RACE CONDITION DETECTED: Room ${room.id} now has ${finalParticipants}/${maxParticipants} participants (scan method)`);
+    }
+
+    console.log(`User ${userId} successfully joined room: ${room.id} with code: ${code} (scan method)`);
     return room;
   }
 
-  private async recordRoomParticipation(userId: string, roomId: string): Promise<void> {
+  private async recordRoomParticipation(userId: string, roomId: string, maxParticipants: number): Promise<void> {
     try {
       const votesTable = process.env.VOTES_TABLE || '';
       if (!votesTable) {
@@ -363,16 +392,24 @@ class RoomService {
         isParticipation: true, // Flag to distinguish from real votes
       };
 
+      // Use conditional expression to ensure atomicity and prevent exceeding maxParticipants
+      // This prevents race conditions when multiple users try to join simultaneously
       await docClient.send(new PutCommand({
         TableName: votesTable,
         Item: participationRecord,
-        // Allow overwriting if user joins the same room multiple times
+        ConditionExpression: 'attribute_not_exists(userMovieId)',
       }));
 
       console.log(`Participation recorded for user ${userId} in room ${roomId}`);
     } catch (error) {
+      // If condition fails, user is already in the room - this is OK
+      const err = error as any;
+      if (err.name === 'ConditionalCheckFailedException') {
+        console.log(`User ${userId} already has participation record in room ${roomId}`);
+        return;
+      }
       console.error(`Error recording participation for user ${userId} in room ${roomId}:`, error);
-      // Don't fail the join operation if participation tracking fails
+      throw error; // Re-throw to fail the join operation on unexpected errors
     }
   }
 

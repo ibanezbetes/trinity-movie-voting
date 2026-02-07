@@ -13,17 +13,19 @@ Write-Host "Creating TMDB Handler ZIP (PRIORITY)..." -ForegroundColor Yellow
 Write-Host "========================================" -ForegroundColor Yellow
 
 # TMDB Handler (most important - has axios dependency)
-$tmdbPath = "src\handlers\tmdb"
+# Use compiled code from lib/src/handlers
+$tmdbPath = "lib\src\handlers\tmdb"
+$tmdbSrcPath = "src\handlers\tmdb"
 if (Test-Path "$tmdbPath\index.js") {
-    $files = @("$tmdbPath\index.js", "$tmdbPath\package.json")
+    $files = @("$tmdbPath\index.js", "$tmdbSrcPath\package.json")
     
     # Include node_modules if it exists
-    if (Test-Path "$tmdbPath\node_modules") {
+    if (Test-Path "$tmdbSrcPath\node_modules") {
         Write-Host "- Including node_modules with axios dependency" -ForegroundColor Green
-        Compress-Archive -Path "$tmdbPath\index.js", "$tmdbPath\package.json", "$tmdbPath\node_modules" -DestinationPath "lambda-zips\tmdb-handler.zip" -Force
+        Compress-Archive -Path "$tmdbPath\index.js", "$tmdbSrcPath\package.json", "$tmdbSrcPath\node_modules" -DestinationPath "lambda-zips\tmdb-handler.zip" -Force
     } else {
         Write-Host "- WARNING: node_modules not found, creating ZIP without dependencies" -ForegroundColor Red
-        Compress-Archive -Path "$tmdbPath\index.js", "$tmdbPath\package.json" -DestinationPath "lambda-zips\tmdb-handler.zip" -Force
+        Compress-Archive -Path "$tmdbPath\index.js", "$tmdbSrcPath\package.json" -DestinationPath "lambda-zips\tmdb-handler.zip" -Force
     }
     Write-Host "✓ tmdb-handler.zip created" -ForegroundColor Green
 } else {
@@ -35,9 +37,10 @@ Write-Host "Creating Room Handler ZIP..." -ForegroundColor Yellow
 Write-Host "========================================" -ForegroundColor Yellow
 
 # Room Handler
-$roomPath = "src\handlers\room"
+$roomPath = "lib\src\handlers\room"
+$roomSrcPath = "src\handlers\room"
 if (Test-Path "$roomPath\index.js") {
-    Compress-Archive -Path "$roomPath\index.js", "$roomPath\package.json" -DestinationPath "lambda-zips\room-handler.zip" -Force
+    Compress-Archive -Path "$roomPath\index.js", "$roomSrcPath\package.json" -DestinationPath "lambda-zips\room-handler.zip" -Force
     Write-Host "✓ room-handler.zip created" -ForegroundColor Green
 } else {
     Write-Host "ERROR: $roomPath\index.js not found!" -ForegroundColor Red
@@ -48,12 +51,13 @@ Write-Host "Creating Vote Handler ZIP..." -ForegroundColor Yellow
 Write-Host "========================================" -ForegroundColor Yellow
 
 # Vote Handler
-$votePath = "src\handlers\vote"
+$votePath = "lib\src\handlers\vote"
+$voteSrcPath = "src\handlers\vote"
 if (Test-Path "$votePath\index.js") {
-    if (Test-Path "$votePath\node_modules") {
-        Compress-Archive -Path "$votePath\index.js", "$votePath\package.json", "$votePath\node_modules" -DestinationPath "lambda-zips\vote-handler.zip" -Force
+    if (Test-Path "$voteSrcPath\node_modules") {
+        Compress-Archive -Path "$votePath\index.js", "$voteSrcPath\package.json", "$voteSrcPath\node_modules" -DestinationPath "lambda-zips\vote-handler.zip" -Force
     } else {
-        Compress-Archive -Path "$votePath\index.js", "$votePath\package.json" -DestinationPath "lambda-zips\vote-handler.zip" -Force
+        Compress-Archive -Path "$votePath\index.js", "$voteSrcPath\package.json" -DestinationPath "lambda-zips\vote-handler.zip" -Force
     }
     Write-Host "✓ vote-handler.zip created" -ForegroundColor Green
 } else {
@@ -65,12 +69,27 @@ Write-Host "Creating Match Handler ZIP..." -ForegroundColor Yellow
 Write-Host "========================================" -ForegroundColor Yellow
 
 # Match Handler
-$matchPath = "src\handlers\match"
+$matchPath = "lib\src\handlers\match"
+$matchSrcPath = "src\handlers\match"
 if (Test-Path "$matchPath\index.js") {
-    Compress-Archive -Path "$matchPath\index.js", "$matchPath\package.json" -DestinationPath "lambda-zips\match-handler.zip" -Force
+    Compress-Archive -Path "$matchPath\index.js", "$matchSrcPath\package.json" -DestinationPath "lambda-zips\match-handler.zip" -Force
     Write-Host "✓ match-handler.zip created" -ForegroundColor Green
 } else {
     Write-Host "ERROR: $matchPath\index.js not found!" -ForegroundColor Red
+}
+
+Write-Host "`n========================================" -ForegroundColor Yellow
+Write-Host "Creating Cognito Trigger ZIP..." -ForegroundColor Yellow
+Write-Host "========================================" -ForegroundColor Yellow
+
+# Cognito Pre-SignUp Trigger
+$cognitoPath = "lib\src\handlers\cognito-triggers"
+$cognitoSrcPath = "src\handlers\cognito-triggers"
+if (Test-Path "$cognitoPath\pre-signup.js") {
+    Compress-Archive -Path "$cognitoPath\pre-signup.js", "$cognitoSrcPath\package.json" -DestinationPath "lambda-zips\cognito-trigger.zip" -Force
+    Write-Host "✓ cognito-trigger.zip created" -ForegroundColor Green
+} else {
+    Write-Host "ERROR: $cognitoPath\pre-signup.js not found!" -ForegroundColor Red
 }
 
 Write-Host "`n========================================" -ForegroundColor Green
@@ -88,13 +107,17 @@ Write-Host "`nUPLOAD INSTRUCTIONS:" -ForegroundColor Yellow
 Write-Host "====================" -ForegroundColor Yellow
 Write-Host "1. Go to AWS Lambda Console" -ForegroundColor White
 Write-Host "2. Upload these ZIP files to your functions:" -ForegroundColor White
-Write-Host "   - tmdb-handler.zip   --> TmdbHandler Lambda (UPLOAD THIS FIRST!)" -ForegroundColor Cyan
-Write-Host "   - room-handler.zip   --> RoomHandler Lambda" -ForegroundColor White  
-Write-Host "   - vote-handler.zip   --> VoteHandler Lambda" -ForegroundColor White
-Write-Host "   - match-handler.zip  --> MatchHandler Lambda" -ForegroundColor White
+Write-Host "   - tmdb-handler.zip     --> TmdbHandler Lambda (UPLOAD THIS FIRST!)" -ForegroundColor Cyan
+Write-Host "   - room-handler.zip     --> RoomHandler Lambda" -ForegroundColor White  
+Write-Host "   - vote-handler.zip     --> VoteHandler Lambda" -ForegroundColor White
+Write-Host "   - match-handler.zip    --> MatchHandler Lambda" -ForegroundColor White
+Write-Host "   - cognito-trigger.zip  --> PreSignUpTrigger Lambda (Auto-confirm users)" -ForegroundColor Green
 
 Write-Host "`nCRITICAL: Upload tmdb-handler.zip FIRST as it contains" -ForegroundColor Red
 Write-Host "the axios dependency that fixes the randomization!" -ForegroundColor Red
+
+Write-Host "`nNOTE: cognito-trigger.zip enables auto-confirmation of new users" -ForegroundColor Yellow
+Write-Host "No email verification required after sign-up!" -ForegroundColor Yellow
 
 Write-Host "`nAfter uploading, test creating a room to see different movies!" -ForegroundColor Green
 

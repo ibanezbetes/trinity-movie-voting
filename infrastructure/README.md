@@ -550,6 +550,131 @@ interface TMDBDiscoveryParams {
 - Si falla autenticación: Verificar TMDB_API_KEY en .env
 - Si timeout: Reducir número de páginas a fetch
 
+### 5. Cognito Pre Sign-up Trigger (`src/handlers/cognito-triggers/`)
+
+**Propósito**: Auto-confirmación de usuarios al registrarse (sin verificación de email).
+
+**Trigger**: `preSignUp` - Se ejecuta antes de completar el registro
+
+**Flujo de Auto-confirmación**:
+```typescript
+1. Usuario se registra en la app:
+   - Email
+   - Password
+
+2. Cognito invoca Lambda Pre Sign-up Trigger
+
+3. Lambda auto-confirma usuario:
+   - event.response.autoConfirmUser = true
+   - event.response.autoVerifyEmail = true
+
+4. Usuario puede iniciar sesión inmediatamente:
+   - No se requiere código de verificación
+   - No se envía email de confirmación
+```
+
+**Código del Handler**:
+```typescript
+export const handler: PreSignUpTriggerHandler = async (event) => {
+  console.log('Pre Sign-up Trigger invoked', {
+    userPoolId: event.userPoolId,
+    userName: event.userName,
+    email: event.request.userAttributes.email,
+  });
+
+  // Auto-confirm the user
+  event.response.autoConfirmUser = true;
+
+  // Auto-verify the email
+  if (event.request.userAttributes.email) {
+    event.response.autoVerifyEmail = true;
+  }
+
+  console.log('User auto-confirmed', {
+    userName: event.userName,
+    autoConfirmUser: event.response.autoConfirmUser,
+    autoVerifyEmail: event.response.autoVerifyEmail,
+  });
+
+  return event;
+};
+```
+
+**Configuración en CDK**:
+```typescript
+// Lambda Trigger
+const preSignUpTrigger = new lambda.Function(this, 'PreSignUpTrigger', {
+  runtime: lambda.Runtime.NODEJS_18_X,
+  handler: 'pre-signup.handler',
+  code: lambda.Code.fromAsset(path.join(__dirname, '../src/handlers/cognito-triggers')),
+  timeout: cdk.Duration.seconds(10),
+  description: 'Auto-confirms users on sign-up',
+});
+
+// User Pool con trigger
+const userPool = new cognito.UserPool(this, 'TrinityUserPool', {
+  userPoolName: 'trinity-users',
+  selfSignUpEnabled: true,
+  signInAliases: { email: true },
+  autoVerify: { email: false }, // Disabled - using Lambda trigger
+  lambdaTriggers: {
+    preSignUp: preSignUpTrigger, // Lambda trigger
+  },
+});
+```
+
+**Variables de Entorno**: Ninguna requerida
+
+**Características Especiales**:
+- **Sin Email Verification**: No se envían emails de confirmación
+- **Registro Instantáneo**: Usuario puede usar la app inmediatamente
+- **Mejor UX**: Sin fricción en el proceso de registro
+- **Logs Detallados**: CloudWatch logs para debugging
+
+**Verificación**:
+```bash
+# Ver logs del trigger
+aws logs tail /aws/lambda/TrinityStack-PreSignUpTrigger --follow
+
+# Verificar usuario en Cognito
+aws cognito-idp admin-get-user \
+  --user-pool-id YOUR_USER_POOL_ID \
+  --username test@example.com
+```
+
+**Output Esperado en Logs**:
+```json
+{
+  "message": "Pre Sign-up Trigger invoked",
+  "userPoolId": "eu-west-1_xxxxx",
+  "userName": "user-uuid",
+  "email": "test@example.com"
+}
+{
+  "message": "User auto-confirmed",
+  "userName": "user-uuid",
+  "autoConfirmUser": true,
+  "autoVerifyEmail": true
+}
+```
+
+**Deployment**:
+```bash
+# Compilar TypeScript
+npm run build
+
+# Crear ZIP
+.\create-zips.ps1
+
+# Desplegar con CDK
+cdk deploy
+
+# O subir manualmente a Lambda Console
+# Upload: lambda-zips/cognito-trigger.zip
+```
+
+**Documentación Completa**: Ver [COGNITO_AUTO_CONFIRM_SETUP.md](./COGNITO_AUTO_CONFIRM_SETUP.md)
+
 ## ⚙️ Configuración
 
 ### Variables de Entorno
@@ -864,6 +989,6 @@ console.log(JSON.stringify({
 
 ---
 
-**Última actualización**: 2026-02-06  
-**Versión**: 2.2.1  
+**Última actualización**: 2026-02-07  
+**Versión**: 2.2.2  
 **Estado**: ✅ Production Ready

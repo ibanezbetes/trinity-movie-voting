@@ -30,6 +30,16 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   logger.userAction('Screen loaded: Auth', { authMode });
 
+  // Validación de requisitos de contraseña
+  const passwordRequirements = {
+    minLength: password.length >= 8,
+    hasUppercase: /[A-Z]/.test(password),
+    hasLowercase: /[a-z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
+  };
+
+  const allRequirementsMet = Object.values(passwordRequirements).every(req => req);
+
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Por favor completa todos los campos');
@@ -125,8 +135,24 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       return;
     }
 
+    // Validación detallada de contraseña
     if (password.length < 8) {
       Alert.alert('Error', 'La contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      Alert.alert('Error', 'La contraseña debe contener al menos una letra mayúscula');
+      return;
+    }
+
+    if (!/[a-z]/.test(password)) {
+      Alert.alert('Error', 'La contraseña debe contener al menos una letra minúscula');
+      return;
+    }
+
+    if (!/[0-9]/.test(password)) {
+      Alert.alert('Error', 'La contraseña debe contener al menos un número');
       return;
     }
 
@@ -367,6 +393,34 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             placeholderTextColor="#666666"
             secureTextEntry
           />
+          {password.length > 0 && (
+            <View style={styles.passwordRequirements}>
+              <Text style={[
+                styles.requirementText,
+                passwordRequirements.minLength && styles.requirementMet
+              ]}>
+                {passwordRequirements.minLength ? '✓' : '•'} Mínimo 8 caracteres
+              </Text>
+              <Text style={[
+                styles.requirementText,
+                passwordRequirements.hasUppercase && styles.requirementMet
+              ]}>
+                {passwordRequirements.hasUppercase ? '✓' : '•'} Al menos 1 mayúscula
+              </Text>
+              <Text style={[
+                styles.requirementText,
+                passwordRequirements.hasLowercase && styles.requirementMet
+              ]}>
+                {passwordRequirements.hasLowercase ? '✓' : '•'} Al menos 1 minúscula
+              </Text>
+              <Text style={[
+                styles.requirementText,
+                passwordRequirements.hasNumber && styles.requirementMet
+              ]}>
+                {passwordRequirements.hasNumber ? '✓' : '•'} Al menos 1 número
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.inputContainer}>
@@ -555,5 +609,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4CAF50',
     textDecorationLine: 'underline',
+  },
+  passwordRequirements: {
+    marginTop: 8,
+    paddingLeft: 4,
+  },
+  requirementText: {
+    fontSize: 12,
+    color: '#888888',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  requirementMet: {
+    color: '#4CAF50',
   },
 });

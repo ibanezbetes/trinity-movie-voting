@@ -9,6 +9,8 @@ import AppNavigator from './src/navigation/AppNavigator';
 import AuthScreen from './src/screens/AuthScreen';
 import './src/services/amplify'; // Initialize Amplify
 import { logger } from './src/services/logger';
+import { ThemeProvider } from './src/context/ThemeContext';
+import { SoundProvider } from './src/context/SoundContext';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -101,12 +103,16 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" backgroundColor="#1a1a1a" />
-      {isAuthenticated ? (
-        <AppNavigator onSignOut={handleSignOut} />
-      ) : (
-        <AuthScreen onAuthSuccess={handleAuthSuccess} />
-      )}
+      <ThemeProvider>
+        <SoundProvider>
+          <StatusBar style="light" backgroundColor="#1a1a1a" />
+          {isAuthenticated ? (
+            <AppNavigator onSignOut={handleSignOut} />
+          ) : (
+            <AuthScreen onAuthSuccess={handleAuthSuccess} />
+          )}
+        </SoundProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

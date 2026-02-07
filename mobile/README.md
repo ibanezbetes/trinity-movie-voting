@@ -712,6 +712,6 @@ console.log('Subscription active:', subscription);
 
 ---
 
-**Última actualización**: 2026-02-06  
-**Versión**: 2.2.1  
+**Última actualización**: 2026-02-07  
+**Versión**: 2.2.2  
 **Estado**: ✅ Production Ready

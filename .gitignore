@@ -221,6 +221,7 @@ mobile/android/app/build/
 mobile/android/app/.cxx/
 mobile/android/build/
 mobile/android/.gradle/
+mobile/android/.kotlin/
 
 # Expo build artifacts
 mobile/.expo/
@@ -231,8 +232,12 @@ mobile/web-build/
 *.apk
 *.aab
 
+# Except specific release APKs (optional - uncomment to track releases)
+# !trinity-v*.apk
+
 # Native debug symbols
 native-debug-symbols.zip
+**/native-debug-symbols.zip
 
 # Cleanup script (keep only the main one)
 cleanup-project.ps1
