@@ -16,6 +16,7 @@ import { MOVIE_GENRES, TV_GENRES, Genre, RootStackParamList } from '../types';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { CREATE_ROOM } from '../services/graphql';
 import { logger } from '../services/logger';
+import { Avatar, Card, Typography, Button, Chip } from '../components';
 
 type CreateRoomNavigationProp = StackNavigationProp<RootStackParamList, 'CreateRoom'>;
 
@@ -171,7 +172,7 @@ export default function CreateRoomScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
+      <StatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       
       {/* Header */}
       <View style={styles.header}>
@@ -181,68 +182,74 @@ export default function CreateRoomScreen() {
         >
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>CREAR SALA</Text>
+        <Typography variant="h2">Crear Sala</Typography>
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Trini Assistant Card */}
+        <Card variant="elevated" style={styles.assistantCard}>
+          <View style={styles.assistantHeader}>
+            <View style={styles.triniIcon}>
+              <Text style={styles.triniIconText}>T</Text>
+            </View>
+            <View style={styles.assistantTextContainer}>
+              <Typography variant="h3" style={styles.assistantName}>Trini</Typography>
+              <Typography variant="caption">Tu asistente de votación</Typography>
+            </View>
+          </View>
+          <Typography variant="body" style={styles.assistantMessage}>
+            Configura tu sala de votación. Selecciona el tipo de contenido y hasta 2 géneros para comenzar.
+          </Typography>
+        </Card>
+
         {/* Media Type Selection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tipo de Contenido</Text>
+          <Typography variant="h3" style={styles.sectionTitle}>Tipo de Contenido</Typography>
           <View style={styles.radioContainer}>
-            <TouchableOpacity
-              style={[styles.radioButton, mediaType === 'MOVIE' && styles.radioButtonSelected]}
+            <Button
+              title="Película"
+              variant={mediaType === 'MOVIE' ? 'primary' : 'outline'}
+              size="medium"
               onPress={() => setMediaType('MOVIE')}
-            >
-              <Text style={[styles.radioText, mediaType === 'MOVIE' && styles.radioTextSelected]}>
-                🎬 PELÍCULA
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.radioButton, mediaType === 'TV' && styles.radioButtonSelected]}
+              style={styles.radioButton}
+            />
+            <Button
+              title="Serie"
+              variant={mediaType === 'TV' ? 'primary' : 'outline'}
+              size="medium"
               onPress={() => setMediaType('TV')}
-            >
-              <Text style={[styles.radioText, mediaType === 'TV' && styles.radioTextSelected]}>
-                📺 SERIE
-              </Text>
-            </TouchableOpacity>
+              style={styles.radioButton}
+            />
           </View>
         </View>
 
         {/* Genre Selection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
+          <Typography variant="h3" style={styles.sectionTitle}>
             Géneros ({selectedGenres.length}/2)
-          </Text>
+          </Typography>
           <View style={styles.genreGrid}>
             {currentGenres.map((genre) => (
-              <TouchableOpacity
+              <Chip
                 key={genre.id}
-                style={[
-                  styles.genreChip,
-                  selectedGenres.includes(genre.id) && styles.genreChipSelected
-                ]}
+                label={genre.name}
+                selected={selectedGenres.includes(genre.id)}
                 onPress={() => handleGenreToggle(genre.id)}
-              >
-                <Text style={[
-                  styles.genreText,
-                  selectedGenres.includes(genre.id) && styles.genreTextSelected
-                ]}>
-                  {genre.name}
-                </Text>
-              </TouchableOpacity>
+                style={styles.genreChip}
+              />
             ))}
           </View>
         </View>
 
         {/* Participants Selection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            ¿Cuántas personas votarán?
-          </Text>
-          <Text style={styles.sectionSubtitle}>
+          <Typography variant="h3" style={styles.sectionTitle}>
+            Participantes
+          </Typography>
+          <Typography variant="caption" style={styles.sectionSubtitle}>
             Se producirá match cuando {maxParticipants} personas voten "Sí" a la misma película
-          </Text>
+          </Typography>
           <View style={styles.participantsContainer}>
             {[2, 3, 4, 5, 6].map((num) => (
               <TouchableOpacity
@@ -267,17 +274,15 @@ export default function CreateRoomScreen() {
 
       {/* Create Button */}
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.createButton, (selectedGenres.length === 0 || isCreating) && styles.createButtonDisabled]}
+        <Button
+          title="Crear Sala"
+          variant="primary"
+          size="large"
           onPress={handleCreateRoom}
           disabled={selectedGenres.length === 0 || isCreating}
-        >
-          {isCreating ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.createButtonText}>CREAR SALA</Text>
-          )}
-        </TouchableOpacity>
+          loading={isCreating}
+          style={styles.createButton}
+        />
       </View>
     </SafeAreaView>
   );
@@ -286,7 +291,7 @@ export default function CreateRoomScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#0a0a0a',
   },
   header: {
     flexDirection: 'row',
@@ -295,7 +300,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: '#2a2a2a',
   },
   backButton: {
     width: 40,
@@ -303,18 +308,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
-    backgroundColor: '#333333',
+    backgroundColor: '#1a1a1a',
   },
   backButtonText: {
     fontSize: 20,
     color: '#ffffff',
     fontWeight: 'bold',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    letterSpacing: 1,
   },
   placeholder: {
     width: 40,
@@ -323,89 +322,63 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-  section: {
-    marginBottom: 30,
+  assistantCard: {
+    marginBottom: 24,
   },
-  sectionTitle: {
-    fontSize: 18,
+  assistantHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  triniIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#7c3aed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  triniIconText: {
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#ffffff',
-    marginBottom: 15,
+  },
+  assistantTextContainer: {
+    flex: 1,
+  },
+  assistantName: {
+    marginBottom: 2,
+  },
+  assistantMessage: {
+    lineHeight: 22,
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionTitle: {
+    marginBottom: 12,
+  },
+  sectionSubtitle: {
+    marginBottom: 16,
+    lineHeight: 20,
   },
   radioContainer: {
     flexDirection: 'row',
-    gap: 15,
+    gap: 12,
   },
   radioButton: {
     flex: 1,
-    padding: 15,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#333333',
-    alignItems: 'center',
-  },
-  radioButtonSelected: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#4CAF50',
-  },
-  radioText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#888888',
-  },
-  radioTextSelected: {
-    color: '#ffffff',
   },
   genreGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+    justifyContent: 'flex-start',
   },
   genreChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#333333',
-    backgroundColor: '#2a2a2a',
-  },
-  genreChipSelected: {
-    borderColor: '#2196F3',
-    backgroundColor: '#2196F3',
-  },
-  genreText: {
-    fontSize: 14,
-    color: '#888888',
-    fontWeight: '500',
-  },
-  genreTextSelected: {
-    color: '#ffffff',
-  },
-  footer: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#333333',
-  },
-  createButton: {
-    backgroundColor: '#4CAF50',
-    padding: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  createButtonDisabled: {
-    backgroundColor: '#333333',
-  },
-  createButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    letterSpacing: 1,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#888888',
-    marginBottom: 15,
-    lineHeight: 20,
+    minWidth: '30%',
+    flexGrow: 1,
   },
   participantsContainer: {
     flexDirection: 'row',
@@ -417,13 +390,13 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#333333',
+    borderColor: '#2a2a2a',
     alignItems: 'center',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#1a1a1a',
   },
   participantButtonSelected: {
-    borderColor: '#FF9800',
-    backgroundColor: '#FF9800',
+    borderColor: '#7c3aed',
+    backgroundColor: '#7c3aed',
   },
   participantText: {
     fontSize: 24,
@@ -432,5 +405,13 @@ const styles = StyleSheet.create({
   },
   participantTextSelected: {
     color: '#ffffff',
+  },
+  footer: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#2a2a2a',
+  },
+  createButton: {
+    width: '100%',
   },
 });

@@ -43,14 +43,43 @@ export class TrinityStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    // Lambda Trigger for Cognito - Auto-confirm users
+    // Username mapping table - maps username to email for login
+    const usernamesTable = new dynamodb.Table(this, 'UsernamesTable', {
+      tableName: 'trinity-usernames',
+      partitionKey: { name: 'username', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // Lambda Trigger for Cognito - Auto-confirm users and store username mapping
     const preSignUpTrigger = new lambda.Function(this, 'PreSignUpTrigger', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'pre-signup.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../src/handlers/cognito-triggers')),
       timeout: cdk.Duration.seconds(10),
-      description: 'Auto-confirms users on sign-up',
+      description: 'Auto-confirms users on sign-up and stores username mapping',
+      environment: {
+        USERNAMES_TABLE: usernamesTable.tableName,
+      },
     });
+
+    // Grant permissions to write to usernames table
+    usernamesTable.grantReadData(preSignUpTrigger);
+
+    // Lambda Trigger for Cognito - Post Confirmation (stores username mapping)
+    const postConfirmationTrigger = new lambda.Function(this, 'PostConfirmationTrigger', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'post-confirmation.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../src/handlers/cognito-triggers')),
+      timeout: cdk.Duration.seconds(10),
+      description: 'Stores username mapping after successful user creation',
+      environment: {
+        USERNAMES_TABLE: usernamesTable.tableName,
+      },
+    });
+
+    // Grant permissions to write to usernames table
+    usernamesTable.grantWriteData(postConfirmationTrigger);
 
     // Cognito User Pool
     const userPool = new cognito.UserPool(this, 'TrinityUserPool', {
@@ -71,6 +100,7 @@ export class TrinityStack extends cdk.Stack {
       },
       lambdaTriggers: {
         preSignUp: preSignUpTrigger,
+        postConfirmation: postConfirmationTrigger,
       },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -99,6 +129,12 @@ export class TrinityStack extends cdk.Stack {
         additionalAuthorizationModes: [
           {
             authorizationType: appsync.AuthorizationType.IAM,
+          },
+          {
+            authorizationType: appsync.AuthorizationType.API_KEY,
+            apiKeyConfig: {
+              expires: cdk.Expiration.after(cdk.Duration.days(365)),
+            },
           },
         ],
       },
@@ -156,6 +192,20 @@ export class TrinityStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
     });
 
+    const usernameHandler = new lambda.Function(this, 'UsernameHandler', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../src/handlers/username')),
+      environment: {
+        USERNAMES_TABLE: usernamesTable.tableName,
+        ROOMS_TABLE: roomsTable.tableName,
+        VOTES_TABLE: votesTable.tableName,
+        MATCHES_TABLE: matchesTable.tableName,
+        USER_POOL_ID: userPool.userPoolId,
+      },
+      timeout: cdk.Duration.seconds(30),
+    });
+
     // Grant permissions
     roomsTable.grantReadWriteData(roomHandler);
     votesTable.grantReadWriteData(roomHandler);
@@ -164,6 +214,21 @@ export class TrinityStack extends cdk.Stack {
     matchesTable.grantReadWriteData(voteHandler);
     matchesTable.grantReadWriteData(matchHandler);
     roomsTable.grantReadData(voteHandler);
+    usernamesTable.grantReadWriteData(usernameHandler);
+    roomsTable.grantReadWriteData(usernameHandler);
+    votesTable.grantReadWriteData(usernameHandler);
+    matchesTable.grantReadWriteData(usernameHandler);
+
+    // Grant Cognito permissions to username handler
+    usernameHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          'cognito-idp:AdminDeleteUser',
+          'cognito-idp:AdminGetUser',
+        ],
+        resources: [userPool.userPoolArn],
+      })
+    );
 
     tmdbHandler.grantInvoke(roomHandler);
 
@@ -178,6 +243,7 @@ export class TrinityStack extends cdk.Stack {
     const roomDataSource = api.addLambdaDataSource('RoomDataSource', roomHandler);
     const voteDataSource = api.addLambdaDataSource('VoteDataSource', voteHandler);
     const matchDataSource = api.addLambdaDataSource('MatchDataSource', matchHandler);
+    const usernameDataSource = api.addLambdaDataSource('UsernameDataSource', usernameHandler);
 
     // Resolvers
     roomDataSource.createResolver('CreateRoomResolver', {
@@ -208,6 +274,16 @@ export class TrinityStack extends cdk.Stack {
     matchDataSource.createResolver('GetMyMatchesResolver', {
       typeName: 'Query',
       fieldName: 'getMyMatches',
+    });
+
+    usernameDataSource.createResolver('GetUsernameEmailResolver', {
+      typeName: 'Query',
+      fieldName: 'getUsernameEmail',
+    });
+
+    usernameDataSource.createResolver('DeleteUserAccountResolver', {
+      typeName: 'Mutation',
+      fieldName: 'deleteUserAccount',
     });
 
     // Subscription resolvers (no-op resolvers for triggering subscriptions)

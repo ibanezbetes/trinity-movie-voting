@@ -127,3 +127,12 @@ export const GET_MY_ROOMS = `
     }
   }
 `;
+
+export const GET_USERNAME_EMAIL = `
+  query GetUsernameEmail($username: String!) {
+    getUsernameEmail(username: $username) {
+      username
+      email
+    }
+  }
+`;

@@ -10,10 +10,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { signUp, signIn, confirmSignUp, getCurrentUser } from 'aws-amplify/auth';
 import { logger } from '../services/logger';
+import { Typography, Button, MovieCarousel, AppleLogo } from '../components';
+
+const { width, height } = Dimensions.get('window');
 
 interface AuthScreenProps {
   onAuthSuccess: () => void;
@@ -21,9 +26,24 @@ interface AuthScreenProps {
 
 type AuthMode = 'welcome' | 'login' | 'register';
 
+// Mock de las 10 mejores películas de la historia para el carousel
+const POPULAR_MOVIES = [
+  { id: 1, title: 'The Shawshank Redemption', poster: 'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg' },
+  { id: 2, title: 'The Godfather', poster: 'https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg' },
+  { id: 3, title: 'The Dark Knight', poster: 'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg' },
+  { id: 4, title: 'The Godfather Part II', poster: 'https://image.tmdb.org/t/p/w500/hek3koDUyRQk7FIhPXsa6mT2Zc3.jpg' },
+  { id: 5, title: '12 Angry Men', poster: 'https://image.tmdb.org/t/p/w500/ow3wq89wM8qd5X7hWKxiRfsFf9C.jpg' },
+  { id: 6, title: 'Schindler\'s List', poster: 'https://image.tmdb.org/t/p/w500/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg' },
+  { id: 7, title: 'The Lord of the Rings: The Return of the King', poster: 'https://image.tmdb.org/t/p/w500/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg' },
+  { id: 8, title: 'Pulp Fiction', poster: 'https://image.tmdb.org/t/p/w500/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg' },
+  { id: 9, title: 'Forrest Gump', poster: 'https://image.tmdb.org/t/p/w500/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg' },
+  { id: 10, title: 'Inception', poster: 'https://image.tmdb.org/t/p/w500/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg' },
+];
+
 export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [authMode, setAuthMode] = useState<AuthMode>('welcome');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +67,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     }
 
     setIsLoading(true);
-    logger.auth('Login attempt started', { email });
+    logger.auth('Login attempt started', { identifier: email });
 
     try {
       // Clear any existing session first
@@ -61,9 +81,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         logger.auth('No existing session found');
       }
 
-      // Attempt sign in
+      // Attempt sign in with email
       const result = await signIn({
-        username: email,
+        username: email, // Always use email for Cognito
         password: password,
         options: {
           authFlowType: 'USER_PASSWORD_AUTH' // Use password auth instead of SRP
@@ -71,7 +91,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       });
 
       logger.auth('Login successful', { 
-        email,
+        identifier: email,
         isSignedIn: result.isSignedIn,
         nextStep: result.nextStep?.signInStep 
       });
@@ -125,8 +145,19 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   };
 
   const handleRegister = async () => {
-    if (!email || !password || !confirmPassword) {
+    if (!email || !username || !password || !confirmPassword) {
       Alert.alert('Error', 'Por favor completa todos los campos');
+      return;
+    }
+
+    // Validar formato de username
+    if (username.length < 3) {
+      Alert.alert('Error', 'El nombre de usuario debe tener al menos 3 caracteres');
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      Alert.alert('Error', 'El nombre de usuario solo puede contener letras, números y guiones bajos');
       return;
     }
 
@@ -157,38 +188,42 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     }
 
     setIsLoading(true);
-    logger.auth('Registration attempt started', { email });
+    logger.auth('Registration attempt started', { email, username });
 
     try {
+      // Use email as Cognito username (required by current User Pool config)
+      // Store custom username in preferred_username attribute
       const result = await signUp({
-        username: email,
+        username: email, // Cognito username = email
         password: password,
         options: {
           userAttributes: {
             email: email,
+            preferred_username: username, // Custom username stored here
           },
-          autoSignIn: false, // Don't auto sign in - redirect to login instead
+          autoSignIn: false,
         },
       });
 
       logger.auth('Registration successful', { 
         email,
+        username,
         userId: result.userId,
         isSignUpComplete: result.isSignUpComplete,
         nextStep: result.nextStep?.signUpStep
       });
 
       // Always redirect to login after successful registration
-      // This ensures proper token management
       Alert.alert(
         'Registro Exitoso', 
-        'Tu cuenta ha sido creada correctamente. Por favor inicia sesión con tus credenciales.',
+        `Tu cuenta ha sido creada correctamente con el nombre de usuario "${username}". Por favor inicia sesión con tu email.`,
         [{ 
           text: 'Iniciar Sesión', 
           onPress: () => {
             // Clear password fields for security
             setPassword('');
             setConfirmPassword('');
+            setUsername('');
             // Redirect to login
             setAuthMode('login');
             logger.auth('User redirected to login after successful registration');
@@ -206,9 +241,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       if (error && typeof error === 'object') {
         const err = error as any;
         if (err.name === 'UsernameExistsException' || err.code === 'UsernameExistsException') {
-          errorMessage = 'Ya existe una cuenta con este email';
+          errorMessage = 'Ya existe una cuenta con este nombre de usuario';
         } else if (err.name === 'InvalidPasswordException' || err.code === 'InvalidPasswordException') {
           errorMessage = 'La contraseña no cumple con los requisitos de seguridad';
+        } else if (err.message && err.message.includes('email')) {
+          errorMessage = 'Ya existe una cuenta con este email';
         } else if (err.message) {
           errorMessage = err.message;
         }
@@ -222,49 +259,94 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   const handleGoogleLogin = async () => {
     logger.auth('Google login attempted');
-    // TODO: Implement Google OAuth
     Alert.alert('Próximamente', 'Login con Google estará disponible pronto');
+  };
+
+  const handleAppleLogin = async () => {
+    logger.auth('Apple login attempted');
+    Alert.alert('Próximamente', 'Login con Apple estará disponible pronto');
   };
 
   const renderWelcomeScreen = () => (
     <View style={styles.welcomeContainer}>
-      <View style={styles.logoContainer}>
-        <Text style={styles.logoText}>TRINITY</Text>
-        <Text style={styles.logoSubtext}>Movie Voting</Text>
+      {/* Carousel de películas de fondo */}
+      <MovieCarousel movies={POPULAR_MOVIES} autoScroll={true} scrollInterval={3000} />
+
+      {/* Contenido principal */}
+      <View style={styles.contentContainer}>
+        {/* Logo Trinity con sombra */}
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../../assets/logoTrinity.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+        </View>
+
+        {/* Texto de bienvenida */}
+        <View style={styles.welcomeTextContainer}>
+          <Typography variant="h1" align="center" style={styles.welcomeTitle}>
+            Trinity
+          </Typography>
+          <Typography variant="body" align="center" style={styles.welcomeSubtitle}>
+            Stop Scroll Infinity{'\n'}Ponte de acuerdo en un chin
+          </Typography>
+        </View>
+
+        {/* Botones */}
+        <View style={styles.buttonsContainer}>
+          {/* Botones principales */}
+          <Button
+            title="Iniciar Sesión"
+            variant="primary"
+            size="large"
+            onPress={() => {
+              logger.userAction('Auth mode changed to login');
+              setAuthMode('login');
+            }}
+            style={styles.mainButton}
+          />
+
+          <Button
+            title="Crear Cuenta"
+            variant="outline"
+            size="large"
+            onPress={() => {
+              logger.userAction('Auth mode changed to register');
+              setAuthMode('register');
+            }}
+            style={styles.mainButton}
+          />
+
+          {/* Texto "Continúa con:" */}
+          <Typography variant="caption" align="center" style={styles.continueText}>
+            Continúa con:
+          </Typography>
+
+          {/* Botones circulares sociales */}
+          <View style={styles.socialButtonsRow}>
+            <TouchableOpacity
+              style={styles.socialButtonCircle}
+              onPress={handleGoogleLogin}
+              activeOpacity={0.7}
+            >
+              <Image
+                source={{ uri: 'https://www.google.com/images/branding/googleg/1x/googleg_standard_color_128dp.png' }}
+                style={styles.socialIconLarge}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.socialButtonCircle}
+              onPress={handleAppleLogin}
+              activeOpacity={0.7}
+            >
+              <AppleLogo size={32} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
-
-      <View style={styles.welcomeButtonsContainer}>
-        <TouchableOpacity
-          style={[styles.button, styles.primaryButton]}
-          onPress={() => {
-            logger.userAction('Auth mode changed to login');
-            setAuthMode('login');
-          }}
-        >
-          <Text style={styles.primaryButtonText}>INICIAR SESIÓN</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton]}
-          onPress={() => {
-            logger.userAction('Auth mode changed to register');
-            setAuthMode('register');
-          }}
-        >
-          <Text style={styles.secondaryButtonText}>REGISTRARSE</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.button, styles.googleButton]}
-          onPress={handleGoogleLogin}
-        >
-          <Text style={styles.googleButtonText}>🔍 CONTINUAR CON GOOGLE</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Text style={styles.welcomeFooter}>
-        Swipe • Vote • Match
-      </Text>
     </View>
   );
 
@@ -273,7 +355,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       style={styles.formContainer}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.formHeader}>
           <TouchableOpacity
             style={styles.backButton}
@@ -284,11 +366,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           >
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.formTitle}>Iniciar Sesión</Text>
+          <Typography variant="h2">Iniciar Sesión</Typography>
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Email</Text>
+          <Typography variant="label" style={styles.inputLabel}>EMAIL</Typography>
           <TextInput
             style={styles.input}
             value={email}
@@ -305,7 +387,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Contraseña</Text>
+          <Typography variant="label" style={styles.inputLabel}>CONTRASEÑA</Typography>
           <TextInput
             style={styles.input}
             value={password}
@@ -319,17 +401,15 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           />
         </View>
 
-        <TouchableOpacity
-          style={[styles.button, styles.primaryButton, isLoading && styles.disabledButton]}
+        <Button
+          title="Iniciar Sesión"
+          variant="primary"
+          size="large"
           onPress={handleLogin}
           disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.primaryButtonText}>INICIAR SESIÓN</Text>
-          )}
-        </TouchableOpacity>
+          loading={isLoading}
+          style={styles.submitButton}
+        />
 
         <TouchableOpacity
           style={styles.linkButton}
@@ -338,7 +418,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             setAuthMode('register');
           }}
         >
-          <Text style={styles.linkText}>¿No tienes cuenta? Regístrate</Text>
+          <Typography variant="caption" style={styles.linkText}>
+            ¿No tienes cuenta? Crear cuenta
+          </Typography>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -349,7 +431,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       style={styles.formContainer}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.formHeader}>
           <TouchableOpacity
             style={styles.backButton}
@@ -360,11 +442,37 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           >
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.formTitle}>Registrarse</Text>
+          <Typography variant="h2">Crear Cuenta</Typography>
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Email</Text>
+          <Typography variant="label" style={styles.inputLabel}>NOMBRE DE USUARIO</Typography>
+          <TextInput
+            style={styles.input}
+            value={username}
+            onChangeText={(text) => {
+              setUsername(text.toLowerCase().trim());
+              logger.ui('Username input changed', { hasValue: !!text });
+            }}
+            placeholder="usuario123"
+            placeholderTextColor="#666666"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {username.length > 0 && username.length < 3 && (
+            <Typography variant="caption" style={styles.errorText}>
+              Mínimo 3 caracteres
+            </Typography>
+          )}
+          {username.length >= 3 && !/^[a-zA-Z0-9_]+$/.test(username) && (
+            <Typography variant="caption" style={styles.errorText}>
+              Solo letras, números y guiones bajos
+            </Typography>
+          )}
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Typography variant="label" style={styles.inputLabel}>EMAIL</Typography>
           <TextInput
             style={styles.input}
             value={email}
@@ -381,7 +489,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Contraseña</Text>
+          <Typography variant="label" style={styles.inputLabel}>CONTRASEÑA</Typography>
           <TextInput
             style={styles.input}
             value={password}
@@ -395,36 +503,48 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           />
           {password.length > 0 && (
             <View style={styles.passwordRequirements}>
-              <Text style={[
-                styles.requirementText,
-                passwordRequirements.minLength && styles.requirementMet
-              ]}>
+              <Typography 
+                variant="caption" 
+                style={[
+                  styles.requirementText,
+                  passwordRequirements.minLength && styles.requirementMet
+                ]}
+              >
                 {passwordRequirements.minLength ? '✓' : '•'} Mínimo 8 caracteres
-              </Text>
-              <Text style={[
-                styles.requirementText,
-                passwordRequirements.hasUppercase && styles.requirementMet
-              ]}>
+              </Typography>
+              <Typography 
+                variant="caption" 
+                style={[
+                  styles.requirementText,
+                  passwordRequirements.hasUppercase && styles.requirementMet
+                ]}
+              >
                 {passwordRequirements.hasUppercase ? '✓' : '•'} Al menos 1 mayúscula
-              </Text>
-              <Text style={[
-                styles.requirementText,
-                passwordRequirements.hasLowercase && styles.requirementMet
-              ]}>
+              </Typography>
+              <Typography 
+                variant="caption" 
+                style={[
+                  styles.requirementText,
+                  passwordRequirements.hasLowercase && styles.requirementMet
+                ]}
+              >
                 {passwordRequirements.hasLowercase ? '✓' : '•'} Al menos 1 minúscula
-              </Text>
-              <Text style={[
-                styles.requirementText,
-                passwordRequirements.hasNumber && styles.requirementMet
-              ]}>
+              </Typography>
+              <Typography 
+                variant="caption" 
+                style={[
+                  styles.requirementText,
+                  passwordRequirements.hasNumber && styles.requirementMet
+                ]}
+              >
                 {passwordRequirements.hasNumber ? '✓' : '•'} Al menos 1 número
-              </Text>
+              </Typography>
             </View>
           )}
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Confirmar Contraseña</Text>
+          <Typography variant="label" style={styles.inputLabel}>CONFIRMAR CONTRASEÑA</Typography>
           <TextInput
             style={styles.input}
             value={confirmPassword}
@@ -438,17 +558,15 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           />
         </View>
 
-        <TouchableOpacity
-          style={[styles.button, styles.primaryButton, isLoading && styles.disabledButton]}
+        <Button
+          title="Crear Cuenta"
+          variant="primary"
+          size="large"
           onPress={handleRegister}
           disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.primaryButtonText}>CREAR CUENTA</Text>
-          )}
-        </TouchableOpacity>
+          loading={isLoading}
+          style={styles.submitButton}
+        />
 
         <TouchableOpacity
           style={styles.linkButton}
@@ -457,7 +575,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             setAuthMode('login');
           }}
         >
-          <Text style={styles.linkText}>¿Ya tienes cuenta? Inicia sesión</Text>
+          <Typography variant="caption" style={styles.linkText}>
+            ¿Ya tienes cuenta? Iniciar sesión
+          </Typography>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -475,78 +595,95 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#0a0a0a',
   },
   welcomeContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  contentContainer: {
     flex: 1,
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 40,
     paddingVertical: 60,
+    zIndex: 1,
   },
   logoContainer: {
     alignItems: 'center',
-    marginTop: 60,
+    marginTop: 80,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.9,
+    shadowRadius: 12,
+    elevation: 15,
   },
-  logoText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    letterSpacing: 6,
+  logoImage: {
+    width: 180,
+    height: 180,
   },
-  logoSubtext: {
-    fontSize: 18,
-    color: '#888888',
-    marginTop: 10,
-    letterSpacing: 2,
+  welcomeTextContainer: {
+    alignItems: 'center',
+    marginTop: -40,
   },
-  welcomeButtonsContainer: {
+  welcomeTitle: {
+    marginBottom: 12,
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 6,
+  },
+  welcomeSubtitle: {
+    opacity: 0.95,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  buttonsContainer: {
     width: '100%',
-    gap: 20,
+    gap: 16,
   },
-  button: {
-    paddingVertical: 18,
-    paddingHorizontal: 30,
-    borderRadius: 12,
+  mainButton: {
+    width: '100%',
+  },
+  continueText: {
+    marginTop: 8,
+    marginBottom: 8,
+    opacity: 0.7,
+  },
+  socialButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20,
+    marginTop: 8,
+  },
+  socialButtonCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#1a1a1a',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  primaryButton: {
-    backgroundColor: '#4CAF50',
+  socialIconLarge: {
+    width: 32,
+    height: 32,
   },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#4CAF50',
-  },
-  googleButton: {
-    backgroundColor: '#ffffff',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  appleIconWhite: {
+    fontSize: 32,
     color: '#ffffff',
-    letterSpacing: 1,
-  },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    letterSpacing: 1,
-  },
-  googleButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    letterSpacing: 1,
-  },
-  welcomeFooter: {
-    fontSize: 14,
-    color: '#666666',
-    letterSpacing: 2,
   },
   formContainer: {
     flex: 1,
@@ -568,7 +705,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
-    backgroundColor: '#333333',
+    backgroundColor: '#1a1a1a',
     marginRight: 20,
   },
   backButtonText: {
@@ -576,51 +713,47 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: 'bold',
   },
-  formTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    letterSpacing: 1,
-  },
   inputContainer: {
-    marginBottom: 25,
+    marginBottom: 24,
   },
   inputLabel: {
-    fontSize: 16,
-    color: '#ffffff',
     marginBottom: 8,
-    fontWeight: '600',
   },
   input: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#1a1a1a',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 16,
     color: '#ffffff',
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: '#2a2a2a',
+  },
+  submitButton: {
+    marginTop: 8,
   },
   linkButton: {
     alignItems: 'center',
     marginTop: 20,
   },
   linkText: {
-    fontSize: 14,
-    color: '#4CAF50',
-    textDecorationLine: 'underline',
+    color: '#7c3aed',
   },
   passwordRequirements: {
-    marginTop: 8,
+    marginTop: 12,
     paddingLeft: 4,
+    gap: 4,
   },
   requirementText: {
-    fontSize: 12,
-    color: '#888888',
-    marginBottom: 4,
-    lineHeight: 18,
+    opacity: 0.6,
   },
   requirementMet: {
-    color: '#4CAF50',
+    color: '#7c3aed',
+    opacity: 1,
+  },
+  errorText: {
+    color: '#ef4444',
+    marginTop: 4,
+    fontSize: 12,
   },
 });

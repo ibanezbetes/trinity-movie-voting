@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { GET_MATCHES } from '../services/graphql';
 import { logger } from '../services/logger';
+import { AppTabBar, Icon } from '../components';
 
 interface Match {
   id: string;
@@ -99,7 +100,7 @@ export default function MyMatchesScreen() {
           />
         ) : (
           <View style={styles.posterPlaceholder}>
-            <Text style={styles.posterPlaceholderText}>🎬</Text>
+            <Icon name="film" size={40} color="#888888" />
           </View>
         )}
         
@@ -117,14 +118,15 @@ export default function MyMatchesScreen() {
       </View>
       
       <View style={styles.matchFooter}>
-        <Text style={styles.matchSuccess}>✨ ¡Match encontrado!</Text>
+        <Icon name="sparkles" size={18} color="#E91E63" />
+        <Text style={styles.matchSuccess}>¡Match encontrado!</Text>
       </View>
     </View>
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>💔</Text>
+      <Icon name="heart" size={80} color="#888888" />
       <Text style={styles.emptyTitle}>No tienes matches aún</Text>
       <Text style={styles.emptyDescription}>
         Únete a una sala y comienza a votar para encontrar películas que te gusten a ti y a otros usuarios
@@ -148,14 +150,14 @@ export default function MyMatchesScreen() {
           style={styles.backButton} 
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Icon name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
-        <Text style={styles.title}>MIS MATCHES</Text>
+        <Text style={styles.title}>Matches</Text>
         <TouchableOpacity
           style={styles.refreshButton}
           onPress={handleRefresh}
         >
-          <Text style={styles.refreshButtonText}>🔄</Text>
+          <Icon name="refresh" size={24} color="#ffffff" />
         </TouchableOpacity>
       </View>
 
@@ -183,6 +185,9 @@ export default function MyMatchesScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      {/* Floating Tab Bar */}
+      <AppTabBar activeTab="matches" />
     </SafeAreaView>
   );
 }
@@ -209,11 +214,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#333333',
   },
-  backButtonText: {
-    fontSize: 20,
-    color: '#ffffff',
-    fontWeight: 'bold',
-  },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -228,9 +228,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  refreshButtonText: {
-    fontSize: 18,
-  },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
@@ -243,6 +240,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 20,
+    paddingBottom: 100, // Space for floating tab bar
   },
   emptyList: {
     flex: 1,
@@ -273,9 +271,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  posterPlaceholderText: {
-    fontSize: 30,
-  },
   matchInfo: {
     flex: 1,
     marginLeft: 16,
@@ -298,10 +293,13 @@ const styles = StyleSheet.create({
     color: '#666666',
   },
   matchFooter: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#333333',
+    gap: 8,
   },
   matchSuccess: {
     fontSize: 14,
@@ -313,10 +311,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 40,
-  },
-  emptyIcon: {
-    fontSize: 80,
-    marginBottom: 20,
+    gap: 20,
   },
   emptyTitle: {
     fontSize: 24,

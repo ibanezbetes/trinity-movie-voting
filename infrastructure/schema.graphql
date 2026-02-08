@@ -50,6 +50,7 @@ type Mutation {
   addRoomMember(roomId: ID!, userId: String!): RoomMembership!
   removeRoomMember(roomId: ID!, userId: String!): Boolean!
   leaveRoom(roomId: ID!): Boolean!
+  deleteUserAccount: DeleteUserResult!
 }
 
 input CreateMatchInput {
@@ -68,6 +69,7 @@ type Query {
   checkUserMatches: [Match!]!
   getRoomMembers(roomId: ID!): [RoomMembership!]!
   getUserRooms(userId: String!): [RoomMembership!]!
+  getUsernameEmail(username: String!): UsernameMapping @aws_api_key
 }
 
 type Subscription {
@@ -135,6 +137,24 @@ type RoomMembership {
   joinedAt: AWSDateTime!
   isActive: Boolean!
   role: String!
+}
+
+type UsernameMapping @aws_api_key {
+  username: String!
+  email: String!
+}
+
+type DeleteUserResult {
+  success: Boolean!
+  message: String!
+  deletedItems: DeletedItems!
+}
+
+type DeletedItems {
+  username: Boolean!
+  rooms: Int!
+  votes: Int!
+  matches: Int!
 }
 
 input RoomMatchInput {

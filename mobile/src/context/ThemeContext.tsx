@@ -22,21 +22,21 @@ const lightTheme = {
   surface: '#ffffff',
   text: '#1a1a1a',
   textSecondary: '#666666',
-  primary: '#4CAF50',
+  primary: '#7c3aed',
   border: '#e0e0e0',
   card: '#ffffff',
-  error: '#f44336',
+  error: '#ef4444',
 };
 
 const darkTheme = {
-  background: '#1a1a1a',
-  surface: '#2a2a2a',
+  background: '#0a0a0a',
+  surface: '#1a1a1a',
   text: '#ffffff',
   textSecondary: '#cccccc',
-  primary: '#4CAF50',
-  border: '#333333',
-  card: '#2a2a2a',
-  error: '#f44336',
+  primary: '#7c3aed',
+  border: '#2a2a2a',
+  card: '#1a1a1a',
+  error: '#ef4444',
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -48,37 +48,15 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // Siempre usar tema oscuro
+  const [isDarkMode] = useState(true);
 
-  useEffect(() => {
-    loadThemePreference();
-  }, []);
-
-  const loadThemePreference = async () => {
-    try {
-      const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme !== null) {
-        const isDark = savedTheme === 'dark';
-        setIsDarkMode(isDark);
-        logger.info('THEME', 'Theme preference loaded', { isDarkMode: isDark });
-      }
-    } catch (error) {
-      logger.error('Failed to load theme preference', error);
-    }
+  const toggleTheme = () => {
+    // Función deshabilitada - siempre tema oscuro
+    logger.info('THEME', 'Theme toggle disabled - always dark mode');
   };
 
-  const toggleTheme = async () => {
-    try {
-      const newMode = !isDarkMode;
-      setIsDarkMode(newMode);
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, newMode ? 'dark' : 'light');
-      logger.userAction('Theme toggled', { isDarkMode: newMode });
-    } catch (error) {
-      logger.error('Failed to save theme preference', error);
-    }
-  };
-
-  const colors = isDarkMode ? darkTheme : lightTheme;
+  const colors = darkTheme;
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, toggleTheme, colors }}>

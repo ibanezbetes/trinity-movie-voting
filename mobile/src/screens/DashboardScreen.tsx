@@ -1,32 +1,88 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   StatusBar,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { getCurrentUser } from 'aws-amplify/auth';
 import { RootStackParamList } from '../types';
 import { logger } from '../services/logger';
 import { useProactiveMatchCheck, ACTION_NAMES } from '../hooks/useProactiveMatchCheck';
+import { Avatar, AppTabBar, Card, Typography, Button, Icon } from '../components';
 
 type DashboardNavigationProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;
-
-const { width, height } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const navigation = useNavigation<DashboardNavigationProp>();
   const { navigateWithMatchCheck } = useProactiveMatchCheck();
+  const [userName, setUserName] = useState('');
+  const [roomsCount, setRoomsCount] = useState(0);
+  const [matchesCount, setMatchesCount] = useState(0);
 
   useEffect(() => {
     logger.userAction('Screen loaded: Dashboard', {
       timestamp: new Date().toISOString()
     });
+    loadUserName();
+    loadCounts();
   }, []);
+
+  // Reload counts when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadCounts();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const loadUserName = async () => {
+    try {
+      const user = await getCurrentUser();
+      // Try to get preferred_username from user attributes
+      // If not available, fall back to username
+      const { fetchUserAttributes } = await import('aws-amplify/auth');
+      const attributes = await fetchUserAttributes();
+      const displayName = attributes.preferred_username || user.username || 'Usuario';
+      setUserName(displayName);
+    } catch (error) {
+      logger.error('Failed to load user name', error);
+      setUserName('Usuario');
+    }
+  };
+
+  const loadCounts = async () => {
+    try {
+      // Importar las queries necesarias
+      const { client } = await import('../services/amplify');
+      const { GET_MY_ROOMS, GET_MATCHES } = await import('../services/graphql');
+
+      // Obtener salas
+      const roomsResponse = await client.graphql({
+        query: GET_MY_ROOMS,
+        authMode: 'userPool',
+      });
+      setRoomsCount(roomsResponse.data.getMyRooms?.length || 0);
+
+      // Obtener matches
+      const matchesResponse = await client.graphql({
+        query: GET_MATCHES,
+        authMode: 'userPool',
+      });
+      setMatchesCount(matchesResponse.data.getMyMatches?.length || 0);
+
+      logger.info('Dashboard counts loaded', {
+        rooms: roomsResponse.data.getMyRooms?.length || 0,
+        matches: matchesResponse.data.getMyMatches?.length || 0,
+      });
+    } catch (error) {
+      logger.error('Failed to load counts', error);
+    }
+  };
 
   const handleCreateRoom = async () => {
     logger.userAction('Dashboard button pressed: Create Room');
@@ -44,97 +100,82 @@ export default function DashboardScreen() {
     );
   };
 
+  const handleMyMatches = async () => {
+    logger.userAction('Dashboard button pressed: My Matches');
+    navigation.navigate('MyMatches');
+  };
+
   const handleMyRooms = async () => {
     logger.userAction('Dashboard button pressed: My Rooms');
-    await navigateWithMatchCheck(
-      () => navigation.navigate('MyRooms'),
-      ACTION_NAMES.NAVIGATE_TO_MY_ROOMS
-    );
+    navigation.navigate('MyRooms');
   };
 
   const handleRecommendations = async () => {
     logger.userAction('Dashboard button pressed: Recommendations');
-    await navigateWithMatchCheck(
-      () => navigation.navigate('Recommendations'),
-      ACTION_NAMES.NAVIGATE_TO_RECOMMENDATIONS
-    );
+    navigation.navigate('Recommendations');
   };
 
   const handleProfile = async () => {
     logger.userAction('Dashboard button pressed: Profile');
-    await navigateWithMatchCheck(
-      () => navigation.navigate('Profile'),
-      ACTION_NAMES.NAVIGATE_TO_PROFILE
-    );
+    navigation.navigate('Profile');
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
+      <StatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       
-      {/* Header */}
+      {/* Header with Avatar */}
       <View style={styles.header}>
-        <Text style={styles.title}>TRINITY</Text>
-        <Text style={styles.subtitle}>Movie Voting</Text>
-        <TouchableOpacity
-          style={styles.profileButton}
-          onPress={handleProfile}
-        >
-          <Text style={styles.profileButtonText}>👤</Text>
-        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <View>
+            <Typography variant="h1" style={styles.title}>
+              ¡Hola {userName}!
+            </Typography>
+          </View>
+          <Avatar onPress={handleProfile} size={44} />
+        </View>
       </View>
 
-      {/* 4-Button Grid */}
-      <View style={styles.buttonGrid}>
-        {/* Create Room Button */}
-        <TouchableOpacity 
-          style={[styles.button, styles.createButton]} 
-          onPress={handleCreateRoom}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonIcon}>🏠</Text>
-          <Text style={styles.buttonTitle}>CREAR SALA</Text>
-          <Text style={styles.buttonSubtitle}>Create Room</Text>
-        </TouchableOpacity>
+      {/* Main Content */}
+      <View style={styles.content}>
+        {/* Action Buttons */}
+        <View style={styles.actionButtons}>
+          <Button
+            title="Crear nueva sala"
+            icon="add"
+            variant="primary"
+            size="large"
+            onPress={handleCreateRoom}
+            style={styles.primaryAction}
+          />
+          
+          <Button
+            title="Unirse a sala"
+            icon="enter"
+            variant="outline"
+            size="large"
+            onPress={handleJoinRoom}
+          />
+        </View>
 
-        {/* Join Room Button */}
-        <TouchableOpacity 
-          style={[styles.button, styles.joinButton]} 
-          onPress={handleJoinRoom}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonIcon}>🚪</Text>
-          <Text style={styles.buttonTitle}>UNIRSE A SALA</Text>
-          <Text style={styles.buttonSubtitle}>Join Room</Text>
-        </TouchableOpacity>
-
-        {/* My Rooms Button */}
-        <TouchableOpacity 
-          style={[styles.button, styles.roomsButton]} 
-          onPress={handleMyRooms}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonIcon}>📋</Text>
-          <Text style={styles.buttonTitle}>MIS SALAS</Text>
-          <Text style={styles.buttonSubtitle}>My Rooms</Text>
-        </TouchableOpacity>
-
-        {/* Recommendations Button */}
-        <TouchableOpacity 
-          style={[styles.button, styles.recommendationsButton]} 
-          onPress={handleRecommendations}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonIcon}>⭐</Text>
-          <Text style={styles.buttonTitle}>RECOMENDACIONES</Text>
-          <Text style={styles.buttonSubtitle}>Recommendations</Text>
-        </TouchableOpacity>
+        {/* Stats Cards - Solo 2 */}
+        <View style={styles.statsGrid}>
+          <Card style={styles.statCard} onPress={handleMyRooms}>
+            <Icon name="film" size={32} color="#7c3aed" />
+            <Typography variant="h3" align="center">{roomsCount}</Typography>
+            <Typography variant="caption" align="center">Salas</Typography>
+          </Card>
+          
+          <Card style={styles.statCard} onPress={handleMyMatches}>
+            <Icon name="heart" size={32} color="#7c3aed" />
+            <Typography variant="h3" align="center">{matchesCount}</Typography>
+            <Typography variant="caption" align="center">Matches</Typography>
+          </Card>
+        </View>
       </View>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Swipe • Vote • Match</Text>
-      </View>
+      {/* Floating Tab Bar - 5 tabs */}
+      <AppTabBar activeTab="home" />
     </SafeAreaView>
   );
 }
@@ -142,100 +183,45 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#0a0a0a',
   },
   header: {
-    alignItems: 'center',
-    paddingVertical: 30,
-    paddingTop: 20,
-    position: 'relative',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
   },
-  profileButton: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#333333',
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileButtonText: {
-    fontSize: 20,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    letterSpacing: 3,
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#888888',
-    marginTop: 5,
-    letterSpacing: 1,
+    marginTop: 0,
   },
-  buttonGrid: {
+  content: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingVertical: 20,
-    gap: 15,
+    paddingTop: 20,
+    paddingBottom: 100, // Space for floating tab bar
   },
-  button: {
+  actionButtons: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  primaryAction: {
+    backgroundColor: '#7c3aed',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statCard: {
     flex: 1,
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: (height - 300) / 4 - 15, // Distribute remaining space equally
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  createButton: {
-    backgroundColor: '#4CAF50',
-  },
-  joinButton: {
-    backgroundColor: '#2196F3',
-  },
-  roomsButton: {
-    backgroundColor: '#9C27B0',
-  },
-  recommendationsButton: {
-    backgroundColor: '#FF9800',
-  },
-  buttonIcon: {
-    fontSize: 40,
-    marginBottom: 10,
-  },
-  buttonTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 5,
-    letterSpacing: 1,
-  },
-  buttonSubtitle: {
-    fontSize: 14,
-    color: '#ffffff',
-    opacity: 0.8,
-    textAlign: 'center',
-  },
-  footer: {
     alignItems: 'center',
     paddingVertical: 20,
-    paddingBottom: 30,
-  },
-  footerText: {
-    fontSize: 14,
-    color: '#666666',
-    letterSpacing: 2,
+    gap: 8,
   },
 });

@@ -19,6 +19,7 @@ import { logger } from '../services/logger';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSound } from '../context/SoundContext';
+import { Typography, Button, AppTabBar, Icon } from '../components';
 
 interface Match {
   id: string;
@@ -32,7 +33,7 @@ interface Match {
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const { onSignOut } = useAuth();
-  const { isDarkMode, toggleTheme, colors } = useTheme();
+  const { colors } = useTheme();
   const { isMuted, toggleSound } = useSound();
   const [userInfo, setUserInfo] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -200,23 +201,23 @@ export default function ProfileScreen() {
             )}
           </View>
           
-          <Text style={[styles.userName, { color: colors.text }]}>
+          <Typography variant="h2" style={styles.userName}>
             {userInfo?.username || 'Usuario'}
-          </Text>
+          </Typography>
           
           <TouchableOpacity 
             style={styles.changePasswordLink}
             onPress={handleChangePassword}
           >
-            <Text style={[styles.changePasswordText, { color: colors.primary }]}>
+            <Typography variant="caption" style={[styles.changePasswordText, { color: colors.primary }]}>
               Cambiar contraseña
-            </Text>
+            </Typography>
           </TouchableOpacity>
         </View>
 
         {/* SECCIÓN 2: ACTIVIDAD */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>ACTIVIDAD</Text>
+          <Typography variant="label" style={styles.sectionLabel}>ACTIVIDAD</Typography>
           
           <TouchableOpacity 
             style={[styles.menuItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}
@@ -225,30 +226,23 @@ export default function ProfileScreen() {
               navigation.navigate('MyMatches' as never);
             }}
           >
-            <Text style={styles.menuItemIcon}>🎬</Text>
-            <Text style={[styles.menuItemText, { color: colors.text }]}>Mis Matches</Text>
-            <Text style={styles.menuItemArrow}>›</Text>
+            <Icon name="film" size={22} color={colors.text} />
+            <Typography variant="body" style={[styles.menuItemText, { color: colors.text }]}>
+              Mis Matches
+            </Typography>
+            <Icon name="arrow-forward" size={20} color="#cccccc" />
           </TouchableOpacity>
         </View>
 
         {/* SECCIÓN 3: PREFERENCIAS */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>PREFERENCIAS</Text>
+          <Typography variant="label" style={styles.sectionLabel}>PREFERENCIAS</Typography>
           
           <View style={[styles.menuItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-            <Text style={styles.menuItemIcon}>🌙</Text>
-            <Text style={[styles.menuItemText, { color: colors.text }]}>Tema Oscuro</Text>
-            <Switch
-              value={isDarkMode}
-              onValueChange={toggleTheme}
-              trackColor={{ false: '#767577', true: colors.primary }}
-              thumbColor={isDarkMode ? '#ffffff' : '#f4f3f4'}
-            />
-          </View>
-
-          <View style={[styles.menuItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-            <Text style={styles.menuItemIcon}>🔇</Text>
-            <Text style={[styles.menuItemText, { color: colors.text }]}>Silenciar Sonidos</Text>
+            <Icon name={isMuted ? 'volume-mute' : 'volume-high'} size={22} color={colors.text} />
+            <Typography variant="body" style={[styles.menuItemText, { color: colors.text }]}>
+              Silenciar Sonidos
+            </Typography>
             <Switch
               value={isMuted}
               onValueChange={toggleSound}
@@ -260,56 +254,64 @@ export default function ProfileScreen() {
 
         {/* SECCIÓN 4: SOPORTE */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>SOPORTE</Text>
+          <Typography variant="label" style={styles.sectionLabel}>SOPORTE</Typography>
           
           <TouchableOpacity 
             style={[styles.menuItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}
             onPress={() => handleOpenURL('https://google.com', 'Ayuda / FAQs')}
           >
-            <Text style={styles.menuItemIcon}>❓</Text>
-            <Text style={[styles.menuItemText, { color: colors.text }]}>Ayuda / FAQs</Text>
-            <Text style={styles.menuItemArrow}>›</Text>
+            <Icon name="help-circle" size={22} color={colors.text} />
+            <Typography variant="body" style={[styles.menuItemText, { color: colors.text }]}>
+              Ayuda / FAQs
+            </Typography>
+            <Icon name="arrow-forward" size={20} color="#cccccc" />
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={[styles.menuItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}
             onPress={() => handleOpenURL('https://google.com', 'Valorar App')}
           >
-            <Text style={styles.menuItemIcon}>⭐</Text>
-            <Text style={[styles.menuItemText, { color: colors.text }]}>Valorar App</Text>
-            <Text style={styles.menuItemArrow}>›</Text>
+            <Icon name="star" size={22} color={colors.text} />
+            <Typography variant="body" style={[styles.menuItemText, { color: colors.text }]}>
+              Valorar App
+            </Typography>
+            <Icon name="arrow-forward" size={20} color="#cccccc" />
           </TouchableOpacity>
         </View>
 
         {/* SECCIÓN 5: INFORMACIÓN */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>INFORMACIÓN</Text>
+          <Typography variant="label" style={styles.sectionLabel}>INFORMACIÓN</Typography>
           
           <TouchableOpacity 
             style={[styles.menuItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}
             onPress={() => setShowAboutModal(true)}
           >
-            <Text style={styles.menuItemIcon}>ℹ️</Text>
-            <Text style={[styles.menuItemText, { color: colors.text }]}>Sobre Trinity</Text>
-            <Text style={styles.menuItemArrow}>›</Text>
+            <Icon name="information-circle" size={22} color={colors.text} />
+            <Typography variant="body" style={[styles.menuItemText, { color: colors.text }]}>
+              Sobre Trinity
+            </Typography>
+            <Icon name="arrow-forward" size={20} color="#cccccc" />
           </TouchableOpacity>
         </View>
 
         {/* SECCIÓN 6: ZONA DE PELIGRO */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>CUENTA</Text>
+          <Typography variant="label" style={styles.sectionLabel}>CUENTA</Typography>
           
           <TouchableOpacity 
             style={[styles.menuItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}
             onPress={handleSignOut}
             disabled={isSigningOut}
           >
-            <Text style={styles.menuItemIcon}>🚪</Text>
-            <Text style={[styles.menuItemText, { color: colors.text }]}>Cerrar Sesión</Text>
+            <Icon name="exit" size={22} color={colors.text} />
+            <Typography variant="body" style={[styles.menuItemText, { color: colors.text }]}>
+              Cerrar Sesión
+            </Typography>
             {isSigningOut ? (
               <ActivityIndicator size="small" color={colors.primary} />
             ) : (
-              <Text style={styles.menuItemArrow}>›</Text>
+              <Icon name="arrow-forward" size={20} color="#cccccc" />
             )}
           </TouchableOpacity>
 
@@ -318,12 +320,14 @@ export default function ProfileScreen() {
             onPress={handleDeleteAccount}
             disabled={isDeletingAccount}
           >
-            <Text style={styles.menuItemIcon}>⚠️</Text>
-            <Text style={[styles.menuItemText, styles.dangerText]}>Eliminar Cuenta</Text>
+            <Icon name="warning" size={22} color="#ef4444" />
+            <Typography variant="body" style={[styles.menuItemText, styles.dangerText]}>
+              Eliminar Cuenta
+            </Typography>
             {isDeletingAccount ? (
-              <ActivityIndicator size="small" color="#f44336" />
+              <ActivityIndicator size="small" color="#ef4444" />
             ) : (
-              <Text style={styles.menuItemArrow}>›</Text>
+              <Icon name="arrow-forward" size={20} color="#cccccc" />
             )}
           </TouchableOpacity>
         </View>
@@ -347,15 +351,15 @@ export default function ProfileScreen() {
               {/* Logo de la App */}
               <View style={styles.modalLogoContainer}>
                 <View style={[styles.modalAppLogo, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.modalAppLogoText}>🎬</Text>
+                  <Text style={styles.modalAppLogoText}>T</Text>
                 </View>
-                <Text style={[styles.modalAppName, { color: colors.text }]}>Trinity</Text>
+                <Typography variant="h1" style={styles.modalAppName}>Trinity</Typography>
               </View>
 
               {/* Versión */}
-              <Text style={[styles.modalVersion, { color: colors.textSecondary }]}>
-                Versión 1.0.0
-              </Text>
+              <Typography variant="caption" style={styles.modalVersion}>
+                Versión 2.2.2
+              </Typography>
 
               {/* Separador */}
               <View style={[styles.modalDivider, { backgroundColor: colors.border }]} />
@@ -365,9 +369,9 @@ export default function ProfileScreen() {
                 <View style={styles.tmdbLogoContainer}>
                   <Text style={styles.tmdbLogoText}>TMDB</Text>
                 </View>
-                <Text style={[styles.tmdbLegalText, { color: colors.textSecondary }]}>
+                <Typography variant="caption" style={[styles.tmdbLegalText, { color: colors.textSecondary }]}>
                   This product uses the TMDB API but is not endorsed or certified by TMDB.
-                </Text>
+                </Typography>
               </View>
 
               {/* Separador */}
@@ -379,32 +383,36 @@ export default function ProfileScreen() {
                   style={styles.legalLink}
                   onPress={() => handleOpenURL('https://google.com', 'Política de Privacidad')}
                 >
-                  <Text style={[styles.legalLinkText, { color: colors.primary }]}>
+                  <Typography variant="body" style={[styles.legalLinkText, { color: colors.primary }]}>
                     Política de Privacidad
-                  </Text>
+                  </Typography>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
                   style={styles.legalLink}
                   onPress={() => handleOpenURL('https://google.com', 'Términos de Uso')}
                 >
-                  <Text style={[styles.legalLinkText, { color: colors.primary }]}>
+                  <Typography variant="body" style={[styles.legalLinkText, { color: colors.primary }]}>
                     Términos de Uso
-                  </Text>
+                  </Typography>
                 </TouchableOpacity>
               </View>
 
               {/* Botón Cerrar */}
-              <TouchableOpacity 
-                style={[styles.modalCloseButton, { backgroundColor: colors.primary }]}
+              <Button
+                title="Cerrar"
+                variant="primary"
+                size="large"
                 onPress={() => setShowAboutModal(false)}
-              >
-                <Text style={styles.modalCloseButtonText}>Cerrar</Text>
-              </TouchableOpacity>
+                style={styles.modalCloseButton}
+              />
             </ScrollView>
           </View>
         </View>
       </Modal>
+
+      {/* Floating Tab Bar */}
+      <AppTabBar activeTab="profile" />
     </SafeAreaView>
   );
 }
@@ -426,7 +434,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 100, // Space for floating tab bar
   },
   
   // SECCIÓN 1: CABECERA
@@ -492,24 +500,15 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-  },
-  menuItemIcon: {
-    fontSize: 22,
-    marginRight: 15,
-    width: 30,
+    gap: 15,
   },
   menuItemText: {
     flex: 1,
     fontSize: 16,
     fontWeight: '500',
   },
-  menuItemArrow: {
-    fontSize: 24,
-    color: '#cccccc',
-    fontWeight: '300',
-  },
   dangerText: {
-    color: '#f44336',
+    color: '#ef4444',
   },
   
   // MODAL
@@ -548,6 +547,8 @@ const styles = StyleSheet.create({
   },
   modalAppLogoText: {
     fontSize: 40,
+    fontWeight: 'bold',
+    color: '#ffffff',
   },
   modalAppName: {
     fontSize: 28,

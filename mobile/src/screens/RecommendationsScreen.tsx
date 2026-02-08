@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { staticRecommendations, RecommendationCategory, RecommendationMovie } from '../data/staticRecommendations';
+import { AppTabBar, Icon } from '../components';
 
 export default function RecommendationsScreen() {
   const navigation = useNavigation();
@@ -61,7 +62,7 @@ export default function RecommendationsScreen() {
           style={styles.backButton} 
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Icon name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
         <Text style={styles.title}>RECOMENDACIONES</Text>
         <View style={styles.placeholder} />
@@ -76,6 +77,9 @@ export default function RecommendationsScreen() {
         contentContainerStyle={styles.categoriesContainer}
         ItemSeparatorComponent={() => <View style={{ height: 30 }} />}
       />
+
+      {/* Floating Tab Bar */}
+      <AppTabBar activeTab="recommendations" />
     </SafeAreaView>
   );
 }
@@ -102,11 +106,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#333333',
   },
-  backButtonText: {
-    fontSize: 20,
-    color: '#ffffff',
-    fontWeight: 'bold',
-  },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -118,6 +117,7 @@ const styles = StyleSheet.create({
   },
   categoriesContainer: {
     paddingVertical: 20,
+    paddingBottom: 100, // Space for floating tab bar
   },
   categoryContainer: {
     paddingHorizontal: 20,

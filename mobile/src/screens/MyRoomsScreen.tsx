@@ -16,6 +16,7 @@ import { RootStackParamList } from '../types';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { GET_MY_ROOMS } from '../services/graphql';
 import { logger } from '../services/logger';
+import { AppTabBar, Icon } from '../components';
 
 type MyRoomsNavigationProp = StackNavigationProp<RootStackParamList, 'MyRooms'>;
 
@@ -157,16 +158,16 @@ export default function MyRoomsScreen() {
 
       <View style={styles.roomFooter}>
         <Text style={styles.statusText}>
-          {item.isHost ? '🏠 Sala creada por ti' : '🚪 Te uniste a esta sala'}
+          {item.isHost ? 'Sala creada por ti' : 'Te uniste a esta sala'}
         </Text>
-        <Text style={styles.joinText}>Tocar para entrar →</Text>
+        <Icon name="arrow-forward" size={20} color="#4CAF50" />
       </View>
     </TouchableOpacity>
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>🏠</Text>
+      <Icon name="film" size={80} color="#888888" />
       <Text style={styles.emptyTitle}>No tienes salas activas</Text>
       <Text style={styles.emptySubtitle}>
         Las salas aparecen aquí cuando las creas o te unes a ellas. 
@@ -189,14 +190,14 @@ export default function MyRoomsScreen() {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Icon name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
-        <Text style={styles.title}>Mis Salas</Text>
+        <Text style={styles.title}>Salas</Text>
         <TouchableOpacity
           style={styles.refreshButton}
           onPress={handleRefresh}
         >
-          <Text style={styles.refreshButtonText}>🔄</Text>
+          <Icon name="refresh" size={24} color="#ffffff" />
         </TouchableOpacity>
       </View>
 
@@ -224,6 +225,9 @@ export default function MyRoomsScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      {/* Floating Tab Bar */}
+      <AppTabBar activeTab="home" />
     </SafeAreaView>
   );
 }
@@ -250,11 +254,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backButtonText: {
-    fontSize: 20,
-    color: '#ffffff',
-    fontWeight: 'bold',
-  },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -269,9 +268,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  refreshButtonText: {
-    fontSize: 18,
-  },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
@@ -284,6 +280,7 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 20,
+    paddingBottom: 100, // Space for floating tab bar
     flexGrow: 1,
   },
   roomCard: {
@@ -361,20 +358,12 @@ const styles = StyleSheet.create({
     color: '#888888',
     flex: 1,
   },
-  joinText: {
-    fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
-  },
-  emptyIcon: {
-    fontSize: 80,
-    marginBottom: 20,
+    gap: 20,
   },
   emptyTitle: {
     fontSize: 24,

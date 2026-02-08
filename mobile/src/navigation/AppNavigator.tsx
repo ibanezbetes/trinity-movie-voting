@@ -70,7 +70,7 @@ export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
             initialRouteName="Dashboard"
             screenOptions={{
               headerShown: false,
-              cardStyle: { backgroundColor: '#1a1a1a' },
+              cardStyle: { backgroundColor: '#0a0a0a' },
               animationEnabled: true,
               gestureEnabled: true,
             }}

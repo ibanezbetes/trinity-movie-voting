@@ -25,6 +25,7 @@ const amplifyConfig = {
       endpoint: awsConfig.graphqlEndpoint,
       region: awsConfig.region,
       defaultAuthMode: awsConfig.authenticationType,
+      apiKey: process.env.EXPO_PUBLIC_GRAPHQL_API_KEY,
     },
   },
 };
