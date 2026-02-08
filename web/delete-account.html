@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Solicitud de eliminación de cuenta - Trinity">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Eliminar Cuenta - Trinity</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .delete-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .delete-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .delete-header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #ef4444;
+        }
+
+        .delete-header p {
+            font-size: 1.1rem;
+            color: #888;
+        }
+
+        .warning-box {
+            background: rgba(239, 68, 68, 0.1);
+            border: 2px solid #ef4444;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .warning-box h2 {
+            color: #ef4444;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .warning-box ul {
+            list-style: none;
+            padding: 0;
+            margin: 15px 0;
+        }
+
+        .warning-box li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .warning-box li:before {
+            content: "❌";
+            position: absolute;
+            left: 0;
+        }
+
+        .info-box {
+            background: rgba(147, 51, 234, 0.1);
+            border: 2px solid #9333ea;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .info-box h2 {
+            color: #9333ea;
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+        }
+
+        .info-box p {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+
+        .delete-form {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #0a0a0a;
+            color: #fff;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #9333ea;
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 5px;
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-top: 4px;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            font-weight: normal;
+        }
+
+        .submit-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s;
+        }
+
+        .submit-btn:hover {
+            background: #dc2626;
+        }
+
+        .submit-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .alternative-box {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .alternative-box h3 {
+            color: #9333ea;
+            margin-bottom: 15px;
+        }
+
+        .alternative-box p {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+
+        .contact-info {
+            background: rgba(147, 51, 234, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .contact-info a {
+            color: #9333ea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .contact-info a:hover {
+            text-decoration: underline;
+        }
+
+        .success-message {
+            display: none;
+            background: rgba(34, 197, 94, 0.1);
+            border: 2px solid #22c55e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .success-message h2 {
+            color: #22c55e;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .delete-header h1 {
+                font-size: 2rem;
+            }
+
+            .delete-form {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="delete-container">
+        <!-- Header -->
+        <div class="delete-header">
+            <h1>⚠️Eliminar Cuenta⚠️</h1>
+            <p>Trinity</p>
+        </div>
+
+        <!-- Success Message (hidden by default) -->
+        <div id="successMessage" class="success-message">
+            <h2>✅ Solicitud Enviada</h2>
+            <p>Tu solicitud de eliminación de cuenta ha sido recibida.</p>
+            <p>Procesaremos tu solicitud en un plazo máximo de 30 días.</p>
+            <p>Recibirás una confirmación por email cuando se complete.</p>
+        </div>
+
+        <!-- Warning Box -->
+        <div class="warning-box">
+            <h2>⚠️ Advertencia: Esta acción es irreversible</h2>
+            <p>Al eliminar tu cuenta, se eliminarán permanentemente:</p>
+            <ul>
+                <li>Tu perfil y datos personales</li>
+                <li>Todas tus salas creadas</li>
+                <li>Tu historial de votos</li>
+                <li>Tus chines guardados</li>
+                <li>Cualquier preferencia o configuración</li>
+            </ul>
+            <p style="margin-top: 15px; font-weight: 600;">Esta acción NO se puede deshacer.</p>
+        </div>
+
+        <!-- Info Box -->
+        <div class="info-box">
+            <h2>📋 Proceso de Eliminación</h2>
+            <p><strong>1. Solicitud:</strong> Completa el formulario a continuación</p>
+            <p><strong>2. Verificación:</strong> Verificaremos tu identidad por email</p>
+            <p><strong>3. Procesamiento:</strong> Eliminaremos todos tus datos (máx. 30 días)</p>
+            <p><strong>4. Confirmación:</strong> Recibirás un email de confirmación</p>
+        </div>
+
+        <!-- Delete Form -->
+        <div class="delete-form">
+            <h2 style="margin-bottom: 20px;">Formulario de Solicitud</h2>
+            <form id="deleteForm">
+                <div class="form-group">
+                    <label for="email">Email de la cuenta *</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        required 
+                        placeholder="tu@email.com"
+                    >
+                    <small>Debe ser el email asociado a tu cuenta de Trinity</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="username">Nombre de usuario (opcional)</label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username" 
+                        placeholder="Tu nombre de usuario en Trinity"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="reason">Motivo de eliminación (opcional)</label>
+                    <textarea 
+                        id="reason" 
+                        name="reason" 
+                        placeholder="Cuéntanos por qué deseas eliminar tu cuenta. Esto nos ayuda a mejorar."
+                    ></textarea>
+                </div>
+
+                <div class="checkbox-group">
+                    <input 
+                        type="checkbox" 
+                        id="confirm" 
+                        name="confirm" 
+                        required
+                    >
+                    <label for="confirm">
+                        Confirmo que entiendo que esta acción es irreversible y que todos mis datos serán eliminados permanentemente.
+                    </label>
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    Enviar Solicitud de Eliminación
+                </button>
+            </form>
+        </div>
+
+        <!-- Alternative Options -->
+        <div class="alternative-box">
+            <h3>🤔 ¿Estás seguro?</h3>
+            <p>Si tienes algún problema con la app, considera estas alternativas antes de eliminar tu cuenta:</p>
+            <ul style="margin: 15px 0; padding-left: 20px;">
+                <li style="margin: 8px 0;">Puedes cerrar sesión temporalmente</li>
+                <li style="margin: 8px 0;">Puedes eliminar salas específicas sin borrar tu cuenta</li>
+                <li style="margin: 8px 0;">Puedes contactarnos para resolver cualquier problema</li>
+            </ul>
+
+            <div class="contact-info">
+                <p><strong>¿Necesitas ayuda?</strong></p>
+                <p>Email: <a href="mailto:trinity.app.spain@gmail.com">trinity.app.spain@gmail.com</a></p>
+                <p>Instagram: <a href="https://www.instagram.com/trinity.app/" target="_blank">@trinity.app</a></p>
+            </div>
+        </div>
+
+        <!-- Back to Home -->
+        <div style="text-align: center; margin-top: 40px;">
+            <a href="/" style="color: #9333ea; text-decoration: none; font-weight: 600;">
+                ← Volver a Trinity
+            </a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('deleteForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const form = document.getElementById('deleteForm');
+            const successMessage = document.getElementById('successMessage');
+            
+            // Disable button
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Enviando...';
+            
+            // Get form data
+            const formData = {
+                email: document.getElementById('email').value,
+                username: document.getElementById('username').value,
+                reason: document.getElementById('reason').value,
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent
+            };
+            
+            // Send email using mailto (fallback)
+            const subject = encodeURIComponent('Solicitud de Eliminación de Cuenta - Trinity');
+            const body = encodeURIComponent(
+                `Solicitud de Eliminación de Cuenta\n\n` +
+                `Email: ${formData.email}\n` +
+                `Nombre de usuario: ${formData.username || 'No proporcionado'}\n` +
+                `Motivo: ${formData.reason || 'No proporcionado'}\n\n` +
+                `Fecha: ${formData.timestamp}\n\n` +
+                `Confirmo que deseo eliminar mi cuenta y todos los datos asociados de forma permanente.`
+            );
+            
+            // Open email client
+            window.location.href = `mailto:trinity.app.spain@gmail.com?subject=${subject}&body=${body}`;
+            
+            // Show success message after a delay
+            setTimeout(() => {
+                form.style.display = 'none';
+                successMessage.classList.add('show');
+                
+                // Log to console (for debugging)
+                console.log('Delete account request:', formData);
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Política de Privacidad de Trinity App">
+    <title>Política de Privacidad - Trinity</title>
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-content">
+                <a href="index.html" class="logo">
+                    <img src="splash-icon.png" alt="Trinity Logo">
+                    <span>Trinity</span>
+                </a>
+                <div class="nav-links">
+                    <a href="index.html">Inicio</a>
+                    <a href="faqs.html">FAQs</a>
+                    <a href="privacy.html">Privacidad</a>
+                    <a href="terms.html">Términos</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="content-page">
+        <div class="container">
+            <h1>Política de Privacidad</h1>
+
+            <div class="content-box">
+                <p><strong>Última actualización:</strong> 8 de febrero de 2026</p>
+                <p><strong>Versión:</strong> 1.0.0</p>
+            </div>
+
+            <h2>1. Introducción</h2>
+            <p>
+                En Trinity, nos tomamos muy en serio la privacidad
+                de nuestros usuarios. Esta Política de Privacidad describe cómo recopilamos, usamos,
+                almacenamos y protegemos tu información personal cuando utilizas nuestra aplicación móvil.
+            </p>
+
+            <h2>2. Información que Recopilamos</h2>
+
+            <h3>2.1 Información de Cuenta</h3>
+            <p>Cuando te registras en Trinity, recopilamos:</p>
+            <ul>
+                <li><strong>Email:</strong> Tu dirección de correo electrónico para crear y gestionar tu cuenta</li>
+                <li><strong>Contraseña:</strong> Almacenada de forma segura y encriptada mediante Amazon Cognito</li>
+                <li><strong>Username:</strong> Un nombre de usuario único que eliges para identificarte en la app</li>
+                <li><strong>ID de Usuario:</strong> Un identificador único generado automáticamente</li>
+            </ul>
+
+            <h3>2.2 Autenticación con Google</h3>
+            <p>Si eliges iniciar sesión con Google, recopilamos:</p>
+            <ul>
+                <li>Tu dirección de email de Google</li>
+                <li>Tu nombre de perfil de Google</li>
+            </ul>
+            <p>
+                <strong>Nota importante:</strong> No tenemos acceso a tu contraseña de Google.
+                La autenticación se realiza de forma segura a través de Google OAuth 2.0.
+            </p>
+
+            <h3>2.3 Datos de Uso</h3>
+            <p>Recopilamos información sobre cómo usas la aplicación:</p>
+            <ul>
+                <li>Salas creadas y códigos de sala</li>
+                <li>Votos realizados en películas y series</li>
+                <li>Chines encontrados con otros usuarios</li>
+                <li>Preferencias de géneros seleccionados</li>
+                <li>Fecha y hora de actividad</li>
+            </ul>
+
+            <h3>2.4 Información Técnica</h3>
+            <ul>
+                <li>Tipo de dispositivo y sistema operativo</li>
+                <li>Versión de la aplicación</li>
+                <li>Logs de errores y crashes (para mejorar la app)</li>
+                <li>Dirección IP (para seguridad y prevención de fraude)</li>
+            </ul>
+
+            <h2>3. Cómo Usamos tu Información</h2>
+            <p>Utilizamos la información recopilada para:</p>
+            <ul>
+                <li><strong>Proporcionar el servicio:</strong> Crear salas, procesar votos, detectar chines</li>
+                <li><strong>Autenticación:</strong> Verificar tu identidad y mantener tu sesión segura</li>
+                <li><strong>Comunicación:</strong> Enviarte notificaciones sobre chines y actualizaciones importantes
+                </li>
+                <li><strong>Mejora del servicio:</strong> Analizar el uso para mejorar funcionalidades</li>
+                <li><strong>Seguridad:</strong> Detectar y prevenir fraudes, abusos o actividades maliciosas</li>
+                <li><strong>Soporte técnico:</strong> Resolver problemas y responder a tus consultas</li>
+            </ul>
+
+            <h2>4. Almacenamiento y Seguridad</h2>
+
+            <h3>4.1 Dónde Almacenamos tus Datos</h3>
+            <p>
+                Todos tus datos se almacenan de forma segura en Amazon Web Services (AWS)
+                en la región de Europa (Irlanda - eu-west-1). Utilizamos:
+            </p>
+            <ul>
+                <li><strong>Amazon Cognito:</strong> Para autenticación y gestión de usuarios</li>
+                <li><strong>Amazon DynamoDB:</strong> Para almacenar salas, votos y chines</li>
+                <li><strong>AWS AppSync:</strong> Para comunicación en tiempo real</li>
+            </ul>
+
+            <h3>4.2 Medidas de Seguridad</h3>
+            <ul>
+                <li>Encriptación de datos en tránsito (HTTPS/TLS)</li>
+                <li>Encriptación de datos en reposo</li>
+                <li>Autenticación multifactor disponible</li>
+                <li>Tokens de sesión con expiración automática</li>
+                <li>Auditorías de seguridad regulares</li>
+            </ul>
+
+            <h3>4.3 Retención de Datos</h3>
+            <ul>
+                <li><strong>Salas:</strong> Se eliminan automáticamente después de 24 horas</li>
+                <li><strong>Votos:</strong> Se mantienen mientras la sala esté activa</li>
+                <li><strong>Chines:</strong> Se conservan en tu historial hasta que los elimines</li>
+                <li><strong>Cuenta de usuario:</strong> Se mantiene hasta que solicites su eliminación</li>
+            </ul>
+
+            <h2>5. Compartir Información</h2>
+            <p><strong>No vendemos ni alquilamos tu información personal a terceros.</strong></p>
+
+            <h3>5.1 Compartimos información solo con:</h3>
+            <ul>
+                <li>
+                    <strong>The Movie Database (TMDB):</strong> Para obtener información de películas y series.
+                    Solo enviamos IDs de géneros, no información personal.
+                </li>
+                <li>
+                    <strong>Amazon Web Services (AWS):</strong> Como proveedor de infraestructura cloud.
+                    AWS cumple con GDPR y tiene certificaciones de seguridad internacionales.
+                </li>
+                <li>
+                    <strong>Google (si usas login con Google):</strong> Solo para autenticación OAuth 2.0.
+                </li>
+            </ul>
+
+            <h3>5.2 Divulgación Legal</h3>
+            <p>
+                Podemos divulgar tu información si es requerido por ley, orden judicial,
+                o para proteger nuestros derechos legales.
+            </p>
+
+            <h2>6. Tus Derechos</h2>
+            <p>Tienes derecho a:</p>
+            <ul>
+                <li><strong>Acceder:</strong> Solicitar una copia de tus datos personales</li>
+                <li><strong>Rectificar:</strong> Corregir información incorrecta o incompleta</li>
+                <li><strong>Eliminar:</strong> Solicitar la eliminación de tu cuenta y datos</li>
+                <li><strong>Portabilidad:</strong> Recibir tus datos en formato estructurado</li>
+                <li><strong>Oposición:</strong> Oponerte al procesamiento de tus datos</li>
+                <li><strong>Limitación:</strong> Solicitar la limitación del procesamiento</li>
+            </ul>
+            <p>
+                Para ejercer estos derechos, contáctanos en:
+                <a href="mailto:trinity.app.spain@gmail.com">trinity.app.spain@gmail.com</a>
+            </p>
+
+            <h2>7. Cookies y Tecnologías Similares</h2>
+            <p>
+                Trinity no utiliza cookies en la aplicación móvil. Sin embargo, nuestro sitio web
+                puede usar cookies básicas para mejorar la experiencia de navegación.
+            </p>
+
+            <h2>8. Eliminación de Cuenta y Datos</h2>
+            <p>
+                Puedes solicitar la eliminación de tu cuenta y todos los datos asociados en cualquier momento.
+            </p>
+            
+            <h3>8.1 Cómo Eliminar tu Cuenta</h3>
+            <p>Tienes dos opciones:</p>
+            <ul>
+                <li>
+                    <strong>Desde la app:</strong> Ve a Perfil > Eliminar Cuenta
+                </li>
+                <li>
+                    <strong>Desde la web:</strong> Visita 
+                    <a href="delete-account.html">trinity-app.es/delete-account</a>
+                </li>
+            </ul>
+
+            <h3>8.2 Qué se Elimina</h3>
+            <p>Cuando eliminas tu cuenta, se eliminan permanentemente:</p>
+            <ul>
+                <li>Tu perfil y datos personales (email, username)</li>
+                <li>Todas las salas que hayas creado</li>
+                <li>Tu historial de votos</li>
+                <li>Tus chines guardados</li>
+                <li>Cualquier preferencia o configuración</li>
+            </ul>
+
+            <h3>8.3 Plazo de Eliminación</h3>
+            <p>
+                Los datos se eliminan en un plazo máximo de <strong>30 días</strong> desde la solicitud.
+                Recibirás una confirmación por email cuando se complete el proceso.
+            </p>
+
+            <h3>8.4 Datos que Pueden Conservarse</h3>
+            <p>Por razones legales o de seguridad, podemos conservar:</p>
+            <ul>
+                <li>Logs de seguridad (anonimizados)</li>
+                <li>Información requerida por ley</li>
+                <li>Datos necesarios para resolver disputas</li>
+            </ul>
+
+            <h2>9. Privacidad de Menores</h2>
+            <p>
+                Trinity está diseñada para usuarios mayores de 13 años. No recopilamos
+                intencionalmente información de menores de 13 años. Si descubrimos que hemos
+                recopilado datos de un menor, los eliminaremos inmediatamente.
+            </p>
+
+            <h2>10. Transferencias Internacionales</h2>
+            <p>
+                Tus datos se almacenan en servidores de AWS en la Unión Europea (Irlanda).
+                AWS cumple con el GDPR y tiene mecanismos de protección adecuados para
+                transferencias internacionales de datos.
+            </p>
+
+            <h2>11. Cambios en esta Política</h2>
+            <p>
+                Podemos actualizar esta Política de Privacidad ocasionalmente. Te notificaremos
+                de cambios significativos a través de la aplicación o por email. La fecha de
+                "Última actualización" al inicio de este documento indica cuándo se realizó
+                la última modificación.
+            </p>
+
+            <h2>12. Cumplimiento con GDPR</h2>
+            <p>
+                Trinity cumple con el Reglamento General de Protección de Datos (GDPR) de la
+                Unión Europea. Como usuario, tienes derechos específicos sobre tus datos personales
+                que respetamos y facilitamos.
+            </p>
+
+            <h2>13. Contacto</h2>
+            <p>
+                Si tienes preguntas, inquietudes o solicitudes relacionadas con tu privacidad
+                o esta política, contáctanos:
+            </p>
+            <div class="content-box">
+                <p><strong>Email:</strong> <a href="mailto:trinity.app.spain@gmail.com">trinity.app.spain@gmail.com</a></p>
+                <p><strong>Instagram:</strong> <a href="https://www.instagram.com/trinity.app/" target="_blank">@trinity.app</a></p>
+                <p><strong>Web:</strong> <a href="https://trinity-app.es">trinity-app.es</a></p>
+            </div>
+
+            <div class="content-box" style="margin-top: 40px; background: rgba(147, 51, 234, 0.1); border: 2px solid #9333ea;">
+                <h3 style="color: #9333ea; margin-top: 0;">Enlaces Importantes</h3>
+                <p>
+                    <a href="terms.html" style="color: #9333ea; font-weight: 600;">Términos de Uso</a> |
+                    <a href="faqs.html" style="color: #9333ea; font-weight: 600;">Preguntas Frecuentes</a> |
+                    <a href="delete-account.html" style="color: #9333ea; font-weight: 600;">Eliminar Cuenta</a>
+                </p>
+            </div>
+
+            <p style="text-align: center; margin-top: 40px; color: #888;">
+                🎬 Stop Scroll Infinity - Ponte de acuerdo en un chin ✨
+            </p>
+        </div>
+    </main>
+
+    <footer style="background: #0a0a0a; padding: 40px 20px; margin-top: 60px; border-top: 1px solid #333;">
+        <div class="container" style="text-align: center;">
+            <p style="color: #888; margin: 10px 0;">
+                <a href="index.html" style="color: #9333ea; text-decoration: none; margin: 0 10px;">Inicio</a> |
+                <a href="privacy.html" style="color: #9333ea; text-decoration: none; margin: 0 10px;">Privacidad</a> |
+                <a href="terms.html" style="color: #9333ea; text-decoration: none; margin: 0 10px;">Términos</a> |
+                <a href="faqs.html" style="color: #9333ea; text-decoration: none; margin: 0 10px;">FAQs</a> |
+                <a href="delete-account.html" style="color: #9333ea; text-decoration: none; margin: 0 10px;">Eliminar Cuenta</a>
+            </p>
+            <p style="color: #666; margin: 20px 0;">&copy; 2026 Trinity App. Todos los derechos reservados.</p>
+        </div>
+    </footer>
+</body>
+
+</html>

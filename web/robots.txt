@@ -1,0 +1,10 @@
+# Trinity Web - Robots.txt
+
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://trinity-app.es/sitemap.xml
+
+# Disallow admin or private areas (if any in the future)
+# Disallow: /admin/

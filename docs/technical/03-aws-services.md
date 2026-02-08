@@ -111,15 +111,15 @@ interface VoteItem {
 - Voto específico: `PK = roomId, SK = userId#movieId`
 - Participación de usuario: `SK begins_with userId#`
 
-#### Tabla: trinity-matches
+#### Tabla: trinity-chines
 ```typescript
-interface MatchItem {
+interface ChinItem {
   roomId: string;       // Partition Key
   movieId: number;      // Sort Key
-  matchId: string;
+  chinId: string;
   title: string;
   posterPath?: string;
-  matchedUsers: string[];
+  chinedUsers: string[];
   timestamp: string;
 }
 ```
@@ -162,8 +162,8 @@ type Mutation {
 }
 
 type Subscription {
-  userMatch(userId: ID!): UserMatchEvent
-    @aws_subscribe(mutations: ["publishUserMatch"])
+  userChin(userId: ID!): UserChinEvent
+    @aws_subscribe(mutations: ["publishUserChin"])
 }
 ```
 
@@ -188,13 +188,13 @@ roomDataSource.createResolver('GetMyRoomsResolver', {
 
 #### Real-time Subscriptions
 ```typescript
-// Cliente se suscribe a matches
+// Cliente se suscribe a chines
 const subscription = client.graphql({
   query: USER_MATCH_SUBSCRIPTION,
   variables: { userId: 'user123' },
 }).subscribe({
   next: ({ data }) => {
-    console.log('¡Nuevo match!', data.userMatch);
+    console.log('¡Nuevo chin!', data.userChin);
   }
 });
 ```
@@ -412,14 +412,14 @@ graph TB
     subgraph "Compute"
         D[Room Lambda]
         E[Vote Lambda]
-        F[Match Lambda]
+        F[Chin Lambda]
         G[TMDB Lambda]
     end
     
     subgraph "Storage"
         H[DynamoDB Rooms]
         I[DynamoDB Votes]
-        J[DynamoDB Matches]
+        J[DynamoDB Chin]
     end
     
     subgraph "External"

@@ -226,15 +226,15 @@ export const useAuth = (): AuthContextType => {
 ### Custom Hooks
 ```typescript
 // ✅ Lógica reutilizable y tipada
-export const useMatchPolling = (
+export const useChinPolling = (
   userId: string,
-  onMatch: (match: Match) => void
+  onChin: (chin: Chin) => void
 ) => {
   const [isPolling, setIsPolling] = useState(false);
   
   const startPolling = useCallback(() => {
     // Lógica de polling
-  }, [userId, onMatch]);
+  }, [userId, onChin]);
   
   return { isPolling, startPolling, stopPolling };
 };
@@ -296,9 +296,9 @@ describe('RoomService', () => {
     
     const result = await roomService.createRoom('user123', input);
     
-    expect(result).toMatchObject({
+    expect(result).toChinObject({
       id: expect.any(String),
-      code: expect.stringMatching(/^[A-Z0-9]{6}$/),
+      code: expect.stringChining(/^[A-Z0-9]{6}$/),
       hostId: 'user123'
     });
   });

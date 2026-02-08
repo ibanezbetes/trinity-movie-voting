@@ -61,6 +61,7 @@ export default function ProfileScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isGoogleUser, setIsGoogleUser] = useState(false);
   
   // Modal state
   const [showAboutModal, setShowAboutModal] = useState(false);
@@ -125,16 +126,19 @@ export default function ProfileScreen() {
       const authType = await AsyncStorage.default.getItem('@trinity_auth_type');
       
       if (authType === 'google') {
+        setIsGoogleUser(true);
         // Get email from Google login
         const googleEmail = await AsyncStorage.default.getItem('@trinity_google_email');
         if (googleEmail) {
           // Extract prefix from email (before @)
           const emailPrefix = googleEmail.split('@')[0];
           setUserName(emailPrefix);
-          logger.info('Loaded Google user profile', { emailPrefix });
+          logger.info('Loaded Google user profile', { emailPrefix, isGoogleUser: true });
           setIsLoading(false);
           return;
         }
+      } else {
+        setIsGoogleUser(false);
       }
       
       // For regular User Pool login
@@ -147,7 +151,8 @@ export default function ProfileScreen() {
       
       logger.auth('User profile loaded', {
         userId: user.userId,
-        username: displayName
+        username: displayName,
+        isGoogleUser: false
       });
       
     } catch (error) {
@@ -466,14 +471,17 @@ export default function ProfileScreen() {
             {userName}
           </Typography>
           
-          <TouchableOpacity 
-            style={styles.changePasswordLink}
-            onPress={handleChangePassword}
-          >
-            <Typography variant="caption" style={[styles.changePasswordText, { color: colors.primary }]}>
-              Cambiar contraseña
-            </Typography>
-          </TouchableOpacity>
+          {/* Solo mostrar "Cambiar contraseña" si NO es usuario de Google */}
+          {!isGoogleUser && (
+            <TouchableOpacity 
+              style={styles.changePasswordLink}
+              onPress={handleChangePassword}
+            >
+              <Typography variant="caption" style={[styles.changePasswordText, { color: colors.primary }]}>
+                Cambiar contraseña
+              </Typography>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* SECCIÓN 2: ACTIVIDAD */}
@@ -527,7 +535,7 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <TouchableOpacity 
             style={[styles.menuItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}
-            onPress={() => handleOpenURL('https://trinity-app.es/faqs', 'Ayuda / FAQs')}
+            onPress={() => handleOpenURL('https://trinity-app.es/faqs.html', 'Ayuda / FAQs')}
           >
             <Icon name="help-circle" size={22} color={colors.text} />
             <Typography variant="body" style={[styles.menuItemText, { color: colors.text }]}>
@@ -538,7 +546,7 @@ export default function ProfileScreen() {
 
           <TouchableOpacity 
             style={[styles.menuItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}
-            onPress={() => handleOpenURL('https://google.com', 'Valorar')}
+            onPress={() => handleOpenURL('https://play.google.com/store/apps/details?id=com.trinityapp.mobile', 'Valorar')}
           >
             <Icon name="star" size={22} color={colors.text} />
             <Typography variant="body" style={[styles.menuItemText, { color: colors.text }]}>
@@ -795,7 +803,7 @@ export default function ProfileScreen() {
               <View style={styles.legalLinksContainer}>
                 <TouchableOpacity 
                   style={styles.legalLink}
-                  onPress={() => handleOpenURL('https://trinity-app.es/privacy', 'Política de Privacidad')}
+                  onPress={() => handleOpenURL('https://trinity-app.es/privacy.html', 'Política de Privacidad')}
                 >
                   <Typography variant="body" style={[styles.legalLinkText, { color: colors.primary }]}>
                     Política de Privacidad
@@ -804,7 +812,7 @@ export default function ProfileScreen() {
 
                 <TouchableOpacity 
                   style={styles.legalLink}
-                  onPress={() => handleOpenURL('https://trinity-app.es/terms', 'Términos de Uso')}
+                  onPress={() => handleOpenURL('https://trinity-app.es/terms.html', 'Términos de Uso')}
                 >
                   <Typography variant="body" style={[styles.legalLinkText, { color: colors.primary }]}>
                     Términos de Uso

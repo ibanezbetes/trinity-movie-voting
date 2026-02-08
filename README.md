@@ -1,21 +1,21 @@
-# 🎬 Trinity - Movie Matching App
+# 🎬 Trinity - Movie Chining App
 
 **Version**: 1.0.0  
 **Status**: ✅ Production Ready  
 **Last Updated**: 2026-02-08
 
-Trinity is a real-time movie matching application that helps groups of friends decide what to watch together. Stop endless scrolling and reach consensus in seconds with our innovative voting system.
+Trinity is a real-time movie chining application that helps groups of friends decide what to watch together. Stop endless scrolling and reach consensus in seconds with our innovative voting system.
 
 ## 🌟 Features
 
 ### Core Functionality
 - **Smart Room Creation**: Create voting rooms with customizable genres and media types
 - **Real-Time Voting**: Swipe-style voting interface with instant synchronization
-- **Match Detection**: Automatic detection when all participants agree on a movie
+- **Chin Detection**: Automatic detection when all participants agree on a movie
 - **Google Sign-In**: Seamless authentication with Google OAuth
-- **Live Notifications**: Real-time match notifications via GraphQL subscriptions
-- **Room Management**: Track your active rooms and past matches
-- **Sound Effects**: Immersive audio feedback for votes and matches
+- **Live Notifications**: Real-time chin notifications via GraphQL subscriptions
+- **Room Management**: Track your active rooms and past chines
+- **Sound Effects**: Immersive audio feedback for votes and chines
 
 ### Technical Highlights
 - **Serverless Architecture**: Built on AWS with auto-scaling capabilities
@@ -43,7 +43,7 @@ Trinity uses a modern serverless architecture:
                   │
                   ├─── Room Handler
                   ├─── Vote Handler
-                  ├─── Match Handler
+                  ├─── Chin Handler
                   ├─── TMDB Handler
                   └─── Username Handler
                   │
@@ -51,7 +51,7 @@ Trinity uses a modern serverless architecture:
                            │
                            ├─── trinity-rooms
                            ├─── trinity-votes
-                           └─── trinity-matches
+                           └─── trinity-chines
 ```
 
 ## 📁 Project Structure
@@ -76,12 +76,20 @@ trinity/
 │   ├── src/handlers/     # Lambda function source code
 │   │   ├── room/         # Room management
 │   │   ├── vote/         # Vote processing
-│   │   ├── match/        # Match detection
+│   │   ├── chin/        # Chin detection
 │   │   ├── tmdb/         # TMDB API integration
 │   │   └── username/     # Username management
 │   ├── lambda-zips/      # Compiled Lambda packages
 │   ├── scripts/          # Utility scripts
 │   └── schema.graphql    # GraphQL schema
+│
+├── web/                  # Marketing website
+│   ├── index.html        # Landing page
+│   ├── privacy.html      # Privacy policy
+│   ├── terms.html        # Terms of service
+│   ├── faqs.html         # FAQs
+│   ├── styles.css        # Global styles
+│   └── .htaccess         # Apache configuration
 │
 └── docs/                 # Documentation
     ├── technical/        # Technical documentation
@@ -207,15 +215,15 @@ Trinity supports multiple authentication methods:
 }
 ```
 
-### Matches
+### Chines
 ```typescript
 {
   roomId: string;       // Partition key
   movieId: number;      // Sort key
-  matchId: string;      // UUID
+  chinId: string;      // UUID
   title: string;
   posterPath?: string;
-  matchedUsers: string[];
+  chinedUsers: string[];
   timestamp: string;
 }
 ```
@@ -238,13 +246,13 @@ Trinity supports multiple authentication methods:
 ### 3. Vote
 1. User swipes right (yes) or left (no) on movies
 2. Vote is recorded in DynamoDB
-3. System checks for matches after each vote
-4. If all participants vote yes on same movie → Match!
+3. System checks for chines after each vote
+4. If all participants vote yes on same movie → Chin!
 
-### 4. Match Detection
+### 4. Chin Detection
 1. Vote Handler checks if all active users voted yes
-2. Match record created in DynamoDB
-3. GraphQL subscription publishes match event
+2. Chin record created in DynamoDB
+3. GraphQL subscription publishes chin event
 4. All participants receive real-time notification
 5. Celebration screen displays with confetti
 
@@ -292,10 +300,36 @@ cd infrastructure
 npm run build
 ./create-zips.ps1
 
-# Build Android APK
+# Build Android APK (for testing)
 cd mobile
-npx eas build --platform android --profile production
+npx eas build --platform android --profile production-apk
+
+# Build Android AAB (for Google Play Store)
+cd mobile
+./create-keystore.ps1    # First time only
+./generate-aab.ps1       # Generate AAB
 ```
+
+### Publishing to Google Play Store
+
+**Quick Steps**:
+1. Generate production keystore (first time only):
+   ```bash
+   cd mobile
+   ./create-keystore.ps1
+   ```
+
+2. Build Android App Bundle:
+   ```bash
+   ./generate-aab.ps1
+   ```
+
+3. Upload to Play Console:
+   - Go to [Google Play Console](https://play.google.com/console)
+   - Upload `android/app/build/outputs/bundle/release/app-release.aab`
+   - Complete store listing and submit
+
+📖 **Complete Guide**: See [Google Play Store Publishing Guide](docs/GOOGLE_PLAY_STORE_GUIDE.md) for detailed step-by-step instructions.
 
 ### Useful Scripts
 ```bash
@@ -318,6 +352,19 @@ npm run ios           # Run on iOS
 - [Technical Documentation](docs/technical/README.md) - In-depth technical docs
 - [Infrastructure README](infrastructure/README.md) - AWS infrastructure details
 - [Mobile README](mobile/README.md) - Mobile app documentation
+- [Web README](web/README.md) - Marketing website documentation
+
+## 🌐 Website
+
+Trinity includes a marketing website with:
+- **Landing Page**: App overview and download links
+- **Privacy Policy**: GDPR-compliant privacy information
+- **Terms of Service**: Legal terms and conditions
+- **FAQs**: Comprehensive help and support
+
+The website is built with vanilla HTML/CSS for maximum performance and can be deployed to any static hosting service (Netlify, Vercel, GitHub Pages, AWS S3, etc.).
+
+**Live Site**: [trinity-app.es](https://trinity-app.es)
 
 ## 🔧 Configuration
 

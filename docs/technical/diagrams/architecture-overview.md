@@ -21,9 +21,9 @@ graph TB
     subgraph "🔗 API Layer"
         AS[AWS AppSync<br/>GraphQL API]
         subgraph "GraphQL Operations"
-            Q[Queries<br/>getMyRooms, getMyMatches]
+            Q[Queries<br/>getMyRooms, getMyChin]
             M[Mutations<br/>createRoom, vote, joinRoom]
-            S[Subscriptions<br/>userMatch, roomMatch]
+            S[Subscriptions<br/>userChin, roomChin]
         end
     end
     
@@ -31,7 +31,7 @@ graph TB
         subgraph "Lambda Functions"
             RH[Room Handler<br/>Gestión de Salas]
             VH[Vote Handler<br/>Procesamiento Votos]
-            MH[Match Handler<br/>Gestión Matches]
+            MH[Chin Handler<br/>Gestión Chin]
             TH[TMDB Handler<br/>API Externa]
         end
     end
@@ -40,7 +40,7 @@ graph TB
         subgraph "DynamoDB Tables"
             RT[trinity-rooms<br/>Salas + Candidatos]
             VT[trinity-votes<br/>Votos + Participación]
-            MT[trinity-matches<br/>Matches Encontrados]
+            MT[trinity-chines<br/>Chin Encontrados]
         end
     end
     
@@ -111,7 +111,7 @@ graph TB
 
 ## 🔄 Diagrama de Flujo de Datos
 
-### Flujo Principal: Crear Sala → Votar → Match
+### Flujo Principal: Crear Sala → Votar → Chin
 ```mermaid
 flowchart TD
     A[👤 Usuario inicia app] --> B{🔐 Autenticado?}
@@ -148,7 +148,7 @@ flowchart TD
     X -->|No| Y[⏳ Esperar más votos]
     X -->|Sí| Z[🎉 MATCH ENCONTRADO!]
     
-    Z --> AA[💾 Crear registro match]
+    Z --> AA[💾 Crear registro chin]
     AA --> AB[📡 Publicar notificación]
     AB --> AC[📱 Notificar usuarios]
     AC --> AD[🎬 Mostrar película ganadora]
@@ -195,13 +195,13 @@ graph TB
         
         subgraph "🎣 Custom Hooks"
             UA[useAuth<br/>Authentication State]
-            UP[usePolling<br/>Match Polling]
-            UM[useMatches<br/>Match Management]
+            UP[usePolling<br/>Chin Polling]
+            UM[useChin<br/>Chin Management]
         end
         
         subgraph "🌍 Context Providers"
             AC[AuthContext<br/>User State]
-            MC[MatchContext<br/>Notification State]
+            MC[ChinContext<br/>Notification State]
         end
     end
     
@@ -217,7 +217,7 @@ graph TB
         subgraph "🔧 Lambda Functions"
             RF[Room Function<br/>CRUD Operations]
             VF[Vote Function<br/>Vote Processing]
-            MF[Match Function<br/>Match Queries]
+            MF[Chin Function<br/>Chin Queries]
             TF[TMDB Function<br/>External API]
         end
     end
@@ -226,7 +226,7 @@ graph TB
         subgraph "🗄️ DynamoDB"
             RDB[(Rooms Table<br/>Salas + Candidatos)]
             VDB[(Votes Table<br/>Votos + Participación)]
-            MDB[(Matches Table<br/>Matches Encontrados)]
+            MDB[(Chin Table<br/>Chin Encontrados)]
         end
         
         subgraph "🌐 External"
@@ -294,16 +294,16 @@ stateDiagram-v2
     Waiting_Users --> Voting: Usuarios se unen
     
     Voting --> Voting: Más votos necesarios
-    Voting --> Match_Found: Todos votan positivo
-    Voting --> No_Match: Votos negativos/mixtos
+    Voting --> Chin_Found: Todos votan positivo
+    Voting --> No_Chin: Votos negativos/mixtos
     
-    No_Match --> Voting: Continuar votando
-    Match_Found --> Completed: Notificar usuarios
+    No_Chin --> Voting: Continuar votando
+    Chin_Found --> Completed: Notificar usuarios
     
     Active --> Expired: TTL alcanzado (24h)
     Waiting_Users --> Expired: TTL alcanzado
     Voting --> Expired: TTL alcanzado
-    No_Match --> Expired: TTL alcanzado
+    No_Chin --> Expired: TTL alcanzado
     
     Completed --> [*]: Sala archivada
     Expired --> [*]: Sala eliminada
@@ -315,11 +315,11 @@ stateDiagram-v2
     
     note right of Voting
         Vote Handler
-        verifica matches
+        verifica chines
     end note
     
-    note right of Match_Found
-        Match Handler
+    note right of Chin_Found
+        Chin Handler
         + Notifications
     end note
 ```
@@ -339,44 +339,44 @@ sequenceDiagram
     Note over U1,U2: Ambos usuarios en la misma sala
     
     %% Suscripción inicial
-    APP->>AS: Subscribe to userMatch
+    APP->>AS: Subscribe to userChin
     AS->>SUB: Register subscription
     
     %% Primer voto
     U1->>APP: Vota positivo por película X
     APP->>AS: vote mutation
     AS->>VH: Process vote
-    VH->>VH: Store vote + Check match
-    Note over VH: 1 de 2 usuarios - No match aún
+    VH->>VH: Store vote + Check chin
+    Note over VH: 1 de 2 usuarios - No chin aún
     VH-->>AS: Vote recorded
     AS-->>APP: Success response
     
-    %% Segundo voto que genera match
+    %% Segundo voto que genera chin
     U2->>APP: Vota positivo por película X
     APP->>AS: vote mutation
     AS->>VH: Process vote
-    VH->>VH: Store vote + Check match
+    VH->>VH: Store vote + Check chin
     Note over VH: 2 de 2 usuarios - MATCH!
     
     %% Publicar notificaciones
-    VH->>AS: publishUserMatch(user1)
-    VH->>AS: publishUserMatch(user2)
+    VH->>AS: publishUserChin(user1)
+    VH->>AS: publishUserChin(user2)
     
     %% Entregar notificaciones
-    AS->>SUB: Broadcast match events
-    SUB-->>APP: Match notification (user1)
-    SUB-->>APP: Match notification (user2)
+    AS->>SUB: Broadcast chin events
+    SUB-->>APP: Chin notification (user1)
+    SUB-->>APP: Chin notification (user2)
     
     %% Actualizar UI
-    APP-->>U1: 🎉 Match encontrado!
-    APP-->>U2: 🎉 Match encontrado!
+    APP-->>U1: 🎉 Chin encontrado!
+    APP-->>U2: 🎉 Chin encontrado!
     
     %% Fallback polling (si subscription falla)
     alt Subscription Error
-        APP->>AS: checkUserMatches (polling)
-        AS-->>APP: Recent matches
-        APP-->>U1: 🎉 Match (delayed)
-        APP-->>U2: 🎉 Match (delayed)
+        APP->>AS: checkUserChin (polling)
+        AS-->>APP: Recent chines
+        APP-->>U1: 🎉 Chin (delayed)
+        APP-->>U2: 🎉 Chin (delayed)
     end
 ```
 
@@ -409,10 +409,10 @@ erDiagram
     MATCHES {
         string roomId PK
         number movieId SK
-        string matchId
+        string chinId
         string title
         string posterPath
-        string[] matchedUsers
+        string[] chinedUsers
         string timestamp
     }
     
@@ -425,11 +425,11 @@ erDiagram
     
     %% Relationships
     ROOMS ||--o{ VOTES : "users vote in rooms"
-    ROOMS ||--o{ MATCHES : "rooms generate matches"
-    VOTES ||--o{ MATCHES : "unanimous votes create matches"
+    ROOMS ||--o{ MATCHES : "rooms generate chines"
+    VOTES ||--o{ MATCHES : "unanimous votes create chines"
     USERS ||--o{ ROOMS : "users create rooms"
     USERS ||--o{ VOTES : "users cast votes"
-    USERS ||--o{ MATCHES : "users participate in matches"
+    USERS ||--o{ MATCHES : "users participate in chines"
     
     %% Notes
     ROOMS }|--|| TMDB_API : "fetches candidates"

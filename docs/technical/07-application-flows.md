@@ -213,7 +213,7 @@ try {
 ## 🗳️ Flujo 3: Proceso de Votación
 
 ### Descripción
-Los usuarios votan por películas candidatas. El sistema registra cada voto y verifica automáticamente si se ha producido un match (todos votan positivamente por la misma película).
+Los usuarios votan por películas candidatas. El sistema registra cada voto y verifica automáticamente si se ha producido un chin (todos votan positivamente por la misma película).
 
 ### Diagrama de Secuencia
 ```mermaid
@@ -232,12 +232,12 @@ sequenceDiagram
     AS->>VH: Process vote
     
     VH->>DB: PutItem (trinity-votes)
-    VH->>VH: Check for match
+    VH->>VH: Check for chin
     VH->>DB: Query votos positivos película X
     VH->>DB: Query total usuarios sala
     
     Note over VH: 1 de 2 usuarios votó positivo
-    VH-->>AS: Vote recorded, no match
+    VH-->>AS: Vote recorded, no chin
     AS-->>M: Success
     
     U2->>M: Vota positivo por película X
@@ -245,20 +245,20 @@ sequenceDiagram
     AS->>VH: Process vote
     
     VH->>DB: PutItem (trinity-votes)
-    VH->>VH: Check for match
+    VH->>VH: Check for chin
     VH->>DB: Query votos positivos película X
     VH->>DB: Query total usuarios sala
     
     Note over VH: 2 de 2 usuarios votaron positivo - MATCH!
-    VH->>DB: PutItem (trinity-matches)
-    VH->>AS: publishUserMatch (Usuario 1)
-    VH->>AS: publishUserMatch (Usuario 2)
+    VH->>DB: PutItem (trinity-chines)
+    VH->>AS: publishUserChin (Usuario 1)
+    VH->>AS: publishUserChin (Usuario 2)
     
-    AS-->>U1: Match notification
-    AS-->>U2: Match notification
+    AS-->>U1: Chin notification
+    AS-->>U2: Chin notification
 ```
 
-### Algoritmo de Detección de Matches
+### Algoritmo de Detección de Chin
 
 #### 1. Registrar Voto
 ```typescript
@@ -277,10 +277,10 @@ await docClient.send(new PutCommand({
 }));
 ```
 
-#### 2. Verificar Match (Solo para Votos Positivos)
+#### 2. Verificar Chin (Solo para Votos Positivos)
 ```typescript
 if (!vote) {
-  return { success: true }; // No verificar matches para votos negativos
+  return { success: true }; // No verificar chines para votos negativos
 }
 
 // Obtener votos positivos para esta película
@@ -291,30 +291,30 @@ const totalUsers = await getTotalUsers(roomId);
 
 // Verificar unanimidad
 if (positiveVotes.length === totalUsers.length && totalUsers.length > 1) {
-  return await createMatch(roomId, movieId, positiveVotes);
+  return await createChin(roomId, movieId, positiveVotes);
 }
 ```
 
-#### 3. Crear Match
+#### 3. Crear Chin
 ```typescript
-async createMatch(roomId: string, movieId: number, users: string[]): Promise<Match> {
-  const match = {
+async createChin(roomId: string, movieId: number, users: string[]): Promise<Chin> {
+  const chin = {
     roomId,
     movieId,
-    matchId: randomUUID(),
+    chinId: randomUUID(),
     title: await getMovieTitle(movieId),
     posterPath: await getMoviePoster(movieId),
-    matchedUsers: users,
+    chinedUsers: users,
     timestamp: new Date().toISOString()
   };
   
-  // Almacenar match
+  // Almacenar chin
   await docClient.send(new PutCommand({
-    TableName: 'trinity-matches',
-    Item: match
+    TableName: 'trinity-chines',
+    Item: chin
   }));
   
-  return match;
+  return chin;
 }
 ```
 
@@ -340,19 +340,19 @@ await docClient.send(new TransactWriteCommand({
 ## 🔔 Flujo 4: Sistema de Notificaciones
 
 ### Descripción
-Cuando se detecta un match, el sistema envía notificaciones en tiempo real a todos los usuarios participantes usando GraphQL subscriptions y polling como fallback.
+Cuando se detecta un chin, el sistema envía notificaciones en tiempo real a todos los usuarios participantes usando GraphQL subscriptions y polling como fallback.
 
 ### Diagrama de Arquitectura de Notificaciones
 ```mermaid
 graph TB
-    subgraph "Match Detection"
-        A[Vote Handler] --> B[Match Detected]
+    subgraph "Chin Detection"
+        A[Vote Handler] --> B[Chin Detected]
     end
     
     subgraph "Notification Publishing"
         B --> C[Publish to AppSync]
-        C --> D[User Match Events]
-        C --> E[Room Match Events]
+        C --> D[User Chin Events]
+        C --> E[Room Chin Events]
     end
     
     subgraph "Client Reception"
@@ -365,7 +365,7 @@ graph TB
     subgraph "User Experience"
         H --> J[Instant UI Update]
         I --> J
-        J --> K[Match Details Screen]
+        J --> K[Chin Details Screen]
     end
 ```
 
@@ -374,24 +374,24 @@ graph TB
 #### 1. Publicación de Eventos
 ```typescript
 // Vote Handler publica eventos para cada usuario
-for (const userId of matchedUsers) {
+for (const userId of chinedUsers) {
   await graphqlClient.request(`
-    mutation PublishUserMatch($userId: ID!, $matchData: RoomMatchInput!) {
-      publishUserMatch(userId: $userId, matchData: $matchData) {
+    mutation PublishUserChin($userId: ID!, $chinData: RoomChinInput!) {
+      publishUserChin(userId: $userId, chinData: $chinData) {
         userId
-        matchId
+        chinId
         movieTitle
       }
     }
   `, {
     userId,
-    matchData: {
-      matchId: match.matchId,
-      movieId: match.movieId,
-      movieTitle: match.title,
-      posterPath: match.posterPath,
-      matchedUsers: match.matchedUsers,
-      timestamp: match.timestamp
+    chinData: {
+      chinId: chin.chinId,
+      movieId: chin.movieId,
+      movieTitle: chin.title,
+      posterPath: chin.posterPath,
+      chinedUsers: chin.chinedUsers,
+      timestamp: chin.timestamp
     }
   });
 }
@@ -399,15 +399,15 @@ for (const userId of matchedUsers) {
 
 #### 2. Suscripción del Cliente
 ```typescript
-// Mobile app se suscribe a matches del usuario
+// Mobile app se suscribe a chines del usuario
 const subscription = client.graphql({
   query: `
-    subscription UserMatch($userId: ID!) {
-      userMatch(userId: $userId) {
-        matchId
+    subscription UserChin($userId: ID!) {
+      userChin(userId: $userId) {
+        chinId
         movieTitle
         posterPath
-        matchedUsers
+        chinedUsers
         timestamp
       }
     }
@@ -416,9 +416,9 @@ const subscription = client.graphql({
   authMode: 'userPool'
 }).subscribe({
   next: ({ data }) => {
-    if (data?.userMatch) {
-      showMatchNotification(data.userMatch);
-      navigateToMatchScreen(data.userMatch);
+    if (data?.userChin) {
+      showChinNotification(data.userChin);
+      navigateToChinScreen(data.userChin);
     }
   },
   error: (error) => {
@@ -432,33 +432,33 @@ const subscription = client.graphql({
 #### 3. Polling Fallback
 ```typescript
 // Sistema de polling como respaldo
-class MatchPollingService {
+class ChinPollingService {
   private pollingInterval: NodeJS.Timeout | null = null;
   private lastCheckTimestamp: string = new Date().toISOString();
 
-  startPolling(userId: string, onMatch: (match: Match) => void) {
+  startPolling(userId: string, onChin: (chin: Chin) => void) {
     this.pollingInterval = setInterval(async () => {
       try {
-        const matches = await this.checkForNewMatches(userId);
-        matches.forEach(onMatch);
+        const chines = await this.checkForNewChin(userId);
+        chines.forEach(onChin);
       } catch (error) {
         console.error('Polling error:', error);
       }
     }, 2000); // Poll cada 2 segundos
   }
 
-  private async checkForNewMatches(userId: string): Promise<Match[]> {
+  private async checkForNewChin(userId: string): Promise<Chin[]> {
     const response = await client.graphql({
       query: CHECK_USER_MATCHES,
       variables: { userId },
       authMode: 'userPool'
     });
 
-    const allMatches = response.data.checkUserMatches;
+    const allChin = response.data.checkUserChin;
     
-    // Filtrar solo matches nuevos
-    return allMatches.filter(match => 
-      match.timestamp > this.lastCheckTimestamp
+    // Filtrar solo chines nuevos
+    return allChin.filter(chin => 
+      chin.timestamp > this.lastCheckTimestamp
     );
   }
 }
@@ -467,7 +467,7 @@ class MatchPollingService {
 ## 📋 Flujo 5: Consulta de Mis Salas
 
 ### Descripción
-El usuario consulta las salas donde participa que aún no tienen matches. El sistema busca en múltiples fuentes y filtra según criterios específicos.
+El usuario consulta las salas donde participa que aún no tienen chines. El sistema busca en múltiples fuentes y filtra según criterios específicos.
 
 ### Diagrama de Flujo de Datos
 ```mermaid
@@ -487,8 +487,8 @@ graph TB
     H --> I
     
     I --> J[Filtrar salas expiradas]
-    J --> K[Verificar matches por sala]
-    K --> L[Filtrar salas con matches]
+    J --> K[Verificar chines por sala]
+    K --> L[Filtrar salas con chines]
     L --> M[Ordenar por fecha creación]
     M --> N[Retornar lista final]
 ```
@@ -538,24 +538,24 @@ async getRoomsByParticipation(userId: string): Promise<Room[]> {
 }
 ```
 
-#### 3. Filtrar Salas con Matches
+#### 3. Filtrar Salas con Chin
 ```typescript
-async filterRoomsWithoutMatches(rooms: Room[]): Promise<Room[]> {
-  const roomsWithoutMatches = [];
+async filterRoomsWithoutChin(rooms: Room[]): Promise<Room[]> {
+  const roomsWithoutChin = [];
   
   for (const room of rooms) {
-    const hasMatches = await this.checkRoomHasMatches(room.id);
-    if (!hasMatches) {
-      roomsWithoutMatches.push(room);
+    const hasChin = await this.checkRoomHasChin(room.id);
+    if (!hasChin) {
+      roomsWithoutChin.push(room);
     }
   }
   
-  return roomsWithoutMatches;
+  return roomsWithoutChin;
 }
 
-private async checkRoomHasMatches(roomId: string): Promise<boolean> {
+private async checkRoomHasChin(roomId: string): Promise<boolean> {
   const result = await docClient.send(new QueryCommand({
-    TableName: 'trinity-matches',
+    TableName: 'trinity-chines',
     KeyConditionExpression: 'roomId = :roomId',
     ExpressionAttributeValues: { ':roomId': roomId },
     Limit: 1 // Solo necesitamos saber si existe alguno
@@ -565,10 +565,10 @@ private async checkRoomHasMatches(roomId: string): Promise<boolean> {
 }
 ```
 
-## 🔍 Flujo 6: Consulta de Mis Matches
+## 🔍 Flujo 6: Consulta de Mis Chin
 
 ### Descripción
-El usuario consulta su historial de matches encontrados. El sistema busca en la tabla de matches y retorna los resultados ordenados cronológicamente.
+El usuario consulta su historial de chines encontrados. El sistema busca en la tabla de chines y retorna los resultados ordenados cronológicamente.
 
 ### Diagrama Simplificado
 ```mermaid
@@ -576,38 +576,38 @@ sequenceDiagram
     participant U as Usuario
     participant M as Mobile App
     participant AS as AppSync
-    participant MH as Match Handler
+    participant MH as Chin Handler
     participant DB as DynamoDB
 
-    U->>M: Ver mis matches
-    M->>AS: getMyMatches query
-    AS->>MH: Invoke Match Handler
+    U->>M: Ver mis chines
+    M->>AS: getMyChin query
+    AS->>MH: Invoke Chin Handler
     
-    MH->>DB: Scan trinity-matches
-    Note over MH: Filter by user in matchedUsers
-    DB-->>MH: Filtered matches
+    MH->>DB: Scan trinity-chines
+    Note over MH: Filter by user in chinedUsers
+    DB-->>MH: Filtered chines
     
     MH->>MH: Sort by timestamp desc
-    MH-->>AS: Matches list
-    AS-->>M: Match data
-    M-->>U: Display matches history
+    MH-->>AS: Chin list
+    AS-->>M: Chin data
+    M-->>U: Display chines history
 ```
 
 ### Optimización con GSI (Futura)
 ```typescript
 // GSI propuesto para optimizar consultas por usuario
-interface UserMatchesGSI {
+interface UserChinGSI {
   userId: string;        // GSI PK
   timestamp: string;     // GSI SK
   roomId: string;        // Projected attribute
   movieId: number;       // Projected attribute
-  matchId: string;       // Projected attribute
+  chinId: string;       // Projected attribute
 }
 
 // Query optimizada
 const result = await docClient.send(new QueryCommand({
-  TableName: 'trinity-matches',
-  IndexName: 'user-matches-index',
+  TableName: 'trinity-chines',
+  IndexName: 'user-chines-index',
   KeyConditionExpression: 'userId = :userId',
   ExpressionAttributeValues: { ':userId': userId },
   ScanIndexForward: false // Orden descendente por timestamp
@@ -623,7 +623,7 @@ const metrics = {
   'room.creation.duration': 'Tiempo de creación de sala',
   'room.join.success_rate': 'Tasa de éxito al unirse',
   'vote.processing.latency': 'Latencia de procesamiento de votos',
-  'match.detection.accuracy': 'Precisión de detección de matches',
+  'chin.detection.accuracy': 'Precisión de detección de chines',
   'notification.delivery.time': 'Tiempo de entrega de notificaciones'
 };
 
@@ -639,7 +639,7 @@ console.log(JSON.stringify({
 
 ### Dashboards de Monitoreo
 - **Flujo de Creación**: Tiempo promedio, tasa de éxito, errores TMDB
-- **Flujo de Votación**: Latencia, matches por hora, errores de concurrencia
+- **Flujo de Votación**: Latencia, chines por hora, errores de concurrencia
 - **Sistema de Notificaciones**: Tasa de entrega, latencia, fallbacks activados
 
 ---

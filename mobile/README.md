@@ -777,14 +777,33 @@ npx eas build --profile development --platform android
 
 ### Production Build
 
-**Android APK**:
+**Android APK** (for testing):
 ```bash
-npx eas build --profile production --platform android
+npx eas build --profile production-apk --platform android
 ```
 
-**Android AAB** (for Play Store):
+**Android AAB** (for Google Play Store):
+
+**Option 1: Using Scripts (Recommended)**
 ```bash
-npx eas build --profile production --platform android --local
+# 1. Create production keystore (first time only)
+./create-keystore.ps1
+
+# 2. Generate AAB
+./generate-aab.ps1
+```
+
+**Option 2: Using Gradle Directly**
+```bash
+cd android
+./gradlew clean
+./gradlew bundleRelease
+# Output: android/app/build/outputs/bundle/release/app-release.aab
+```
+
+**Option 3: Using EAS Build**
+```bash
+npx eas build --profile production --platform android
 ```
 
 **iOS**:
@@ -797,7 +816,54 @@ npx eas build --profile production --platform ios
 Defined in `eas.json`:
 - `development`: Debug build with dev tools
 - `preview`: Release build for testing
-- `production`: Optimized for stores
+- `production`: Android App Bundle (.aab) for Play Store
+- `production-apk`: APK for direct installation
+
+## 📤 Publishing to Google Play Store
+
+### Quick Start
+
+1. **Create Production Keystore** (first time only):
+   ```bash
+   ./create-keystore.ps1
+   ```
+   
+   ⚠️ **CRITICAL**: Save the keystore and credentials in multiple secure locations!
+
+2. **Generate AAB**:
+   ```bash
+   ./generate-aab.ps1
+   ```
+
+3. **Upload to Play Console**:
+   - Go to [Google Play Console](https://play.google.com/console)
+   - Create app or select existing
+   - Navigate to Production > Create new release
+   - Upload `android/app/build/outputs/bundle/release/app-release.aab`
+   - Fill in release notes and submit
+
+### Complete Guide
+
+For detailed step-by-step instructions, see:
+📖 **[Google Play Store Publishing Guide](../docs/GOOGLE_PLAY_STORE_GUIDE.md)**
+
+This guide covers:
+- ✅ Creating production keystore
+- ✅ Configuring signing
+- ✅ Generating AAB
+- ✅ Play Console setup
+- ✅ Store listing assets
+- ✅ Internal testing
+- ✅ Production release
+- ✅ Future updates
+
+### Important Files
+
+- `android/app/trinity-release.keystore` - Production keystore (DO NOT LOSE!)
+- `android/keystore.properties` - Keystore credentials (DO NOT COMMIT!)
+- `trinity-keystore-credentials.txt` - Backup of credentials
+- `create-keystore.ps1` - Script to generate keystore
+- `generate-aab.ps1` - Script to build AAB
 
 ## 🧪 Testing
 

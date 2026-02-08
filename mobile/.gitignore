@@ -17,6 +17,8 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.keystore
+keystore.properties
 
 # Metro
 .metro-health-check*
@@ -43,6 +45,9 @@ android/build/
 android/.gradle/
 *.apk
 !trinity-v*.apk
+
+# Keystore credentials backup
+trinity-keystore-credentials.txt
 
 # generated native folders (commented out - we use prebuild)
 # /ios

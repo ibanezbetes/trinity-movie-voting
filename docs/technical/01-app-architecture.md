@@ -1,19 +1,19 @@
-# Trinity Movie Matching App - Arquitectura de la Aplicación
+# Trinity Movie Chining App - Arquitectura de la Aplicación
 
 ## 🎯 ¿En qué consiste la aplicación?
 
-Trinity es una aplicación móvil de **matching de películas** que permite a grupos de usuarios encontrar películas que todos quieren ver. La aplicación funciona mediante **salas de votación** donde los usuarios votan de forma anónima por películas, y cuando todos los participantes votan positivamente por la misma película, se genera un "match".
+Trinity es una aplicación móvil de **chining de películas** que permite a grupos de usuarios encontrar películas que todos quieren ver. La aplicación funciona mediante **salas de votación** donde los usuarios votan de forma anónima por películas, y cuando todos los participantes votan positivamente por la misma película, se genera un "chin".
 
 ### Concepto Principal
 ```
-👥 Usuarios → 🏠 Sala → 🎬 Candidatos → 🗳️ Votación → ✨ Match
+👥 Usuarios → 🏠 Sala → 🎬 Candidatos → 🗳️ Votación → ✨ Chin
 ```
 
 ### Flujo Básico de Usuario
 1. **Crear/Unirse a Sala**: Un usuario crea una sala especificando géneros de películas, otros se unen con un código
 2. **Votación Anónima**: Todos ven las mismas películas candidatas y votan sin ver los votos de otros
-3. **Detección de Match**: Cuando todos votan "sí" a la misma película, se genera un match automáticamente
-4. **Notificación**: Todos reciben una notificación instantánea del match encontrado
+3. **Detección de Chin**: Cuando todos votan "sí" a la misma película, se genera un chin automáticamente
+4. **Notificación**: Todos reciben una notificación instantánea del chin encontrado
 
 ## 🏗️ Arquitectura Serverless Event-Driven
 
@@ -41,7 +41,7 @@ Cada función Lambda es un microservicio independiente:
 - **TMDB Handler**: Gestión de datos de películas
 - **Room Handler**: Gestión de salas
 - **Vote Handler**: Procesamiento de votos
-- **Match Handler**: Gestión de matches
+- **Chin Handler**: Gestión de chines
 
 #### 4. **Real-time Communication**
 - **GraphQL Subscriptions**: Notificaciones en tiempo real
@@ -112,7 +112,7 @@ sequenceDiagram
     M-->>U: Código de sala
 ```
 
-### Ejemplo: Detección de Match
+### Ejemplo: Detección de Chin
 ```mermaid
 sequenceDiagram
     participant U1 as Usuario 1
@@ -120,7 +120,7 @@ sequenceDiagram
     participant A as AppSync
     participant V as Vote Lambda
     participant D as DynamoDB
-    participant M as Match Lambda
+    participant M as Chin Lambda
 
     U1->>A: Voto positivo
     A->>V: Procesar voto
@@ -128,11 +128,11 @@ sequenceDiagram
     U2->>A: Voto positivo (misma película)
     A->>V: Procesar voto
     V->>D: Guardar voto
-    V->>V: Detectar match
-    V->>D: Crear match
+    V->>V: Detectar chin
+    V->>D: Crear chin
     V->>A: Publicar evento
-    A-->>U1: Notificación match
-    A-->>U2: Notificación match
+    A-->>U1: Notificación chin
+    A-->>U2: Notificación chin
 ```
 
 ## 🎯 Beneficios del Diseño Event-Driven
@@ -162,7 +162,7 @@ sequenceDiagram
 - **Crear Sala**: 200-500ms
 - **Unirse a Sala**: 100-200ms
 - **Procesar Voto**: 50-150ms
-- **Notificación Match**: <100ms
+- **Notificación Chin**: <100ms
 
 ### Escalabilidad
 - **Concurrencia por Lambda**: 1000 ejecuciones simultáneas

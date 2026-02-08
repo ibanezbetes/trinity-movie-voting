@@ -2,7 +2,7 @@
 
 ## 📚 Índice de Documentación
 
-Esta carpeta contiene la documentación técnica completa de Trinity Movie Matching App, una aplicación serverless construida con AWS y React Native.
+Esta carpeta contiene la documentación técnica completa de Trinity Movie Chining App, una aplicación serverless construida con AWS y React Native.
 
 ### 📖 Documentos Disponibles
 
@@ -35,13 +35,13 @@ Esta carpeta contiene la documentación técnica completa de Trinity Movie Match
 **Microservicios Lambda especializados**
 - TMDB Handler: Integración con API externa
 - Room Handler: Gestión de salas de votación
-- Vote Handler: Procesamiento de votos y matches
-- Match Handler: Gestión de historial de matches
+- Vote Handler: Procesamiento de votos y chines
+- Chin Handler: Gestión de historial de chines
 - Interconexión y optimizaciones
 
 #### [05. Esquemas GraphQL](05-graphql-schema.md)
 **API GraphQL completa y tipada**
-- Tipos base: Room, Match, Vote, MovieCandidate
+- Tipos base: Room, Chin, Vote, MovieCandidate
 - Queries: Consultas de datos
 - Mutations: Modificación de datos
 - Subscriptions: Notificaciones en tiempo real
@@ -51,7 +51,7 @@ Esta carpeta contiene la documentación técnica completa de Trinity Movie Match
 **Diseño de base de datos NoSQL optimizada**
 - trinity-rooms: Salas de votación
 - trinity-votes: Votos y participación
-- trinity-matches: Matches encontrados
+- trinity-chines: Chin encontrados
 - Patrones de acceso y optimizaciones
 - Índices secundarios y performance
 
@@ -59,9 +59,9 @@ Esta carpeta contiene la documentación técnica completa de Trinity Movie Match
 **Flujos detallados de funcionalidades**
 - Creación de sala con TMDB
 - Unirse a sala con código
-- Proceso de votación y detección de matches
+- Proceso de votación y detección de chines
 - Sistema de notificaciones en tiempo real
-- Consulta de salas y matches del usuario
+- Consulta de salas y chines del usuario
 
 ## 🎯 Cómo Usar Esta Documentación
 
@@ -125,14 +125,14 @@ graph TB
     subgraph "Compute Serverless"
         D[⚡ Room Lambda]
         E[⚡ Vote Lambda]
-        F[⚡ Match Lambda]
+        F[⚡ Chin Lambda]
         G[⚡ TMDB Lambda]
     end
     
     subgraph "Storage NoSQL"
         H[🗄️ DynamoDB Rooms]
         I[🗄️ DynamoDB Votes]
-        J[🗄️ DynamoDB Matches]
+        J[🗄️ DynamoDB Chin]
     end
     
     subgraph "External APIs"

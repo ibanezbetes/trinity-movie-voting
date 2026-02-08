@@ -60,17 +60,17 @@ Trinity ha sido construido desde cero para asegurar pureza arquitectónica.
 Create the following tables (managed by CDK):
 1.  **`TrinityRooms`**: `id` (Partition Key), `code` (GSI for joining), `hostId`, `filters` (JSON).
 2.  **`TrinityVotes`**: `roomId` (PK), `userId#movieId` (SK), `vote` (BOOL).
-3.  **`TrinityMatches`**: `roomId` (PK), `movieId` (SK), `timestamp`.
+3.  **`TrinityChin`**: `roomId` (PK), `movieId` (SK), `timestamp`.
 4.  **`TrinityUsers`**: `id` (PK), `email`, `createdAt`.
 
 ### 3.3 API Definition (AppSync/GraphQL)
 - **Mutations:**
     - `createRoom(type: String!, genreIds: [Int]!)`: Returns `roomId` + `code`.
     - `joinRoom(code: String!)`: Returns `roomId`.
-    - `vote(roomId: String!, movieId: Int!, vote: Boolean!)`: Triggers Match detection.
+    - `vote(roomId: String!, movieId: Int!, vote: Boolean!)`: Triggers Chin detection.
 - **Queries:**
     - `getRoom(id: String!)`: Returns room details + movie candidate list.
-    - `getMyMatches`: Returns history.
+    - `getMyChin`: Returns history.
 
 ---
 
@@ -97,7 +97,7 @@ A clean, centered interface with exactly **4 large options**:
     - **Action:** Validates code -> Navigates to Voting Screen.
 
 3.  **MIS MATCHES:**
-    - Simple list of matched movies.
+    - Simple list of chined movies.
 
 4.  **RECOMENDACIONES (Social):**
     - **Data Source:** `src/data/socialRecommendations.ts` (Static/Hardcoded JSON).

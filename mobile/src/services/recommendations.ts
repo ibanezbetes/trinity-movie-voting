@@ -64,7 +64,7 @@ export async function getRecommendations(): Promise<RecommendationCategory[]> {
     
     const result = await client.graphql({
       query: GET_RECOMMENDATIONS,
-      authMode: 'userPool', // Especificar modo de autenticación
+      authMode: 'iam', // Usar IAM para soportar tanto User Pool como Identity Pool
     });
 
     const recommendations = (result.data as any).getRecommendations || [];
@@ -93,7 +93,7 @@ export async function getRecommendationsByCategory(
     const result = await client.graphql({
       query: GET_RECOMMENDATIONS_BY_CATEGORY,
       variables: { categoryId },
-      authMode: 'userPool', // Especificar modo de autenticación
+      authMode: 'iam', // Usar IAM para soportar tanto User Pool como Identity Pool
     });
 
     const category = (result.data as any).getRecommendationsByCategory;

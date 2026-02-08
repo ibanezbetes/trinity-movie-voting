@@ -57,16 +57,16 @@ type MovieCandidate {
 }
 ```
 
-#### Match - Coincidencia Encontrada
+#### Chin - Coincidencia Encontrada
 ```graphql
-type Match {
-  id: ID!                           # UUID único del match
+type Chin {
+  id: ID!                           # UUID único del chin
   roomId: String!                   # ID de la sala donde ocurrió
   movieId: Int!                     # ID de TMDB de la película
   title: String!                    # Título de la película
   posterPath: String                # URL del poster (nullable)
-  timestamp: AWSDateTime!           # Cuándo se encontró el match
-  matchedUsers: [String!]!          # IDs de usuarios que hicieron match
+  timestamp: AWSDateTime!           # Cuándo se encontró el chin
+  chinedUsers: [String!]!          # IDs de usuarios que hicieron chin
 }
 ```
 
@@ -114,14 +114,14 @@ input VoteInput {
 }
 ```
 
-#### CreateMatchInput - Crear Match (Interno)
+#### CreateChinInput - Crear Chin (Interno)
 ```graphql
-input CreateMatchInput {
-  roomId: String!                   # Sala del match
-  movieId: Int!                     # Película del match
+input CreateChinInput {
+  roomId: String!                   # Sala del chin
+  movieId: Int!                     # Película del chin
   title: String!                    # Título de la película
   posterPath: String                # URL del poster
-  matchedUsers: [String!]!          # Usuarios que hicieron match
+  chinedUsers: [String!]!          # Usuarios que hicieron chin
 }
 ```
 
@@ -131,7 +131,7 @@ input CreateMatchInput {
 ```graphql
 type VoteResult {
   success: Boolean!                 # Si el voto se procesó correctamente
-  match: Match                      # Match encontrado (si aplica)
+  chin: Chin                      # Chin encontrado (si aplica)
 }
 ```
 
@@ -152,7 +152,7 @@ type Query {
 **Comportamiento:**
 - Retorna salas donde el usuario es host o participante
 - Filtra salas expiradas (TTL)
-- Excluye salas que ya tienen matches
+- Excluye salas que ya tienen chines
 - Ordenadas por fecha de creación (más recientes primero)
 
 **Ejemplo de Uso:**
@@ -185,28 +185,28 @@ type Query {
 - Null si no existe o ha expirado
 - Accesible por cualquier usuario autenticado
 
-### getMyMatches - Mis Matches
+### getMyChin - Mis Chin
 ```graphql
 type Query {
-  getMyMatches: [Match!]!
+  getMyChin: [Chin!]!
 }
 ```
 
 **Comportamiento:**
-- Retorna todos los matches donde el usuario participó
+- Retorna todos los chines donde el usuario participó
 - Ordenados por timestamp descendente
 - Incluye detalles completos de la película
 
-### checkUserMatches - Verificar Matches (Polling)
+### checkUserChin - Verificar Chin (Polling)
 ```graphql
 type Query {
-  checkUserMatches: [Match!]!
+  checkUserChin: [Chin!]!
 }
 ```
 
 **Propósito:**
 - Usado por el sistema de polling como fallback
-- Misma funcionalidad que `getMyMatches`
+- Misma funcionalidad que `getMyChin`
 - Optimizado para llamadas frecuentes
 
 ## ✏️ Mutations - Modificación de Datos
@@ -273,34 +273,34 @@ type Mutation {
 **Flujo Interno:**
 1. Validar que sala existe
 2. Registrar voto en DynamoDB
-3. Si voto es positivo, verificar matches
-4. Si hay match, crear registro y notificar
+3. Si voto es positivo, verificar chines
+4. Si hay chin, crear registro y notificar
 5. Retornar resultado
 
-**Lógica de Match:**
+**Lógica de Chin:**
 ```
-Match = (Votos Positivos == Total Usuarios) && (Total Usuarios > 1)
+Chin = (Votos Positivos == Total Usuarios) && (Total Usuarios > 1)
 ```
 
-### createMatch - Crear Match (Interno)
+### createChin - Crear Chin (Interno)
 ```graphql
 type Mutation {
-  createMatch(input: CreateMatchInput!): Match!
+  createChin(input: CreateChinInput!): Chin!
 }
 ```
 
 **Uso:**
 - Solo usado internamente por Vote Handler
 - No expuesto a clientes directamente
-- Crea registro permanente del match
+- Crea registro permanente del chin
 
 ## 📡 Subscriptions - Datos en Tiempo Real
 
-### userMatch - Notificaciones de Match por Usuario
+### userChin - Notificaciones de Chin por Usuario
 ```graphql
 type Subscription {
-  userMatch(userId: ID!): UserMatchEvent
-    @aws_subscribe(mutations: ["publishUserMatch"])
+  userChin(userId: ID!): UserChinEvent
+    @aws_subscribe(mutations: ["publishUserChin"])
     @aws_iam
     @aws_cognito_user_pools
 }
@@ -308,15 +308,15 @@ type Subscription {
 
 **Comportamiento:**
 - Cliente se suscribe con su userId
-- Recibe notificación cuando encuentra match
+- Recibe notificación cuando encuentra chin
 - Conexión WebSocket persistente
 - Reconexión automática
 
-### roomMatch - Notificaciones de Match por Sala
+### roomChin - Notificaciones de Chin por Sala
 ```graphql
 type Subscription {
-  roomMatch(roomId: ID!): RoomMatchEvent
-    @aws_subscribe(mutations: ["publishRoomMatch"])
+  roomChin(roomId: ID!): RoomChinEvent
+    @aws_subscribe(mutations: ["publishRoomChin"])
     @aws_iam
     @aws_cognito_user_pools
 }
@@ -324,46 +324,46 @@ type Subscription {
 
 **Uso:**
 - Todos los usuarios en una sala se suscriben
-- Notificación broadcast cuando hay match
+- Notificación broadcast cuando hay chin
 - Útil para UI en tiempo real
 
 ### Tipos de Eventos
 
-#### UserMatchEvent - Evento de Match Personal
+#### UserChinEvent - Evento de Chin Personal
 ```graphql
-type UserMatchEvent @aws_iam {
+type UserChinEvent @aws_iam {
   userId: ID!                       # Usuario que recibe la notificación
-  roomId: ID!                       # Sala donde ocurrió el match
-  matchId: ID!                      # ID único del match
+  roomId: ID!                       # Sala donde ocurrió el chin
+  chinId: ID!                      # ID único del chin
   movieId: ID!                      # ID de la película
   movieTitle: String!               # Título de la película
   posterPath: String                # URL del poster
-  matchedUsers: [String!]!          # Todos los usuarios del match
+  chinedUsers: [String!]!          # Todos los usuarios del chin
   timestamp: AWSDateTime!           # Cuándo ocurrió
-  matchDetails: MatchDetails        # Detalles adicionales
+  chinDetails: ChinDetails        # Detalles adicionales
 }
 ```
 
-#### RoomMatchEvent - Evento de Match de Sala
+#### RoomChinEvent - Evento de Chin de Sala
 ```graphql
-type RoomMatchEvent @aws_iam {
+type RoomChinEvent @aws_iam {
   roomId: ID!                       # Sala donde ocurrió
-  matchId: ID!                      # ID del match
-  movieId: ID!                      # Película del match
+  chinId: ID!                      # ID del chin
+  movieId: ID!                      # Película del chin
   movieTitle: String!               # Título
   posterPath: String                # Poster
-  matchedUsers: [String!]!          # Usuarios participantes
+  chinedUsers: [String!]!          # Usuarios participantes
   timestamp: AWSDateTime!           # Timestamp
-  matchDetails: MatchDetails        # Detalles del match
+  chinDetails: ChinDetails        # Detalles del chin
 }
 ```
 
-#### MatchDetails - Detalles del Match
+#### ChinDetails - Detalles del Chin
 ```graphql
-type MatchDetails @aws_iam {
+type ChinDetails @aws_iam {
   voteCount: Int!                   # Número de votos positivos
-  requiredVotes: Int!               # Votos necesarios para match
-  matchType: String!                # Tipo de match ("UNANIMOUS")
+  requiredVotes: Int!               # Votos necesarios para chin
+  chinType: String!                # Tipo de chin ("UNANIMOUS")
 }
 ```
 
@@ -385,7 +385,7 @@ type Query {
 ### @aws_iam - Autorización IAM
 ```graphql
 type Mutation {
-  publishUserMatch(userId: ID!, matchData: RoomMatchInput!): UserMatchEvent!
+  publishUserChin(userId: ID!, chinData: RoomChinInput!): UserChinEvent!
     @aws_iam
 }
 ```
@@ -398,8 +398,8 @@ type Mutation {
 ### @aws_subscribe - Configuración de Subscriptions
 ```graphql
 type Subscription {
-  userMatch(userId: ID!): UserMatchEvent
-    @aws_subscribe(mutations: ["publishUserMatch"])
+  userChin(userId: ID!): UserChinEvent
+    @aws_subscribe(mutations: ["publishUserChin"])
 }
 ```
 
@@ -429,7 +429,7 @@ sequenceDiagram
     GQL-->>U2: Room data
 ```
 
-### Flujo: Votación y Match
+### Flujo: Votación y Chin
 ```mermaid
 sequenceDiagram
     participant U1 as Usuario 1
@@ -437,7 +437,7 @@ sequenceDiagram
     participant GQL as GraphQL API
     participant L as Lambda
 
-    Note over U1,U2: Ambos suscritos a userMatch
+    Note over U1,U2: Ambos suscritos a userChin
 
     U1->>GQL: vote mutation (positive)
     GQL->>L: Vote Handler
@@ -445,10 +445,10 @@ sequenceDiagram
 
     U2->>GQL: vote mutation (positive, same movie)
     GQL->>L: Vote Handler
-    L->>L: Detect match!
-    L->>GQL: publishUserMatch
-    GQL-->>U1: Match notification
-    GQL-->>U2: Match notification
+    L->>L: Detect chin!
+    L->>GQL: publishUserChin
+    GQL-->>U1: Chin notification
+    GQL-->>U2: Chin notification
 ```
 
 ## 📊 Optimizaciones GraphQL
@@ -528,7 +528,7 @@ mutation TestVote {
     vote: true
   }) {
     success
-    match {
+    chin {
       id
       title
     }

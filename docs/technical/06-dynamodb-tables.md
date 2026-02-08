@@ -294,14 +294,14 @@ erDiagram
     ROOMS ||--o{ VOTES : "users vote in"
 ```
 
-## 🎯 Tabla: trinity-matches
+## 🎯 Tabla: trinity-chines
 
 ### Propósito
-Almacena los matches encontrados cuando todos los usuarios de una sala votan positivamente por la misma película.
+Almacena los chines encontrados cuando todos los usuarios de una sala votan positivamente por la misma película.
 
 ### Estructura de Claves
 ```typescript
-interface MatchKey {
+interface ChinKey {
   roomId: string;       // Partition Key
   movieId: number;      // Sort Key
 }
@@ -309,31 +309,31 @@ interface MatchKey {
 
 ### Esquema Completo
 ```typescript
-interface MatchItem {
+interface ChinItem {
   // Claves primarias
   roomId: string;              // PK: ID de la sala donde ocurrió
   movieId: number;             // SK: ID de TMDB de la película
   
   // Identificación única
-  matchId: string;             // UUID único del match
+  chinId: string;             // UUID único del chin
   
   // Datos de la película
   title: string;               // Título de la película
   posterPath?: string;         // URL del poster
   
-  // Datos del match
-  matchedUsers: string[];      // Array de IDs de usuarios
-  timestamp: string;           // ISO timestamp del match
+  // Datos del chin
+  chinedUsers: string[];      // Array de IDs de usuarios
+  timestamp: string;           // ISO timestamp del chin
 }
 ```
 
 ### Patrones de Acceso
 
-#### 1. Obtener Matches de una Sala
+#### 1. Obtener Chin de una Sala
 ```typescript
 // Query por Partition Key
 const params = {
-  TableName: 'trinity-matches',
+  TableName: 'trinity-chines',
   KeyConditionExpression: 'roomId = :roomId',
   ExpressionAttributeValues: {
     ':roomId': 'room-123'
@@ -341,11 +341,11 @@ const params = {
 };
 ```
 
-#### 2. Verificar Match Específico
+#### 2. Verificar Chin Específico
 ```typescript
 // Get item con clave completa
 const params = {
-  TableName: 'trinity-matches',
+  TableName: 'trinity-chines',
   Key: {
     roomId: 'room-123',
     movieId: 789
@@ -353,12 +353,12 @@ const params = {
 };
 ```
 
-#### 3. Obtener Matches de Usuario (Todas las Salas)
+#### 3. Obtener Chin de Usuario (Todas las Salas)
 ```typescript
 // Scan con filtro contains
 const params = {
-  TableName: 'trinity-matches',
-  FilterExpression: 'contains(matchedUsers, :userId)',
+  TableName: 'trinity-chines',
+  FilterExpression: 'contains(chinedUsers, :userId)',
   ExpressionAttributeValues: {
     ':userId': 'user-456'
   }
@@ -368,8 +368,8 @@ const params = {
 ### Optimización Futura: GSI por Usuario
 ```typescript
 // GSI propuesto para optimizar consultas por usuario
-interface UserMatchesGSI {
-  userId: string;           // GSI PK (extraído de matchedUsers)
+interface UserChinGSI {
+  userId: string;           // GSI PK (extraído de chinedUsers)
   timestamp: string;        // GSI SK para ordenamiento
   roomId: string;           // Atributo proyectado
   movieId: number;          // Atributo proyectado
@@ -382,10 +382,10 @@ erDiagram
     MATCHES {
         string roomId PK
         number movieId SK
-        string matchId
+        string chinId
         string title
         string posterPath
-        string[] matchedUsers
+        string[] chinedUsers
         string timestamp
     }
     
@@ -408,8 +408,8 @@ graph TB
         E[User Votes] --> F[Vote Record]
     end
     
-    subgraph "trinity-matches"
-        G[All Users Vote Yes] --> H[Match Created]
+    subgraph "trinity-chines"
+        G[All Users Vote Yes] --> H[Chin Created]
     end
     
     A --> C
@@ -420,9 +420,9 @@ graph TB
 
 ### Consultas Cross-Table
 
-#### Obtener Salas del Usuario (Sin Matches)
+#### Obtener Salas del Usuario (Sin Chin)
 ```typescript
-async function getMyRoomsWithoutMatches(userId: string): Promise<Room[]> {
+async function getMyRoomsWithoutChin(userId: string): Promise<Room[]> {
   // 1. Obtener salas donde es host
   const hostRooms = await scanRoomsByHost(userId);
   
@@ -433,16 +433,16 @@ async function getMyRoomsWithoutMatches(userId: string): Promise<Room[]> {
   const allRooms = [...hostRooms, ...participatedRooms];
   const uniqueRooms = deduplicateById(allRooms);
   
-  // 4. Filtrar salas con matches
-  const roomsWithoutMatches = [];
+  // 4. Filtrar salas con chines
+  const roomsWithoutChin = [];
   for (const room of uniqueRooms) {
-    const hasMatches = await checkRoomHasMatches(room.id);
-    if (!hasMatches) {
-      roomsWithoutMatches.push(room);
+    const hasChin = await checkRoomHasChin(room.id);
+    if (!hasChin) {
+      roomsWithoutChin.push(room);
     }
   }
   
-  return roomsWithoutMatches;
+  return roomsWithoutChin;
 }
 ```
 
@@ -472,7 +472,7 @@ const userMovieId = `${userId}#${movieId}`;  // "user-123#789"
 
 // Permite queries eficientes:
 // - Todos los votos de un usuario: begins_with("user-123#")
-// - Voto específico: exact match "user-123#789"
+// - Voto específico: exact chin "user-123#789"
 ```
 
 ### Batch Operations
@@ -553,7 +553,7 @@ describe('VotesTable Operations', () => {
       userMovieId: 'user-123#789'
     });
     
-    expect(retrieved).toMatchObject(vote);
+    expect(retrieved).toChinObject(vote);
   });
 });
 ```
@@ -561,7 +561,7 @@ describe('VotesTable Operations', () => {
 ### Integration Tests
 ```typescript
 describe('Cross-Table Operations', () => {
-  it('should create match when all users vote positively', async () => {
+  it('should create chin when all users vote positively', async () => {
     // Setup: Create room with 2 users
     await createTestRoom('room-123', ['user-1', 'user-2']);
     
@@ -569,10 +569,10 @@ describe('Cross-Table Operations', () => {
     await voteForMovie('room-123', 'user-1', 789, true);
     await voteForMovie('room-123', 'user-2', 789, true);
     
-    // Assert: Match should be created
-    const match = await getMatch('room-123', 789);
-    expect(match).toBeDefined();
-    expect(match.matchedUsers).toEqual(['user-1', 'user-2']);
+    // Assert: Chin should be created
+    const chin = await getChin('room-123', 789);
+    expect(chin).toBeDefined();
+    expect(chin.chinedUsers).toEqual(['user-1', 'user-2']);
   });
 });
 ```
