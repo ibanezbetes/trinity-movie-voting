@@ -7,7 +7,6 @@ import {
   StatusBar,
   Image,
   Dimensions,
-  Alert,
   ActivityIndicator,
   PanResponder,
   Animated,
@@ -23,7 +22,7 @@ import { GET_ROOM, VOTE } from '../services/graphql';
 import { logger } from '../services/logger';
 import { useProactiveMatchCheck, ACTION_NAMES } from '../hooks/useProactiveMatchCheck';
 import { roomSubscriptionService, userSubscriptionService } from '../services/subscriptions';
-import { Icon } from '../components';
+import { Icon, CustomAlert } from '../components';
 import { useSound } from '../context/SoundContext';
 
 type VotingRoomRouteProp = RouteProp<RootStackParamList, 'VotingRoom'>;
@@ -45,6 +44,17 @@ export default function VotingRoomScreen() {
   const [hasExistingMatch, setHasExistingMatch] = useState(false);
   const [existingMatch, setExistingMatch] = useState<any>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message?: string;
+    buttons?: Array<{ text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }>;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    buttons: [{ text: 'OK' }]
+  });
 
   // Animation values
   const pan = new Animated.ValueXY();
@@ -233,8 +243,12 @@ export default function VotingRoomScreen() {
       
       if (!authStatus.isAuthenticated) {
         logger.authError('User not authenticated for loading room data', null);
-        Alert.alert('Error de Autenticación', 'Por favor inicia sesión nuevamente');
-        navigation.goBack();
+        setAlertConfig({
+          visible: true,
+          title: 'Error de Autenticación',
+          message: 'Por favor inicia sesión nuevamente',
+          buttons: [{ text: 'OK', onPress: () => navigation.goBack() }]
+        });
         return;
       }
 
@@ -278,12 +292,22 @@ export default function VotingRoomScreen() {
         setCandidates(room.candidates);
       } else {
         logger.roomError('No candidates found in room', null, { roomId, room });
-        Alert.alert('Error', 'No se encontraron películas en esta sala');
+        setAlertConfig({
+          visible: true,
+          title: 'Error',
+          message: 'No se encontraron películas en esta sala',
+          buttons: [{ text: 'OK' }]
+        });
       }
     } catch (error) {
       logger.roomError('Failed to load room data', error, { roomId, roomCode });
       console.error('Error loading room data:', error);
-      Alert.alert('Error', 'No se pudieron cargar las películas');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'No se pudieron cargar las películas',
+        buttons: [{ text: 'OK' }]
+      });
     } finally {
       setIsLoading(false);
       logger.room('Room data loading completed', { isLoading: false });
@@ -329,11 +353,12 @@ export default function VotingRoomScreen() {
         roomCode
       });
       
-      Alert.alert(
-        'Votación Completada',
-        'Has votado todas las películas. Espera a que otros usuarios terminen de votar.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      setAlertConfig({
+        visible: true,
+        title: 'Votación Completada',
+        message: 'Has votado todas las películas. Espera a que otros usuarios terminen de votar.',
+        buttons: [{ text: 'OK' }]
+      });
     }
 
     // 2. FIRE AND FORGET: Send vote to server in background (Network Background)
@@ -550,61 +575,6 @@ export default function VotingRoomScreen() {
     },
   });
 
-  if (hasExistingMatch && existingMatch) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Icon name="arrow-back" size={24} color="#ffffff" />
-          </TouchableOpacity>
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>{roomCode}</Text>
-            <TouchableOpacity
-              style={styles.copyButtonHeader}
-              onPress={handleCopyCode}
-              activeOpacity={0.7}
-            >
-              <Icon name="copy" size={20} color="#9C27B0" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.placeholder} />
-        </View>
-
-        <View style={styles.completedContainer}>
-          <Text style={styles.completedIcon}>🎉</Text>
-          <Text style={styles.completedTitle}>¡MATCH ENCONTRADO!</Text>
-          <Text style={styles.completedDescription}>
-            Ya hay una película seleccionada en esta sala:
-          </Text>
-          <Text style={styles.matchTitle}>{existingMatch.title}</Text>
-          <Text style={styles.matchDescription}>
-            Todos los usuarios han votado positivamente por esta película.
-          </Text>
-          
-          <TouchableOpacity
-            style={styles.matchButton}
-            onPress={() => navigation.navigate('MyMatches' as any)}
-          >
-            <Text style={styles.matchButtonText}>Ver Mis Chines</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.matchButton, { backgroundColor: '#666666', marginTop: 15 }]}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.matchButtonText}>Salir de la Sala</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -745,6 +715,14 @@ export default function VotingRoomScreen() {
           />
         </TouchableOpacity>
       </View>
+      
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onDismiss={() => setAlertConfig({ ...alertConfig, visible: false })}
+      />
     </SafeAreaView>
   );
 }
@@ -818,7 +796,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(33, 150, 243, 0.9)',
+    backgroundColor: 'rgba(147, 51, 234, 0.5)', // Morado con 50% de transparencia
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
@@ -903,30 +881,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
     lineHeight: 24,
-  },
-  matchTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#42c767',
-    textAlign: 'center',
-    marginVertical: 15,
-  },
-  matchDescription: {
-    fontSize: 14,
-    color: '#cccccc',
-    textAlign: 'center',
-    marginBottom: 30,
-    lineHeight: 20,
-  },
-  matchButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 25,
-  },
-  matchButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#ffffff',
   },
 });

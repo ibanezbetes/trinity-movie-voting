@@ -56,7 +56,7 @@ export default function ProfileScreen() {
   const navigation = useNavigation();
   const { onSignOut } = useAuth();
   const { colors } = useTheme();
-  const { isMuted, toggleSound } = useSound();
+  const { isMuted, toggleSound, playSound } = useSound();
   const [userName, setUserName] = useState('Usuario');
   const [isLoading, setIsLoading] = useState(true);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -394,6 +394,61 @@ export default function ProfileScreen() {
               thumbColor={!isMuted ? '#ffffff' : '#f4f3f4'}
             />
           </View>
+
+          {/* Botones de prueba de sonido */}
+          {!isMuted && (
+            <View style={styles.soundTestContainer}>
+              <Typography variant="caption" style={[styles.soundTestTitle, { color: colors.textSecondary }]}>
+                Probar sonidos:
+              </Typography>
+              <View style={styles.soundTestButtons}>
+                <TouchableOpacity
+                  style={[styles.soundTestButton, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    logger.info('SOUND', 'Testing votoSi sound');
+                    playSound('votoSi');
+                  }}
+                >
+                  <Typography variant="caption" style={styles.soundTestButtonText}>
+                    Voto Sí
+                  </Typography>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.soundTestButton, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    logger.info('SOUND', 'Testing votoNo sound');
+                    playSound('votoNo');
+                  }}
+                >
+                  <Typography variant="caption" style={styles.soundTestButtonText}>
+                    Voto No
+                  </Typography>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.soundTestButton, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    logger.info('SOUND', 'Testing chin sound');
+                    playSound('chin');
+                  }}
+                >
+                  <Typography variant="caption" style={styles.soundTestButtonText}>
+                    Chin
+                  </Typography>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.soundTestButton, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    logger.info('SOUND', 'Testing inicioApp sound');
+                    playSound('inicioApp');
+                  }}
+                >
+                  <Typography variant="caption" style={styles.soundTestButtonText}>
+                    Inicio
+                  </Typography>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* SECCIÓN 4: SOPORTE */}
@@ -647,7 +702,7 @@ export default function ProfileScreen() {
 
               {/* Versión */}
               <Typography variant="caption" style={styles.modalVersion}>
-                Versión 2.2.5
+                Versión 1.0.0
               </Typography>
 
               {/* Separador */}
@@ -948,6 +1003,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  
+  // Sound test buttons
+  soundTestContainer: {
+    padding: 15,
+    paddingTop: 10,
+  },
+  soundTestTitle: {
+    fontSize: 12,
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  soundTestButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  soundTestButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  soundTestButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   
   bottomSpacer: {

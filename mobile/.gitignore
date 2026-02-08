@@ -36,6 +36,14 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# generated native folders
-/ios
-/android
+# APK builds (keep only versioned APKs in root)
+android/app/build/
+android/app/.cxx/
+android/build/
+android/.gradle/
+*.apk
+!trinity-v*.apk
+
+# generated native folders (commented out - we use prebuild)
+# /ios
+# /android

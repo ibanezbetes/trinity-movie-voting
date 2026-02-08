@@ -1,884 +1,881 @@
-# Trinity Mobile App
+# 📱 Trinity Mobile App
 
-Aplicación móvil de Trinity construida con React Native y Expo.
+React Native mobile application for Trinity Movie Matching platform.
 
-## 📋 Tabla de Contenidos
+## 📋 Table of Contents
 
-- [Descripción](#descripción)
-- [Arquitectura](#arquitectura)
-- [Estructura del Proyecto](#estructura-del-proyecto)
-- [Configuración](#configuración)
-- [Desarrollo](#desarrollo)
-- [Build y Deployment](#build-y-deployment)
-- [Pantallas](#pantallas)
-- [Servicios](#servicios)
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Screens](#screens)
+- [Services](#services)
+- [Components](#components)
+- [Context Providers](#context-providers)
+- [Custom Hooks](#custom-hooks)
+- [Setup](#setup)
+- [Development](#development)
+- [Building](#building)
 - [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
 
-## 🎯 Descripción
+## 🎯 Overview
 
-Aplicación móvil multiplataforma (iOS y Android) que permite a grupos de amigos encontrar películas o series para ver juntos mediante votación colaborativa.
+Trinity Mobile is a cross-platform React Native application built with Expo. It provides a seamless movie matching experience with real-time synchronization, intuitive swipe-based voting, and instant match notifications.
 
-### Características
+### Key Features
 
-- ✅ Autenticación con AWS Cognito
-- ✅ Creación y gestión de salas de votación
-- ✅ Votación en tiempo real
-- ✅ Notificaciones de matches
-- ✅ Historial de matches
-- ✅ Integración con TMDB
-- ✅ Navegación contextual inteligente
-- ✅ Pantalla de celebración de matches
-- ✅ Sistema de sonidos (votoSi, votoNo, chin, inicioApp)
-- ✅ Botón de trailer con búsqueda en YouTube
-- ✅ CustomAlert con tema oscuro
-- ✅ Cambio de contraseña funcional
-- ✅ Perfil de usuario completo
+- **Authentication**: Email/password and Google Sign-In
+- **Real-Time Sync**: GraphQL subscriptions for instant updates
+- **Swipe Voting**: Tinder-style interface for movie selection
+- **Match Notifications**: Celebration screen with confetti effects
+- **Sound Effects**: Audio feedback for user interactions
+- **Room Management**: Create, join, and manage voting rooms
+- **Match History**: View past matches and room activity
 
-## 🏗️ Arquitectura
+### Tech Stack
 
-### Stack Tecnológico
+- **Framework**: React Native + Expo SDK 52
+- **Language**: TypeScript
+- **State Management**: React Context API
+- **Navigation**: React Navigation 6
+- **Authentication**: AWS Amplify Auth
+- **API**: AWS AppSync (GraphQL)
+- **Real-Time**: GraphQL Subscriptions
+- **UI**: Custom components with React Native SVG
+- **Audio**: Expo AV
 
-```
-React Native 0.81.5
-├── Expo SDK 54
-├── TypeScript 5.9.2
-├── React Navigation 7.x
-├── AWS Amplify 6.16.0
-└── GraphQL (AWS AppSync)
-```
-
-### Flujo de Datos
+## 🏗️ Architecture
 
 ```
-┌─────────────────┐
-│   Components    │
-│   (Screens)     │
-└────────┬────────┘
-         │
-         ├─── Context Providers
-         │    ├─── AuthContext
-         │    └─── MatchNotificationContext
-         │
-         ├─── Custom Hooks
-         │    ├─── useMatchPolling
-         │    └─── useProactiveMatchCheck
-         │
-         ├─── Services
-         │    ├─── auth.ts (Cognito)
-         │    ├─── graphql.ts (AppSync)
-         │    ├─── subscriptions.ts
-         │    └─── logger.ts
-         │
-         └─── AWS Backend
-              ├─── AppSync (GraphQL)
-              ├─── Lambda Functions
-              └─── DynamoDB
+┌─────────────────────────────────────────┐
+│           React Native App              │
+├─────────────────────────────────────────┤
+│                                         │
+│  ┌──────────┐  ┌──────────┐           │
+│  │ Screens  │  │Components│           │
+│  └────┬─────┘  └────┬─────┘           │
+│       │             │                  │
+│  ┌────┴─────────────┴─────┐           │
+│  │   Context Providers     │           │
+│  │  - Auth                 │           │
+│  │  - Theme                │           │
+│  │  - Sound                │           │
+│  │  - MatchNotification    │           │
+│  └────┬────────────────────┘           │
+│       │                                │
+│  ┌────┴────────────────────┐           │
+│  │      Services            │           │
+│  │  - Amplify               │           │
+│  │  - GraphQL               │           │
+│  │  - Subscriptions         │           │
+│  │  - Logger                │           │
+│  └────┬────────────────────┘           │
+│       │                                │
+└───────┼────────────────────────────────┘
+        │
+        ├─── AWS Cognito (Auth)
+        ├─── AWS AppSync (GraphQL)
+        └─── AWS Lambda (Backend)
 ```
 
-## 📁 Estructura del Proyecto
+## 📁 Project Structure
 
 ```
 mobile/
 ├── src/
-│   ├── screens/                    # Pantallas de la app
-│   │   ├── AuthScreen.tsx         # Login/Registro
-│   │   ├── DashboardScreen.tsx    # Pantalla principal
-│   │   ├── CreateRoomScreen.tsx   # Crear sala
-│   │   ├── JoinRoomScreen.tsx     # Unirse a sala
-│   │   ├── VotingRoomScreen.tsx   # Votación
-│   │   ├── MatchCelebrationScreen.tsx  # Celebración de match
-│   │   ├── MyRoomsScreen.tsx      # Mis salas
-│   │   ├── MyMatchesScreen.tsx    # Mis matches
-│   │   ├── RecommendationsScreen.tsx   # Recomendaciones
-│   │   └── ProfileScreen.tsx      # Perfil de usuario
+│   ├── screens/              # Screen components
+│   │   ├── AuthScreen.tsx           # Login/Register
+│   │   ├── DashboardScreen.tsx      # Home screen
+│   │   ├── CreateRoomScreen.tsx     # Room creation
+│   │   ├── JoinRoomScreen.tsx       # Join with code
+│   │   ├── VotingRoomScreen.tsx     # Swipe voting
+│   │   ├── MatchCelebrationScreen.tsx  # Match found
+│   │   ├── MyRoomsScreen.tsx        # Room list
+│   │   ├── MyMatchesScreen.tsx      # Match history
+│   │   ├── RecommendationsScreen.tsx # Browse movies
+│   │   └── ProfileScreen.tsx        # User settings
 │   │
-│   ├── services/                   # Servicios
-│   │   ├── amplify.ts             # Configuración Amplify
-│   │   ├── auth.ts                # Autenticación
-│   │   ├── graphql.ts             # Cliente GraphQL
-│   │   ├── subscriptions.ts       # Subscriptions en tiempo real
-│   │   └── logger.ts              # Logging estructurado
+│   ├── components/           # Reusable UI components
+│   │   ├── Typography.tsx           # Text components
+│   │   ├── Button.tsx               # Button variants
+│   │   ├── Card.tsx                 # Card container
+│   │   ├── Icon.tsx                 # Ionicons wrapper
+│   │   ├── ChinIcon.tsx             # Custom logo
+│   │   ├── Avatar.tsx               # User avatar
+│   │   ├── Chip.tsx                 # Genre chips
+│   │   ├── MovieCarousel.tsx        # Scrolling movies
+│   │   ├── CelebrationEffects.tsx   # Confetti
+│   │   ├── CustomAlert.tsx          # Alert dialogs
+│   │   ├── FloatingTabBar.tsx       # Bottom nav
+│   │   └── index.ts                 # Exports
 │   │
-│   ├── hooks/                      # Custom Hooks
-│   │   ├── useMatchPolling.ts     # Polling de matches
-│   │   └── useProactiveMatchCheck.ts  # Verificación proactiva
+│   ├── services/             # Business logic & API
+│   │   ├── amplify.ts               # AWS Amplify config
+│   │   ├── auth.ts                  # Auth helpers
+│   │   ├── graphql.ts               # GraphQL operations
+│   │   ├── subscriptions.ts         # Real-time subs
+│   │   ├── recommendations.ts       # Movie data
+│   │   └── logger.ts                # Structured logging
 │   │
-│   ├── context/                    # Context Providers
-│   │   ├── AuthContext.tsx        # Estado de autenticación
-│   │   └── MatchNotificationContext.tsx  # Notificaciones
+│   ├── context/              # React Context providers
+│   │   ├── AuthContext.tsx          # Auth state
+│   │   ├── ThemeContext.tsx         # Theme/colors
+│   │   ├── SoundContext.tsx         # Audio control
+│   │   └── MatchNotificationContext.tsx  # Match alerts
 │   │
-│   ├── navigation/                 # Navegación
-│   │   └── AppNavigator.tsx       # Stack Navigator
+│   ├── hooks/                # Custom React hooks
+│   │   ├── useMatchPolling.ts       # Polling fallback
+│   │   └── useProactiveMatchCheck.ts # Immediate check
 │   │
-│   ├── config/                     # Configuración
-│   │   └── aws-config.ts          # Config AWS
+│   ├── navigation/           # Navigation setup
+│   │   └── AppNavigator.tsx         # Stack & Tab nav
 │   │
-│   ├── data/                       # Datos estáticos
-│   │   └── staticRecommendations.ts
+│   ├── config/               # Configuration
+│   │   └── aws-config.ts            # AWS credentials
 │   │
-│   └── types/                      # Tipos TypeScript
-│       └── index.ts               # Tipos compartidos
+│   ├── data/                 # Static data
+│   │   └── staticRecommendations.ts # Fallback movies
+│   │
+│   └── types/                # TypeScript types
+│       └── index.ts                 # Type definitions
 │
-├── android/                        # Configuración Android
-│   ├── app/
-│   │   ├── build.gradle           # Build config
-│   │   └── src/main/
-│   │       ├── AndroidManifest.xml
-│   │       └── java/              # Código nativo
-│   └── gradle/                    # Gradle wrapper
+├── android/                  # Android native code
+├── assets/                   # Static assets
+│   ├── logoTrinity.png
+│   ├── icon.png
+│   ├── splash-icon.png
+│   ├── botonSi.png
+│   ├── botonNo.png
+│   ├── iconoChin.png
+│   ├── inicioApp.wav
+│   ├── votoSi.wav
+│   ├── votoNo.wav
+│   └── chin.wav
 │
-├── assets/                         # Assets estáticos
-│   ├── icon.png                   # Icono de la app
-│   ├── splash-icon.png            # Splash screen
-│   ├── adaptive-icon.png          # Android adaptive icon
-│   └── favicon.png                # Favicon web
-│
-├── App.tsx                         # Componente raíz
-├── index.ts                        # Entry point
-├── app.json                        # Configuración Expo
-├── eas.json                        # Configuración EAS Build
-├── metro.config.js                # Metro bundler config
-├── package.json                    # Dependencies
-├── tsconfig.json                   # TypeScript config
-└── README.md                       # Este archivo
+├── App.tsx                   # Root component
+├── app.json                  # Expo configuration
+├── package.json              # Dependencies
+├── tsconfig.json             # TypeScript config
+└── README.md                 # This file
 ```
 
-## ⚙️ Configuración
+## 📱 Screens
 
-### Variables de Entorno
+### AuthScreen
+**Purpose**: User authentication (login/register)
 
-Crear archivo `.env` en `mobile/`:
+**Features**:
+- Welcome screen with movie carousel
+- Email/password authentication
+- Google Sign-In integration
+- Password validation with requirements
+- Username creation
 
-```bash
-# AWS Configuration
-EXPO_PUBLIC_AWS_REGION=eu-west-1
-EXPO_PUBLIC_USER_POOL_ID=eu-west-1_xxxxx
-EXPO_PUBLIC_USER_POOL_CLIENT_ID=xxxxxxxxxxxxx
-EXPO_PUBLIC_GRAPHQL_ENDPOINT=https://xxxxx.appsync-api.eu-west-1.amazonaws.com/graphql
+**Navigation**: Entry point → Dashboard on success
 
-# App Configuration
-EXPO_PUBLIC_APP_NAME=Trinity
-EXPO_PUBLIC_APP_VERSION=1.0.0
+**Key Functions**:
+- `handleLogin()`: Email/password sign-in
+- `handleRegister()`: Create new account
+- `handleGoogleLogin()`: OAuth with Google
+
+---
+
+### DashboardScreen
+**Purpose**: Main hub for app navigation
+
+**Features**:
+- Create new room button
+- Join room with code
+- View my rooms
+- View my matches
+- Browse recommendations
+- Quick access to profile
+
+**Navigation**: Tab navigator root
+
+**Key Functions**:
+- Navigation to all major features
+- User greeting with username
+- Quick stats display
+
+---
+
+### CreateRoomScreen
+**Purpose**: Create a new voting room
+
+**Features**:
+- Media type selection (Movie/TV)
+- Genre selection (max 2)
+- Visual genre chips
+- Room code generation
+- Automatic host join
+
+**Flow**:
+1. Select media type
+2. Choose up to 2 genres
+3. Tap "Crear Sala"
+4. System generates code
+5. Navigate to VotingRoom
+
+**Key Functions**:
+- `handleCreateRoom()`: GraphQL mutation
+- `handleGenreToggle()`: Genre selection logic
+
+---
+
+### JoinRoomScreen
+**Purpose**: Join existing room with code
+
+**Features**:
+- 6-character code input
+- Auto-uppercase formatting
+- Code validation
+- Error handling
+
+**Flow**:
+1. Enter 6-character code
+2. Tap "Unirse"
+3. System validates room
+4. Navigate to VotingRoom
+
+**Key Functions**:
+- `handleJoinRoom()`: GraphQL mutation
+- Code formatting and validation
+
+---
+
+### VotingRoomScreen
+**Purpose**: Swipe-based movie voting
+
+**Features**:
+- Tinder-style card interface
+- Swipe right (yes) / left (no)
+- Button voting alternative
+- Real-time vote sync
+- Progress indicator
+- Match detection
+- Sound effects
+
+**Flow**:
+1. Load room candidates
+2. Display movie cards
+3. User votes on each movie
+4. System checks for matches
+5. Navigate to celebration on match
+
+**Key Functions**:
+- `handleVote()`: Submit vote to backend
+- `checkForMatches()`: Verify match conditions
+- `handleSwipe()`: Gesture handling
+
+**State Management**:
+- Current movie index
+- Voted movies set
+- Match detection status
+- Loading states
+
+---
+
+### MatchCelebrationScreen
+**Purpose**: Display match result with celebration
+
+**Features**:
+- Confetti animation
+- Movie poster display
+- Match details
+- Sound effect
+- Navigation options
+
+**Props**:
+- `matchId`: Match identifier
+- `movieTitle`: Movie name
+- `posterPath`: TMDB poster URL
+- `roomCode`: Room identifier
+
+**Key Functions**:
+- `playSound('chin')`: Celebration audio
+- Confetti animation trigger
+
+---
+
+### MyRoomsScreen
+**Purpose**: List user's active and past rooms
+
+**Features**:
+- Active rooms list
+- Room codes display
+- Participant count
+- Genre badges
+- Navigation to voting
+- Pull-to-refresh
+
+**Data Source**: GraphQL query `getMyRooms`
+
+**Key Functions**:
+- `loadRooms()`: Fetch user rooms
+- `handleRoomPress()`: Navigate to room
+- `handleRefresh()`: Reload data
+
+---
+
+### MyMatchesScreen
+**Purpose**: Display user's match history
+
+**Features**:
+- Match list with posters
+- Movie titles
+- Match timestamps
+- Room information
+- Empty state handling
+
+**Data Source**: GraphQL query `getMyMatches`
+
+**Key Functions**:
+- `loadMatches()`: Fetch match history
+- `handleMatchPress()`: View details
+
+---
+
+### RecommendationsScreen
+**Purpose**: Browse movie recommendations
+
+**Features**:
+- Grid layout
+- Movie posters
+- Search functionality
+- Genre filtering
+- Infinite scroll
+
+**Data Source**: Static recommendations + TMDB
+
+**Key Functions**:
+- `loadRecommendations()`: Fetch movies
+- `handleSearch()`: Filter results
+
+---
+
+### ProfileScreen
+**Purpose**: User settings and account management
+
+**Features**:
+- User profile display
+- Change password
+- Sound toggle
+- Sound test buttons
+- My rooms shortcut
+- My matches shortcut
+- Help/FAQs
+- Rate app
+- About Trinity
+- Social links
+- Sign out
+- Delete account
+
+**Key Functions**:
+- `handleChangePassword()`: Update password
+- `handleSignOut()`: Log out user
+- `handleDeleteAccount()`: Remove account
+- `toggleSound()`: Audio settings
+
+## 🔧 Services
+
+### amplify.ts
+**Purpose**: AWS Amplify configuration
+
+**Exports**:
+- `client`: GraphQL client for queries/mutations
+- `realtimeClient`: GraphQL client for subscriptions
+- `verifyAuthStatus()`: Check authentication
+- `refreshAuthSession()`: Refresh tokens
+
+**Configuration**:
+```typescript
+{
+  Auth: {
+    Cognito: {
+      userPoolId, userPoolClientId, region,
+      loginWith: { oauth: {...} }
+    }
+  },
+  API: {
+    GraphQL: { endpoint, region, defaultAuthMode }
+  }
+}
 ```
 
-**Importante**: Obtener estos valores del output de `cdk deploy` en infrastructure.
+---
 
-### Instalación
+### auth.ts
+**Purpose**: Authentication helper functions
 
-```bash
-cd mobile
-npm install
+**Functions**:
+- `signUp()`: Create new user
+- `signIn()`: Authenticate user
+- `signOut()`: Log out
+- `getCurrentUser()`: Get current user
+- `fetchUserAttributes()`: Get user data
+- `updatePassword()`: Change password
+- `deleteUser()`: Remove account
+
+---
+
+### graphql.ts
+**Purpose**: GraphQL operations
+
+**Queries**:
+- `GET_MY_ROOMS`: Fetch user rooms
+- `GET_MY_MATCHES`: Fetch match history
+- `GET_ROOM_BY_CODE`: Find room by code
+
+**Mutations**:
+- `CREATE_ROOM`: Create new room
+- `JOIN_ROOM`: Join existing room
+- `VOTE`: Submit vote
+- `PUBLISH_USER_MATCH`: Notify match
+
+**Subscriptions**:
+- `USER_MATCH_SUBSCRIPTION`: Listen for matches
+
+---
+
+### subscriptions.ts
+**Purpose**: Real-time subscription management
+
+**Functions**:
+- `subscribeToUserMatches()`: Listen for user matches
+- `unsubscribeFromUserMatches()`: Clean up subscription
+
+**Features**:
+- Automatic reconnection
+- Error handling
+- Token refresh
+- Logging
+
+---
+
+### recommendations.ts
+**Purpose**: Movie data management
+
+**Functions**:
+- `getRecommendations()`: Fetch movie list
+- `searchMovies()`: Search by title
+- `getMovieDetails()`: Get movie info
+
+**Data Source**: Static fallback + TMDB API
+
+---
+
+### logger.ts
+**Purpose**: Structured logging
+
+**Functions**:
+- `logger.info()`: General info
+- `logger.auth()`: Auth events
+- `logger.authError()`: Auth errors
+- `logger.userAction()`: User interactions
+- `logger.navigation()`: Navigation events
+- `logger.ui()`: UI events
+- `logger.apiRequest()`: API calls
+- `logger.apiResponse()`: API responses
+- `logger.error()`: General errors
+
+**Format**:
+```typescript
+{
+  timestamp: ISO string,
+  level: 'INFO' | 'ERROR',
+  category: string,
+  message: string,
+  data?: object
+}
 ```
 
-## 💻 Desarrollo
+## 🎨 Components
 
-### Iniciar en Desarrollo
+### Typography
+**Purpose**: Consistent text styling
 
+**Variants**:
+- `h1`: Large headings (32px)
+- `h2`: Medium headings (24px)
+- `h3`: Small headings (20px)
+- `body`: Body text (16px)
+- `caption`: Small text (14px)
+- `label`: Form labels (12px, uppercase)
+
+**Props**: `variant`, `align`, `style`, `children`
+
+---
+
+### Button
+**Purpose**: Interactive buttons
+
+**Variants**:
+- `primary`: Purple gradient
+- `secondary`: Outlined
+- `outline`: Border only
+
+**Sizes**: `small`, `medium`, `large`
+
+**Props**: `title`, `variant`, `size`, `onPress`, `disabled`, `loading`, `style`
+
+---
+
+### Card
+**Purpose**: Container component
+
+**Features**:
+- Rounded corners
+- Shadow/elevation
+- Padding
+- Background color
+
+**Props**: `children`, `style`, `onPress`
+
+---
+
+### Icon
+**Purpose**: Ionicons wrapper
+
+**Props**: `name`, `size`, `color`, `style`
+
+**Usage**: Consistent icon rendering across app
+
+---
+
+### ChinIcon
+**Purpose**: Custom Trinity logo
+
+**Props**: `size`, `color`
+
+**Features**: SVG-based scalable logo
+
+---
+
+### MovieCarousel
+**Purpose**: Horizontal scrolling movie posters
+
+**Features**:
+- Auto-scroll option
+- Infinite loop
+- Smooth animations
+- Touch controls
+
+**Props**: `movies`, `autoScroll`, `scrollInterval`
+
+---
+
+### CelebrationEffects
+**Purpose**: Confetti animation
+
+**Features**:
+- Particle system
+- Customizable colors
+- Auto-cleanup
+
+**Props**: `active`, `duration`
+
+---
+
+### CustomAlert
+**Purpose**: Custom alert dialogs
+
+**Features**:
+- Modal overlay
+- Custom buttons
+- Flexible styling
+- iOS/Android consistent
+
+**Props**: `visible`, `title`, `message`, `buttons`, `onDismiss`
+
+---
+
+### FloatingTabBar
+**Purpose**: Bottom navigation bar
+
+**Features**:
+- Floating design
+- Active state
+- Icons + labels
+- Smooth transitions
+
+**Props**: `state`, `descriptors`, `navigation`
+
+## 🔄 Context Providers
+
+### AuthContext
+**Purpose**: Global authentication state
+
+**State**:
+- `isAuthenticated`: boolean
+- `user`: User object
+- `loading`: boolean
+
+**Functions**:
+- `onSignOut()`: Handle logout
+- `refreshAuth()`: Refresh session
+
+---
+
+### ThemeContext
+**Purpose**: App theming
+
+**State**:
+- `colors`: Color palette
+- `isDark`: Dark mode flag
+
+**Colors**:
+```typescript
+{
+  primary: '#7c3aed',
+  background: '#0a0a0a',
+  surface: '#1a1a1a',
+  text: '#ffffff',
+  textSecondary: '#cccccc',
+  border: '#2a2a2a',
+  error: '#ef4444',
+  success: '#10b981'
+}
+```
+
+---
+
+### SoundContext
+**Purpose**: Audio management
+
+**State**:
+- `isMuted`: boolean
+- `sounds`: Loaded audio objects
+
+**Functions**:
+- `playSound(name)`: Play audio
+- `toggleSound()`: Mute/unmute
+
+**Sounds**:
+- `inicioApp`: App start
+- `votoSi`: Yes vote
+- `votoNo`: No vote
+- `chin`: Match found
+
+---
+
+### MatchNotificationContext
+**Purpose**: Match notification handling
+
+**State**:
+- `pendingMatch`: Match object
+- `showNotification`: boolean
+
+**Functions**:
+- `showMatchNotification()`: Display match
+- `dismissNotification()`: Hide match
+
+## 🪝 Custom Hooks
+
+### useMatchPolling
+**Purpose**: Polling fallback for match detection
+
+**Usage**:
+```typescript
+const { startPolling, stopPolling } = useMatchPolling(roomId, userId);
+```
+
+**Features**:
+- 5-second interval
+- Automatic cleanup
+- Error handling
+
+---
+
+### useProactiveMatchCheck
+**Purpose**: Immediate match verification after vote
+
+**Usage**:
+```typescript
+const { checkForMatch } = useProactiveMatchCheck();
+await checkForMatch(roomId, userId);
+```
+
+**Features**:
+- Instant check
+- No waiting for subscription
+- Fallback mechanism
+
+## 🚀 Setup
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+- Expo CLI
+- Android Studio (for Android)
+- Xcode (for iOS, macOS only)
+
+### Installation
+
+1. **Install dependencies**
+   ```bash
+   cd mobile
+   npm install
+   ```
+
+2. **Configure environment**
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Update `.env`:
+   ```env
+   EXPO_PUBLIC_AWS_REGION=eu-west-1
+   EXPO_PUBLIC_USER_POOL_ID=your-user-pool-id
+   EXPO_PUBLIC_USER_POOL_CLIENT_ID=your-client-id
+   EXPO_PUBLIC_GRAPHQL_ENDPOINT=your-graphql-endpoint
+   ```
+
+3. **Update AWS config**
+   Edit `src/config/aws-config.ts` with your values
+
+## 💻 Development
+
+### Start Development Server
 ```bash
-# Iniciar Metro bundler
 npx expo start
-
-# Iniciar con cache limpio
-npx expo start --clear
-
-# Iniciar en modo tunnel (para testing remoto)
-npx expo start --tunnel
 ```
 
-### Ejecutar en Dispositivo
+Options:
+- Press `a` for Android
+- Press `i` for iOS
+- Press `w` for web
+- Press `r` to reload
+- Press `m` to toggle menu
+
+### Run on Device
 
 **Android**:
 ```bash
-# Emulador
 npx expo run:android
-
-# Dispositivo físico
-# 1. Habilitar USB debugging
-# 2. Conectar dispositivo
-# 3. npx expo run:android
 ```
 
-**iOS** (solo en macOS):
+**iOS**:
 ```bash
 npx expo run:ios
 ```
 
-### Hot Reload
+### Development Tips
 
-Expo soporta hot reload automático. Los cambios se reflejan instantáneamente en el dispositivo.
+1. **Hot Reload**: Enabled by default, saves time
+2. **Debug Menu**: Shake device or Cmd+D (iOS) / Cmd+M (Android)
+3. **React DevTools**: `npx react-devtools`
+4. **Network Inspector**: Enable in Debug Menu
+5. **Logs**: `npx react-native log-android` or `log-ios`
 
-## 📱 Pantallas
+## 🏗️ Building
 
-### 1. AuthScreen (`src/screens/AuthScreen.tsx`)
-
-**Propósito**: Login y registro de usuarios
-
-**Funcionalidades**:
-- Login con email y password
-- Registro de nuevos usuarios
-- Validación de formularios
-- Manejo de errores de autenticación
-
-**Navegación**:
-- Success → Dashboard
-
-### 2. DashboardScreen (`src/screens/DashboardScreen.tsx`)
-
-**Propósito**: Pantalla principal con acceso a todas las funciones
-
-**Funcionalidades**:
-- Crear nueva sala
-- Unirse a sala existente
-- Ver mis salas
-- Ver mis matches
-- Ver recomendaciones
-- Acceder a perfil
-
-**Navegación**:
-- Crear Sala → CreateRoom
-- Unirse → JoinRoom
-- Mis Salas → MyRooms
-- Mis Matches → MyMatches
-- Recomendaciones → Recommendations
-- Perfil → Profile
-
-### 3. CreateRoomScreen (`src/screens/CreateRoomScreen.tsx`)
-
-**Propósito**: Crear nueva sala de votación
-
-**Funcionalidades**:
-- Seleccionar tipo de media (Película/Serie)
-- Seleccionar hasta 2 géneros
-- Crear sala con código único
-- Navegación automática a sala de votación
-
-**Flujo**:
-```typescript
-1. Usuario selecciona mediaType
-2. Usuario selecciona géneros (máx 2)
-3. Llamada a mutation createRoom
-4. Backend genera código y candidatos
-5. Navegación a VotingRoom con roomId y code
+### Development Build
+```bash
+npx eas build --profile development --platform android
 ```
 
-**Navegación**:
-- Success → VotingRoom
+### Production Build
 
-### 4. JoinRoomScreen (`src/screens/JoinRoomScreen.tsx`)
-
-**Propósito**: Unirse a sala existente con código
-
-**Funcionalidades**:
-- Input de código de 6 caracteres
-- Validación de código
-- Unirse a sala activa
-- Manejo de errores (sala no existe, expirada, etc.)
-
-**Flujo**:
-```typescript
-1. Usuario ingresa código
-2. Llamada a mutation joinRoom
-3. Backend valida código y registra participación
-4. Navegación a VotingRoom
+**Android APK**:
+```bash
+npx eas build --profile production --platform android
 ```
 
-**Navegación**:
-- Success → VotingRoom
-
-### 5. VotingRoomScreen (`src/screens/VotingRoomScreen.tsx`)
-
-**Propósito**: Votación de candidatos de películas
-
-**Funcionalidades**:
-- Mostrar candidatos de películas con póster y descripción
-- Votar positivo/negativo con botones estilizados
-- Botón de play para ver trailer en YouTube
-  - Abre búsqueda de YouTube: "{título} {película/serie} trailer"
-  - Posicionado en esquina inferior derecha del póster
-- Reproducción de sonidos (votoSi.wav, votoNo.wav, chin.wav)
-- Contador de votos realizados
-- Detección automática de matches
-- Subscripción a notificaciones de match en tiempo real
-- Navegación automática a celebración cuando hay match
-
-**Flujo de Votación**:
-```typescript
-1. Mostrar candidato actual
-2. Usuario vota (👍 o 👎)
-3. Llamada a mutation vote
-4. Backend verifica si hay match
-5. Si hay match:
-   - Subscription recibe notificación
-   - Navegación a MatchCelebration
-6. Si no hay match:
-   - Mostrar siguiente candidato
+**Android AAB** (for Play Store):
+```bash
+npx eas build --profile production --platform android --local
 ```
 
-**Hooks Utilizados**:
-- `useMatchPolling`: Polling de respaldo cada 5s
-- `useProactiveMatchCheck`: Verificación después de cada voto
-
-**Navegación**:
-- Match detectado → MatchCelebration
-
-### 6. MatchCelebrationScreen (`src/screens/MatchCelebrationScreen.tsx`)
-
-**Propósito**: Celebración visual cuando hay match
-
-**Funcionalidades**:
-- Mostrar póster grande de la película
-- Información de la película
-- Lista de usuarios que coincidieron
-- Botones de navegación contextual
-- Auto-dismiss de notificación
-
-**Navegación Contextual**:
-```typescript
-if (fromVotingRoom) {
-  // Usuario estaba votando
-  - "Seguir Votando" → VotingRoom
-  - "Ver Mis Matches" → MyMatches
-} else {
-  // Usuario vino de notificación
-  - "Ir al Dashboard" → Dashboard
-  - "Ver Mis Matches" → MyMatches
-}
+**iOS**:
+```bash
+npx eas build --profile production --platform ios
 ```
 
-**Navegación**:
-- Seguir Votando → VotingRoom
-- Ver Mis Matches → MyMatches
-- Ir al Dashboard → Dashboard
-
-### 7. MyRoomsScreen (`src/screens/MyRoomsScreen.tsx`)
-
-**Propósito**: Historial de salas del usuario
-
-**Funcionalidades**:
-- Listar salas donde el usuario es host
-- Listar salas donde el usuario participó
-- Filtrar salas activas (sin matches)
-- Reentrar a salas activas
-- Información de cada sala (código, géneros, fecha)
-
-**Flujo**:
-```typescript
-1. Llamada a query getMyRooms
-2. Backend filtra:
-   - Salas no expiradas (TTL)
-   - Salas sin matches
-   - Usuario es host o participante
-3. Mostrar lista ordenada por fecha
-4. Usuario puede reentrar a sala activa
-```
-
-**Navegación**:
-- Reentrar → VotingRoom
-
-### 8. MyMatchesScreen (`src/screens/MyMatchesScreen.tsx`)
-
-**Propósito**: Historial de matches del usuario
-
-**Funcionalidades**:
-- Listar todos los matches
-- Mostrar póster y título
-- Mostrar usuarios que coincidieron
-- Fecha del match
-- Información de la sala
-
-**Flujo**:
-```typescript
-1. Llamada a query getMyMatches
-2. Backend busca:
-   - Todas las salas donde usuario participó
-   - Matches de esas salas
-   - Filtrar donde usuario está en matchedUsers
-3. Mostrar lista ordenada por fecha
-```
-
-### 9. RecommendationsScreen (`src/screens/RecommendationsScreen.tsx`)
-
-**Propósito**: Recomendaciones de películas populares
-
-**Funcionalidades**:
-- Mostrar películas populares
-- Información de cada película
-- Enlaces externos (opcional)
-
-### 10. ProfileScreen (`src/screens/ProfileScreen.tsx`)
-
-**Propósito**: Perfil y configuración del usuario
-
-**Funcionalidades**:
-- Información del usuario
-- Cerrar sesión
-- Configuración (futuro)
-
-## 🔧 Servicios
-
-### 0. Sound Service (`src/context/SoundContext.tsx`)
-
-**Propósito**: Sistema de sonidos de la aplicación usando expo-av
-
-**Sonidos Disponibles**:
-- `votoSi.wav`: Se reproduce al votar positivo en una película
-- `votoNo.wav`: Se reproduce al votar negativo en una película
-- `chin.wav`: Se reproduce cuando se detecta un match
-- `inicioApp.wav`: Se reproduce al iniciar la aplicación
-
-**Uso**:
-```typescript
-import { useSound } from '../context/SoundContext';
-
-const VotingRoomScreen = () => {
-  const { playSound } = useSound();
-
-  const handleVote = async (vote: boolean) => {
-    // Reproducir sonido según el voto
-    playSound(vote ? 'votoSi' : 'votoNo');
-    
-    // Procesar voto
-    await voteOnMovie({ roomId, movieId, vote });
-  };
-
-  // Reproducir sonido de match
-  const onMatchDetected = (match: Match) => {
-    playSound('chin');
-    navigation.navigate('MatchCelebration', { match });
-  };
-};
-```
-
-**Características**:
-- Carga automática de sonidos al iniciar la app
-- Reproducción asíncrona sin bloquear UI
-- Manejo de errores silencioso (logs en consola)
-- Sonido de inicio automático al abrir la app
-
-**⚠️ Importante**: 
-- Los sonidos requieren `expo-av` que es un módulo nativo
-- **NO funcionan en Expo Go** (solo logs)
-- **Funcionan en APK compilado** con `eas build`
-- Para testing de sonidos, compilar APK de producción
-
-**Archivos de Sonido**:
-```
-mobile/assets/
-├── votoSi.wav      # Sonido de voto positivo
-├── votoNo.wav      # Sonido de voto negativo
-├── chin.wav        # Sonido de match
-└── inicioApp.wav   # Sonido de inicio
-```
-
-### 1. Auth Service (`src/services/auth.ts`)
-
-**Funciones**:
-```typescript
-signUp(email: string, password: string): Promise<void>
-signIn(email: string, password: string): Promise<void>
-signOut(): Promise<void>
-getCurrentUser(): Promise<User | null>
-```
-
-**Uso**:
-```typescript
-import { signIn } from '../services/auth';
-
-const handleLogin = async () => {
-  try {
-    await signIn(email, password);
-    navigation.navigate('Dashboard');
-  } catch (error) {
-    console.error('Login failed:', error);
-  }
-};
-```
-
-### 2. GraphQL Service (`src/services/graphql.ts`)
-
-**Funciones**:
-```typescript
-createRoom(input: CreateRoomInput): Promise<Room>
-joinRoom(code: string): Promise<Room>
-vote(input: VoteInput): Promise<VoteResult>
-getMyRooms(): Promise<Room[]>
-getMyMatches(): Promise<Match[]>
-```
-
-**Uso**:
-```typescript
-import { createRoom } from '../services/graphql';
-
-const handleCreateRoom = async () => {
-  const room = await createRoom({
-    mediaType: 'MOVIE',
-    genreIds: [28, 12]
-  });
-  navigation.navigate('VotingRoom', { 
-    roomId: room.id, 
-    roomCode: room.code 
-  });
-};
-```
-
-### 3. Subscriptions Service (`src/services/subscriptions.ts`)
-
-**Funciones**:
-```typescript
-subscribeToUserMatches(
-  userId: string, 
-  onMatch: (match: Match) => void
-): Subscription
-```
-
-**Uso**:
-```typescript
-import { subscribeToUserMatches } from '../services/subscriptions';
-
-useEffect(() => {
-  const subscription = subscribeToUserMatches(
-    userId,
-    (match) => {
-      console.log('New match!', match);
-      navigation.navigate('MatchCelebration', { match });
-    }
-  );
-
-  return () => subscription.unsubscribe();
-}, [userId]);
-```
-
-### 4. Logger Service (`src/services/logger.ts`)
-
-**Funciones**:
-```typescript
-logger.userAction(action: string, data?: any)
-logger.apiRequest(operation: string, data?: any)
-logger.apiResponse(operation: string, data?: any)
-logger.error(message: string, error: any, context?: any)
-```
-
-**Uso**:
-```typescript
-import { logger } from '../services/logger';
-
-logger.userAction('Room created', { 
-  roomId: room.id, 
-  mediaType: room.mediaType 
-});
-
-logger.apiRequest('createRoom', { input });
-logger.apiResponse('createRoom', { success: true, roomId });
-
-logger.error('Failed to create room', error, { userId, input });
-```
-
-## 🧩 Componentes Principales
-
-### CustomAlert (`src/components/CustomAlert.tsx`)
-
-**Propósito**: Reemplazo del Alert nativo de React Native con estilo personalizado de la app
-
-**Características**:
-- Tema oscuro (#1a1a1a background)
-- Overlay semi-transparente (85% negro)
-- Tres estilos de botones:
-  - `default`: Púrpura (#9333ea) - Acción principal
-  - `cancel`: Gris (#3a3a3a) - Cancelar
-  - `destructive`: Rojo (#ef4444) - Acciones peligrosas
-- Animación de entrada/salida
-- Soporte para múltiples botones
-- Texto personalizable
-
-**Uso**:
-```typescript
-import { showAlert } from '../components/CustomAlert';
-
-// Alert simple con un botón
-showAlert(
-  'Éxito',
-  'Tu contraseña se ha cambiado correctamente',
-  [{ text: 'OK', style: 'default' }]
-);
-
-// Alert de confirmación con dos botones
-showAlert(
-  'Confirmar',
-  '¿Estás seguro de que quieres eliminar tu cuenta?',
-  [
-    { text: 'Cancelar', style: 'cancel' },
-    { 
-      text: 'Eliminar', 
-      style: 'destructive',
-      onPress: () => handleDeleteAccount()
-    }
-  ]
-);
-```
-
-**Estilos de Botones**:
-```typescript
-interface AlertButton {
-  text: string;
-  onPress?: () => void;
-  style?: 'default' | 'cancel' | 'destructive';
-}
-
-// default: Púrpura brillante (#9333ea)
-// cancel: Gris oscuro (#3a3a3a)
-// destructive: Rojo (#ef4444)
-```
-
-**Ventajas sobre Alert nativo**:
-- Consistencia visual con el tema de la app
-- Mejor control sobre estilos y animaciones
-- Funciona igual en iOS y Android
-- Personalizable y extensible
-
-## 🎣 Custom Hooks
-
-### useMatchPolling
-
-**Propósito**: Polling de respaldo para detectar matches
-
-**Uso**:
-```typescript
-import { useMatchPolling } from '../hooks/useMatchPolling';
-
-const VotingRoomScreen = () => {
-  useMatchPolling(roomId, userId, (match) => {
-    navigation.navigate('MatchCelebration', { match });
-  });
-};
-```
-
-**Comportamiento**:
-- Polling cada 5 segundos
-- Solo cuando hay subscripción activa
-- Detiene polling cuando encuentra match
-
-### useProactiveMatchCheck
-
-**Propósito**: Verificación inmediata después de votar
-
-**Uso**:
-```typescript
-import { useProactiveMatchCheck } from '../hooks/useProactiveMatchCheck';
-
-const VotingRoomScreen = () => {
-  const checkForMatch = useProactiveMatchCheck(roomId, userId);
-
-  const handleVote = async (vote: boolean) => {
-    await voteOnMovie({ roomId, movieId, vote });
-    await checkForMatch(); // Verificar inmediatamente
-  };
-};
-```
+### Build Profiles
+
+Defined in `eas.json`:
+- `development`: Debug build with dev tools
+- `preview`: Release build for testing
+- `production`: Optimized for stores
 
 ## 🧪 Testing
 
-### Unit Tests
-
+### Run Tests
 ```bash
 npm test
 ```
 
-### E2E Tests (futuro)
+### Test Coverage
+```bash
+npm run test:coverage
+```
 
+### E2E Tests
 ```bash
 npm run test:e2e
 ```
 
-## 📦 Build y Deployment
-
-### Development Build
-
-```bash
-# Android
-npx expo run:android
-
-# iOS
-npx expo run:ios
-```
-
-### Production Build con EAS
-
-```bash
-# Instalar EAS CLI
-npm install -g eas-cli
-
-# Login
-eas login
-
-# Configurar proyecto
-eas build:configure
-
-# Build Android
-eas build --platform android --profile production
-
-# Build iOS
-eas build --platform ios --profile production
-```
-
-### Build Local (Android APK)
-
-```bash
-cd android
-./gradlew assembleRelease
-
-# APK en: android/app/build/outputs/apk/release/app-release.apk
-```
-
-### Configuración de Build (eas.json)
-
-```json
-{
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal"
-    },
-    "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      }
-    },
-    "production": {
-      "android": {
-        "buildType": "apk"
-      }
-    }
-  }
-}
-```
-
 ## 🐛 Troubleshooting
 
-### Error: "Network request failed"
-
-**Causa**: No se puede conectar al backend
-
-**Solución**:
-1. Verificar que `.env` tiene las variables correctas
-2. Verificar que el backend está desplegado
-3. Verificar conectividad de red
-
+### Metro Bundler Issues
 ```bash
-# Test de conectividad
-curl https://tu-graphql-endpoint.appsync-api.eu-west-1.amazonaws.com/graphql
-```
+# Clear cache
+npx expo start -c
 
-### Error: "User is not authenticated"
-
-**Causa**: Token de autenticación expirado o inválido
-
-**Solución**:
-1. Cerrar sesión y volver a iniciar
-2. Verificar configuración de Cognito en `.env`
-
-### Metro Bundler no inicia
-
-**Solución**:
-```bash
-# Limpiar cache
-npx expo start --clear
-
-# O manualmente
+# Reset everything
 rm -rf node_modules
 npm install
-npx expo start
+npx expo start -c
 ```
 
-### Android Build falla
-
-**Solución**:
+### Android Build Failures
 ```bash
-# Limpiar build
 cd android
 ./gradlew clean
-
-# Rebuild
-./gradlew assembleRelease
+cd ..
+npx expo prebuild --clean
 ```
 
-### Subscriptions no funcionan
-
-**Solución**:
-1. Verificar que AppSync tiene subscriptions habilitadas
-2. Verificar permisos de IAM
-3. Verificar logs en CloudWatch
-
-```typescript
-// Debug subscriptions
-const subscription = subscribeToUserMatches(userId, (match) => {
-  console.log('Subscription received:', match);
-});
-
-// Verificar que subscription está activa
-console.log('Subscription active:', subscription);
-```
-
-### Sonidos no se reproducen
-
-**Causa**: expo-av requiere módulos nativos que no están disponibles en Expo Go
-
-**Solución**:
-1. Los sonidos **NO funcionan en Expo Go** (solo se muestran logs)
-2. Para probar sonidos, compilar APK:
+### iOS Build Failures
 ```bash
-eas build --platform android --profile production
-```
-3. Instalar APK en dispositivo físico
-4. Los sonidos funcionarán correctamente en el APK compilado
-
-**Verificación en logs**:
-```
-[Sound] Playing sound: votoSi
-[Sound] Playing sound: votoNo
-[Sound] Playing sound: chin
-[Sound] Playing sound: inicioApp
+cd ios
+pod deintegrate
+pod install
+cd ..
+npx expo prebuild --clean
 ```
 
-### CustomAlert no se muestra
+### Authentication Issues
+- Verify AWS credentials in `.env`
+- Check Cognito User Pool settings
+- Ensure OAuth redirect URIs are configured
+- Clear app data and reinstall
 
-**Causa**: Posible conflicto con Alert nativo o estado de React
+### Subscription Not Working
+- Check WebSocket connection
+- Verify authentication tokens
+- Test with polling fallback
+- Check AppSync endpoint
 
-**Solución**:
-1. Verificar que se importa correctamente:
-```typescript
-import { showAlert } from '../components/CustomAlert';
-```
-2. Verificar que CustomAlert está montado en App.tsx
-3. Verificar logs en consola para errores
+### Sound Not Playing
+- Verify audio files in `assets/`
+- Check device volume
+- Test on physical device (not simulator)
+- Verify permissions
 
-### Botón de trailer no abre YouTube
+## 📚 Additional Resources
 
-**Causa**: Linking no configurado correctamente o YouTube no instalado
-
-**Solución**:
-1. Verificar que YouTube está instalado en el dispositivo
-2. Si no funciona, se abrirá en navegador web
-3. Verificar permisos de Linking en AndroidManifest.xml
-
-## 📚 Referencias
-
-- [React Native Documentation](https://reactnative.dev/)
 - [Expo Documentation](https://docs.expo.dev/)
-- [React Navigation](https://reactnavigation.org/)
+- [React Native Documentation](https://reactnative.dev/)
 - [AWS Amplify Documentation](https://docs.amplify.aws/)
-- [TypeScript Documentation](https://www.typescriptlang.org/)
+- [React Navigation](https://reactnavigation.org/)
 
-## 🔗 Enlaces Útiles
+## 🤝 Contributing
 
-- [Main README](../README.md)
-- [Infrastructure README](../infrastructure/README.md)
-- [Deployment Guide](../docs/DEPLOYMENT_GUIDE.md)
-- [Technical Documentation](../docs/technical/README.md)
+See main [README.md](../README.md) for contribution guidelines.
 
 ---
 
-**Última actualización**: 2026-02-08  
-**Versión**: 2.2.5  
-**Estado**: ✅ Production Ready
+**Version**: 1.0.0  
+**Last Updated**: 2026-02-08

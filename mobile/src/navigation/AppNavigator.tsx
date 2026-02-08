@@ -122,6 +122,8 @@ export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
               options={{
                 presentation: 'modal',
                 gestureEnabled: false,
+                headerShown: false,
+                headerBackVisible: false,
               }}
             />
           </Stack.Navigator>

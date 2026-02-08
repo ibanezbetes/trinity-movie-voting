@@ -8,6 +8,13 @@ export interface AWSConfig {
   userPoolWebClientId: string;
   graphqlEndpoint: string;
   authenticationType: string;
+  oauth?: {
+    domain: string;
+    scope: string[];
+    redirectSignIn: string;
+    redirectSignOut: string;
+    responseType: string;
+  };
 }
 
 export const awsConfig: AWSConfig = {
@@ -16,6 +23,13 @@ export const awsConfig: AWSConfig = {
   userPoolWebClientId: '61nf41i2bff1c4oc4qo9g36m1k',
   graphqlEndpoint: 'https://ctpyevpldfe53jtmmabeld4hhm.appsync-api.eu-west-1.amazonaws.com/graphql',
   authenticationType: 'AMAZON_COGNITO_USER_POOLS',
+  oauth: {
+    domain: 'trinity-app.auth.eu-west-1.amazoncognito.com',
+    scope: ['email', 'profile', 'openid'],
+    redirectSignIn: 'myapp://callback',
+    redirectSignOut: 'myapp://signout',
+    responseType: 'code',
+  },
 };
 
 // Environment variables for Expo

@@ -3,18 +3,20 @@ import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Linking } from 'react-native';
 import { getCurrentUser } from 'aws-amplify/auth';
+import { Hub } from 'aws-amplify/utils';
 import AppNavigator from './src/navigation/AppNavigator';
 import AuthScreen from './src/screens/AuthScreen';
 import './src/services/amplify'; // Initialize Amplify
 import { logger } from './src/services/logger';
 import { ThemeProvider } from './src/context/ThemeContext';
-import { SoundProvider } from './src/context/SoundContext';
+import { SoundProvider, useSound } from './src/context/SoundContext';
 
-export default function App() {
+function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { playSound } = useSound();
 
   logger.info('APP', 'Trinity app starting', {
     timestamp: new Date().toISOString(),
@@ -23,7 +25,65 @@ export default function App() {
 
   useEffect(() => {
     checkAuthStatus();
+    
+    // Listen for OAuth callbacks
+    const handleUrl = async (event: { url: string }) => {
+      logger.auth('Deep link received', { url: event.url });
+      
+      if (event.url.includes('callback')) {
+        logger.auth('OAuth callback detected, checking auth status');
+        // Wait a bit for Amplify to process the OAuth callback
+        setTimeout(() => {
+          checkAuthStatus();
+        }, 1000);
+      }
+    };
+
+    // Add URL listener for deep links
+    const subscription = Linking.addEventListener('url', handleUrl);
+
+    // Check if app was opened with a URL
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        logger.auth('App opened with URL', { url });
+        handleUrl({ url });
+      }
+    });
+
+    // Listen for Auth Hub events
+    const hubListener = Hub.listen('auth', (data) => {
+      const { payload } = data;
+      logger.auth('Auth Hub event', { event: payload.event });
+      
+      switch (payload.event) {
+        case 'signedIn':
+          logger.auth('User signed in via OAuth');
+          checkAuthStatus();
+          break;
+        case 'signInWithRedirect':
+          logger.auth('OAuth redirect initiated');
+          break;
+        case 'signInWithRedirect_failure':
+          logger.authError('OAuth redirect failed', payload.data);
+          break;
+        case 'customOAuthState':
+          logger.auth('Custom OAuth state received', payload.data);
+          break;
+      }
+    });
+
+    return () => {
+      subscription.remove();
+      hubListener();
+    };
   }, []);
+
+  useEffect(() => {
+    // Play inicio sound when app finishes loading
+    if (!isLoading) {
+      playSound('inicioApp');
+    }
+  }, [isLoading]);
 
   const checkAuthStatus = async () => {
     logger.auth('Checking authentication status');
@@ -92,25 +152,31 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <SafeAreaProvider>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#ffffff" />
-          <Text style={styles.loadingText}>Iniciando Trinity...</Text>
-        </View>
-      </SafeAreaProvider>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#ffffff" />
+        <Text style={styles.loadingText}>Iniciando Trinity...</Text>
+      </View>
     );
   }
 
   return (
+    <>
+      <StatusBar style="light" backgroundColor="#1a1a1a" />
+      {isAuthenticated ? (
+        <AppNavigator onSignOut={handleSignOut} />
+      ) : (
+        <AuthScreen onAuthSuccess={handleAuthSuccess} />
+      )}
+    </>
+  );
+}
+
+export default function App() {
+  return (
     <SafeAreaProvider>
       <ThemeProvider>
         <SoundProvider>
-          <StatusBar style="light" backgroundColor="#1a1a1a" />
-          {isAuthenticated ? (
-            <AppNavigator onSignOut={handleSignOut} />
-          ) : (
-            <AuthScreen onAuthSuccess={handleAuthSuccess} />
-          )}
+          <AppContent />
         </SoundProvider>
       </ThemeProvider>
     </SafeAreaProvider>

@@ -10,4 +10,5 @@ export { ChinIcon } from './ChinIcon';
 export { AppTabBar } from './AppTabBar';
 export { Icon } from './Icon';
 export { CustomAlert } from './CustomAlert';
+export { CelebrationEffects } from './CelebrationEffects';
 export type { IconName } from './Icon';

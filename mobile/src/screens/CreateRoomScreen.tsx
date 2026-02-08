@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StatusBar,
   ScrollView,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +15,7 @@ import { MOVIE_GENRES, TV_GENRES, Genre, RootStackParamList } from '../types';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { CREATE_ROOM } from '../services/graphql';
 import { logger } from '../services/logger';
-import { Avatar, Card, Typography, Button, Chip, Icon } from '../components';
+import { Avatar, Card, Typography, Button, Chip, Icon, CustomAlert } from '../components';
 
 type CreateRoomNavigationProp = StackNavigationProp<RootStackParamList, 'CreateRoom'>;
 
@@ -26,6 +25,17 @@ export default function CreateRoomScreen() {
   const [selectedGenres, setSelectedGenres] = useState<number[]>([]);
   const [maxParticipants, setMaxParticipants] = useState<number>(2);
   const [isCreating, setIsCreating] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message?: string;
+    buttons?: Array<{ text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }>;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    buttons: [{ text: 'OK' }]
+  });
 
   const currentGenres = mediaType === 'MOVIE' ? MOVIE_GENRES : TV_GENRES;
 
@@ -77,7 +87,12 @@ export default function CreateRoomScreen() {
 
     if (selectedGenres.length === 0) {
       logger.userAction('Create room blocked - no genres selected');
-      Alert.alert('Error', 'Selecciona al menos un género');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'Selecciona al menos un género',
+        buttons: [{ text: 'OK' }]
+      });
       return;
     }
     
@@ -96,7 +111,12 @@ export default function CreateRoomScreen() {
       
       if (!authStatus.isAuthenticated) {
         logger.authError('User not authenticated for room creation', null);
-        Alert.alert('Error de Autenticación', 'Por favor inicia sesión nuevamente');
+        setAlertConfig({
+          visible: true,
+          title: 'Error de Autenticación',
+          message: 'Por favor inicia sesión nuevamente',
+          buttons: [{ text: 'OK' }]
+        });
         return;
       }
 
@@ -154,7 +174,12 @@ export default function CreateRoomScreen() {
         });
       } else {
         logger.roomError('Room creation failed - no room data returned', null, response);
-        Alert.alert('Error', 'No se pudo crear la sala. Respuesta vacía del servidor.');
+        setAlertConfig({
+          visible: true,
+          title: 'Error',
+          message: 'No se pudo crear la sala. Respuesta vacía del servidor.',
+          buttons: [{ text: 'OK' }]
+        });
       }
     } catch (error) {
       logger.roomError('Room creation failed', error, {
@@ -163,7 +188,12 @@ export default function CreateRoomScreen() {
         timestamp: new Date().toISOString()
       });
       console.error('Error creating room:', error);
-      Alert.alert('Error', 'No se pudo crear la sala. Inténtalo de nuevo.');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'No se pudo crear la sala. Inténtalo de nuevo.',
+        buttons: [{ text: 'OK' }]
+      });
     } finally {
       setIsCreating(false);
       logger.room('Room creation process completed', { isCreating: false });
@@ -271,6 +301,14 @@ export default function CreateRoomScreen() {
           style={styles.createButton}
         />
       </View>
+      
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onDismiss={() => setAlertConfig({ ...alertConfig, visible: false })}
+      />
     </SafeAreaView>
   );
 }

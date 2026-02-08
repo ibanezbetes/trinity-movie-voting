@@ -12,13 +12,21 @@ import {
 } from 'react-native';
 import { FlatList, ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { getRecommendations, RecommendationCategory, RecommendationMovie } from '../services/recommendations';
 import { AppTabBar, Icon } from '../components';
 import { logger } from '../services/logger';
 
+type RecommendationsScreenRouteProp = RouteProp<{
+  Recommendations: {
+    movieId?: number;
+    fromMatch?: boolean;
+  };
+}, 'Recommendations'>;
+
 export default function RecommendationsScreen() {
   const navigation = useNavigation();
+  const route = useRoute<RecommendationsScreenRouteProp>();
   const [categories, setCategories] = useState<RecommendationCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMovie, setSelectedMovie] = useState<RecommendationMovie | null>(null);
@@ -28,6 +36,32 @@ export default function RecommendationsScreen() {
   useEffect(() => {
     loadRecommendations();
   }, []);
+
+  // Efecto para abrir automáticamente el modal cuando se navega desde MyMatches
+  useEffect(() => {
+    if (route.params?.movieId && categories.length > 0) {
+      const movieId = route.params.movieId;
+      logger.info('Opening movie from match', { movieId, fromMatch: route.params.fromMatch });
+      
+      // Buscar la película en todas las categorías
+      let foundMovie: RecommendationMovie | null = null;
+      for (const category of categories) {
+        const movie = category.movies.find(m => m.movieId === movieId);
+        if (movie) {
+          foundMovie = movie;
+          break;
+        }
+      }
+
+      if (foundMovie) {
+        setSelectedMovie(foundMovie);
+        setShowModal(true);
+        logger.info('Movie found and modal opened', { movieId, title: foundMovie.title });
+      } else {
+        logger.warn('Movie not found in recommendations', { movieId });
+      }
+    }
+  }, [route.params?.movieId, categories]);
 
   const loadRecommendations = async () => {
     try {
@@ -400,17 +434,9 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(33, 150, 243, 0.9)',
+    backgroundColor: 'rgba(147, 51, 234, 0.5)', // Morado con 50% de transparencia
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
   },
   modalInfo: {
     padding: 20,

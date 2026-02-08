@@ -11,13 +11,22 @@ logger.info('AMPLIFY', 'Configuring AWS Amplify with enhanced real-time support'
   clientId: awsConfig.userPoolWebClientId
 });
 
-// CRITICAL: Configure Amplify with enhanced real-time support
+// CRITICAL: Configure Amplify with enhanced real-time support and OAuth
 const amplifyConfig = {
   Auth: {
     Cognito: {
       userPoolId: awsConfig.userPoolId,
       userPoolClientId: awsConfig.userPoolWebClientId,
       region: awsConfig.region,
+      loginWith: {
+        oauth: awsConfig.oauth ? {
+          domain: awsConfig.oauth.domain,
+          scopes: awsConfig.oauth.scope,
+          redirectSignIn: [awsConfig.oauth.redirectSignIn],
+          redirectSignOut: [awsConfig.oauth.redirectSignOut],
+          responseType: awsConfig.oauth.responseType as 'code',
+        } : undefined,
+      },
     },
   },
   API: {

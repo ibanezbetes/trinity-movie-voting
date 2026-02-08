@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StatusBar,
   TextInput,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -18,6 +17,7 @@ import { RootStackParamList } from '../types';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { JOIN_ROOM } from '../services/graphql';
 import { logger } from '../services/logger';
+import { CustomAlert } from '../components';
 
 type JoinRoomNavigationProp = StackNavigationProp<RootStackParamList, 'JoinRoom'>;
 
@@ -25,6 +25,17 @@ export default function JoinRoomScreen() {
   const navigation = useNavigation<JoinRoomNavigationProp>();
   const [roomCode, setRoomCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message?: string;
+    buttons?: Array<{ text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }>;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    buttons: [{ text: 'OK' }]
+  });
 
   logger.userAction('Screen loaded: JoinRoom');
 
@@ -37,7 +48,12 @@ export default function JoinRoomScreen() {
         length: roomCode.length,
         required: 6 
       });
-      Alert.alert('Error', 'El código debe tener 6 caracteres');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'El código debe tener 6 caracteres',
+        buttons: [{ text: 'OK' }]
+      });
       return;
     }
     
@@ -54,7 +70,12 @@ export default function JoinRoomScreen() {
       
       if (!authStatus.isAuthenticated) {
         logger.authError('User not authenticated for room join', null);
-        Alert.alert('Error de Autenticación', 'Por favor inicia sesión nuevamente');
+        setAlertConfig({
+          visible: true,
+          title: 'Error de Autenticación',
+          message: 'Por favor inicia sesión nuevamente',
+          buttons: [{ text: 'OK' }]
+        });
         return;
       }
 
@@ -102,7 +123,12 @@ export default function JoinRoomScreen() {
         });
       } else {
         logger.roomError('Room join failed - no room data returned', null, response);
-        Alert.alert('Error', 'Sala no encontrada. Verifica el código.');
+        setAlertConfig({
+          visible: true,
+          title: 'Error',
+          message: 'Sala no encontrada. Verifica el código.',
+          buttons: [{ text: 'OK' }]
+        });
       }
     } catch (error: any) {
       logger.roomError('Room join failed', error, {
@@ -115,13 +141,33 @@ export default function JoinRoomScreen() {
       const errorMessage = error?.errors?.[0]?.message || error?.message || 'Error desconocido';
       
       if (errorMessage.includes('está llena')) {
-        Alert.alert('Sala Llena', 'Esta sala ya tiene el máximo de participantes permitidos.');
+        setAlertConfig({
+          visible: true,
+          title: 'Sala Llena',
+          message: 'Esta sala ya tiene el máximo de participantes permitidos.',
+          buttons: [{ text: 'OK' }]
+        });
       } else if (errorMessage.includes('not found')) {
-        Alert.alert('Error', 'Sala no encontrada. Verifica el código.');
+        setAlertConfig({
+          visible: true,
+          title: 'Error',
+          message: 'Sala no encontrada. Verifica el código.',
+          buttons: [{ text: 'OK' }]
+        });
       } else if (errorMessage.includes('expired')) {
-        Alert.alert('Error', 'Esta sala ha expirado.');
+        setAlertConfig({
+          visible: true,
+          title: 'Error',
+          message: 'Esta sala ha expirado.',
+          buttons: [{ text: 'OK' }]
+        });
       } else {
-        Alert.alert('Error', 'No se pudo unir a la sala. Inténtalo de nuevo.');
+        setAlertConfig({
+          visible: true,
+          title: 'Error',
+          message: 'No se pudo unir a la sala. Inténtalo de nuevo.',
+          buttons: [{ text: 'OK' }]
+        });
       }
     } finally {
       setIsJoining(false);
@@ -217,6 +263,14 @@ export default function JoinRoomScreen() {
           )}
         </TouchableOpacity>
       </View>
+      
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onDismiss={() => setAlertConfig({ ...alertConfig, visible: false })}
+      />
     </SafeAreaView>
   );
 }
@@ -306,8 +360,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   codeBoxFilled: {
-    borderColor: '#2196F3',
-    backgroundColor: '#2196F3',
+    borderColor: '#9333ea',
+    backgroundColor: '#9333ea',
   },
   codeBoxText: {
     fontSize: 20,
@@ -320,7 +374,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#333333',
   },
   joinButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#9333ea',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',

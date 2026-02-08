@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  Alert,
   RefreshControl,
   Clipboard,
 } from 'react-native';
@@ -17,7 +16,7 @@ import { RootStackParamList } from '../types';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { GET_MY_ROOMS } from '../services/graphql';
 import { logger } from '../services/logger';
-import { AppTabBar, Icon } from '../components';
+import { AppTabBar, Icon, CustomAlert } from '../components';
 
 type MyRoomsNavigationProp = StackNavigationProp<RootStackParamList, 'MyRooms'>;
 
@@ -39,6 +38,17 @@ export default function MyRoomsScreen() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message?: string;
+    buttons?: Array<{ text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }>;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    buttons: [{ text: 'OK' }]
+  });
 
   useEffect(() => {
     logger.userAction('Screen loaded: My Rooms');
@@ -50,7 +60,12 @@ export default function MyRoomsScreen() {
       const authStatus = await verifyAuthStatus();
       if (!authStatus.isAuthenticated) {
         logger.authError('User not authenticated for rooms', null);
-        Alert.alert('Error', 'Debes iniciar sesión para ver tus salas');
+        setAlertConfig({
+          visible: true,
+          title: 'Error',
+          message: 'Debes iniciar sesión para ver tus salas',
+          buttons: [{ text: 'OK' }]
+        });
         return;
       }
 
@@ -76,7 +91,12 @@ export default function MyRoomsScreen() {
     } catch (error) {
       logger.roomError('Failed to load user rooms', error);
       console.error('Error loading rooms:', error);
-      Alert.alert('Error', 'No se pudieron cargar tus salas');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'No se pudieron cargar tus salas',
+        buttons: [{ text: 'OK' }]
+      });
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -157,7 +177,7 @@ export default function MyRoomsScreen() {
             }}
             activeOpacity={0.7}
           >
-            <Icon name="copy" size={20} color="#4CAF50" />
+            <Icon name="copy" size={20} color="#9333EA" />
           </TouchableOpacity>
         </View>
         <Text style={styles.roomDate}>{formatDate(item.createdAt)}</Text>
@@ -172,7 +192,7 @@ export default function MyRoomsScreen() {
         <Text style={styles.statusText}>
           {item.isHost ? 'Sala creada por ti' : 'Te uniste a esta sala'}
         </Text>
-        <Icon name="arrow-forward" size={20} color="#4CAF50" />
+        <Icon name="arrow-forward" size={20} color="#9333EA" />
       </View>
     </TouchableOpacity>
   );
@@ -182,15 +202,8 @@ export default function MyRoomsScreen() {
       <Icon name="film" size={80} color="#888888" />
       <Text style={styles.emptyTitle}>No tienes salas activas</Text>
       <Text style={styles.emptySubtitle}>
-        Las salas aparecen aquí cuando las creas o te unes a ellas. 
-        Una vez que se produce un match, la sala se cierra automáticamente.
+        Las salas aparecen aquí cuando las creas o te unes a ellas. Una vez que se produce un chin, la sala se cierra
       </Text>
-      <TouchableOpacity
-        style={styles.createRoomButton}
-        onPress={() => navigation.navigate('CreateRoom')}
-      >
-        <Text style={styles.createRoomButtonText}>Crear Nueva Sala</Text>
-      </TouchableOpacity>
     </View>
   );
 
@@ -211,7 +224,7 @@ export default function MyRoomsScreen() {
       {/* Content */}
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+          <ActivityIndicator size="large" color="#9333EA" />
           <Text style={styles.loadingText}>Cargando tus salas...</Text>
         </View>
       ) : (
@@ -225,13 +238,21 @@ export default function MyRoomsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              colors={['#4CAF50']}
-              tintColor="#4CAF50"
+              colors={['#9333EA']}
+              tintColor="#9333EA"
             />
           }
           showsVerticalScrollIndicator={false}
         />
       )}
+      
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onDismiss={() => setAlertConfig({ ...alertConfig, visible: false })}
+      />
 
       {/* Floating Tab Bar */}
       <AppTabBar activeTab="home" />
@@ -308,7 +329,7 @@ const styles = StyleSheet.create({
   roomCode: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#9333EA',
     letterSpacing: 2,
   },
   copyButton: {
@@ -365,17 +386,5 @@ const styles = StyleSheet.create({
     color: '#888888',
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 30,
-  },
-  createRoomButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 12,
-  },
-  createRoomButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#ffffff',
   },
 });

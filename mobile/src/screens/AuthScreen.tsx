@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -16,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { signUp, signIn, confirmSignUp, getCurrentUser } from 'aws-amplify/auth';
 import { logger } from '../services/logger';
-import { Typography, Button, MovieCarousel, AppleLogo } from '../components';
+import { Typography, Button, MovieCarousel, CustomAlert } from '../components';
 
 const { width, height } = Dimensions.get('window');
 
@@ -47,6 +46,17 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message?: string;
+    buttons?: Array<{ text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }>;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    buttons: [{ text: 'OK' }]
+  });
 
   logger.userAction('Screen loaded: Auth', { authMode });
 
@@ -62,7 +72,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'Por favor completa todos los campos',
+        buttons: [{ text: 'OK' }]
+      });
       return;
     }
 
@@ -104,11 +119,21 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           onAuthSuccess();
         } catch (tokenError) {
           logger.authError('Token verification failed after login', tokenError);
-          Alert.alert('Error', 'Problema con la sesión. Por favor intenta de nuevo.');
+          setAlertConfig({
+            visible: true,
+            title: 'Error',
+            message: 'Problema con la sesión. Por favor intenta de nuevo.',
+            buttons: [{ text: 'OK' }]
+          });
         }
       } else {
         logger.auth('Login requires additional steps', { nextStep: result.nextStep });
-        Alert.alert('Info', 'Se requieren pasos adicionales para completar el login');
+        setAlertConfig({
+          visible: true,
+          title: 'Info',
+          message: 'Se requieren pasos adicionales para completar el login',
+          buttons: [{ text: 'OK' }]
+        });
       }
     } catch (error) {
       logger.authError('Login failed', error);
@@ -138,7 +163,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         }
       }
       
-      Alert.alert('Error', errorMessage);
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: errorMessage,
+        buttons: [{ text: 'OK' }]
+      });
     } finally {
       setIsLoading(false);
     }
@@ -146,44 +176,84 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   const handleRegister = async () => {
     if (!email || !username || !password || !confirmPassword) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'Por favor completa todos los campos',
+        buttons: [{ text: 'OK' }]
+      });
       return;
     }
 
     // Validar formato de username
     if (username.length < 3) {
-      Alert.alert('Error', 'El nombre de usuario debe tener al menos 3 caracteres');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'El nombre de usuario debe tener al menos 3 caracteres',
+        buttons: [{ text: 'OK' }]
+      });
       return;
     }
 
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      Alert.alert('Error', 'El nombre de usuario solo puede contener letras, números y guiones bajos');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'El nombre de usuario solo puede contener letras, números y guiones bajos',
+        buttons: [{ text: 'OK' }]
+      });
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Las contraseñas no coinciden');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'Las contraseñas no coinciden',
+        buttons: [{ text: 'OK' }]
+      });
       return;
     }
 
     // Validación detallada de contraseña
     if (password.length < 8) {
-      Alert.alert('Error', 'La contraseña debe tener al menos 8 caracteres');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'La contraseña debe tener al menos 8 caracteres',
+        buttons: [{ text: 'OK' }]
+      });
       return;
     }
 
     if (!/[A-Z]/.test(password)) {
-      Alert.alert('Error', 'La contraseña debe contener al menos una letra mayúscula');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'La contraseña debe contener al menos una letra mayúscula',
+        buttons: [{ text: 'OK' }]
+      });
       return;
     }
 
     if (!/[a-z]/.test(password)) {
-      Alert.alert('Error', 'La contraseña debe contener al menos una letra minúscula');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'La contraseña debe contener al menos una letra minúscula',
+        buttons: [{ text: 'OK' }]
+      });
       return;
     }
 
     if (!/[0-9]/.test(password)) {
-      Alert.alert('Error', 'La contraseña debe contener al menos un número');
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'La contraseña debe contener al menos un número',
+        buttons: [{ text: 'OK' }]
+      });
       return;
     }
 
@@ -214,22 +284,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       });
 
       // Always redirect to login after successful registration
-      Alert.alert(
-        'Registro Exitoso', 
-        `Tu cuenta ha sido creada correctamente con el nombre de usuario "${username}". Por favor inicia sesión con tu email.`,
-        [{ 
-          text: 'Iniciar Sesión', 
-          onPress: () => {
-            // Clear password fields for security
-            setPassword('');
-            setConfirmPassword('');
-            setUsername('');
-            // Redirect to login
-            setAuthMode('login');
-            logger.auth('User redirected to login after successful registration');
-          }
-        }]
-      );
+      setAlertConfig({
+        visible: true,
+        title: 'Registro Exitoso',
+        message: 'Por favor inicia sesión con tu email.',
+        buttons: [{ text: 'OK', onPress: () => setAuthMode('login') }]
+      });
 
     } catch (error) {
       logger.authError('Registration failed', error);
@@ -247,24 +307,50 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         } else if (err.message && err.message.includes('email')) {
           errorMessage = 'Ya existe una cuenta con este email';
         } else if (err.message) {
-          errorMessage = err.message;
+          // Limpiar el prefijo "PreSignUp failed with error" o "PreSinUp failed with error"
+          let cleanMessage = err.message;
+          if (cleanMessage.includes('PreSignUp failed with error')) {
+            cleanMessage = cleanMessage.replace('PreSignUp failed with error', '').trim();
+          } else if (cleanMessage.includes('PreSinUp failed with error')) {
+            cleanMessage = cleanMessage.replace('PreSinUp failed with error', '').trim();
+          }
+          errorMessage = cleanMessage;
         }
       }
       
-      Alert.alert('Error', errorMessage);
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: errorMessage,
+        buttons: [{ text: 'OK' }]
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
-    logger.auth('Google login attempted');
-    Alert.alert('Próximamente', 'Login con Google estará disponible pronto');
-  };
-
-  const handleAppleLogin = async () => {
-    logger.auth('Apple login attempted');
-    Alert.alert('Próximamente', 'Login con Apple estará disponible pronto');
+    try {
+      setIsLoading(true);
+      logger.auth('Google login initiated');
+      
+      const { signInWithRedirect } = await import('aws-amplify/auth');
+      
+      await signInWithRedirect({
+        provider: 'Google',
+      });
+      
+      logger.auth('Google login redirect initiated');
+    } catch (error) {
+      logger.authError('Google login failed', error);
+      setAlertConfig({
+        visible: true,
+        title: 'Error',
+        message: 'No se pudo iniciar sesión con Google. Por favor intenta de nuevo.',
+        buttons: [{ text: 'OK' }]
+      });
+      setIsLoading(false);
+    }
   };
 
   const renderWelcomeScreen = () => (
@@ -323,26 +409,19 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             Continúa con:
           </Typography>
 
-          {/* Botones circulares sociales */}
+          {/* Botón circular de Google */}
           <View style={styles.socialButtonsRow}>
             <TouchableOpacity
               style={styles.socialButtonCircle}
               onPress={handleGoogleLogin}
               activeOpacity={0.7}
+              disabled={isLoading}
             >
               <Image
                 source={{ uri: 'https://www.google.com/images/branding/googleg/1x/googleg_standard_color_128dp.png' }}
                 style={styles.socialIconLarge}
                 resizeMode="contain"
               />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.socialButtonCircle}
-              onPress={handleAppleLogin}
-              activeOpacity={0.7}
-            >
-              <AppleLogo size={32} color="#ffffff" />
             </TouchableOpacity>
           </View>
         </View>
@@ -588,6 +667,14 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       {authMode === 'welcome' && renderWelcomeScreen()}
       {authMode === 'login' && renderLoginScreen()}
       {authMode === 'register' && renderRegisterScreen()}
+      
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onDismiss={() => setAlertConfig({ ...alertConfig, visible: false })}
+      />
     </SafeAreaView>
   );
 }
