@@ -127,6 +127,23 @@ response*.json
 *_CAPACITY*.md
 *_LIMIT*.md
 *_INFO*.md
+*_UPDATE*.md
+*_CHANGES*.md
+*_APPLIED*.md
+*_COMPLETE*.md
+*_REDESIGN*.md
+*_IMPROVEMENTS*.md
+*_REFACTOR*.md
+*_SCREEN*.md
+*_FEATURE*.md
+*_SYSTEM*.md
+*_MINOR*.md
+*_SPACING*.md
+*_SHADOW*.md
+*_CUSTOM*.md
+*_ALERT*.md
+*_BUTTON*.md
+*_SEARCH*.md
 FIXES_*.md
 TESTING_*.md
 QUICK_START_*.md
@@ -141,6 +158,7 @@ test-*.md
 build-*.bat
 build-*.js
 build-*.sh
+build-*.ps1
 install-*.bat
 install-*.sh
 verify-*.bat
@@ -163,6 +181,8 @@ update-*.bat
 update-*.sh
 upload-*.ps1
 upload-*.sh
+reload-*.ps1
+reload-*.sh
 
 # Mantener scripts oficiales
 !cleanup.ps1

@@ -8,6 +8,8 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -156,8 +158,12 @@ export default function JoinRoomScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      {/* Content */}
-      <View style={styles.content}>
+      {/* Content with KeyboardAvoidingView */}
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
         <View style={styles.inputSection}>
           <Text style={styles.label}>Código de Sala</Text>
           <Text style={styles.description}>
@@ -195,7 +201,7 @@ export default function JoinRoomScreen() {
             ))}
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Join Button */}
       <View style={styles.footer}>
@@ -253,8 +259,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     padding: 20,
+    paddingTop: 60,
   },
   inputSection: {
     alignItems: 'center',

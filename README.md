@@ -2,8 +2,8 @@
 
 Trinity es una aplicación móvil que ayuda a grupos de amigos a encontrar la película o serie perfecta para ver juntos. Usando un sistema de votación tipo "Tinder", todos los participantes votan sobre opciones hasta encontrar un match perfecto.
 
-**Versión Actual**: 2.2.2  
-**Última Actualización**: 2026-02-07
+**Versión Actual**: 2.2.5  
+**Última Actualización**: 2026-02-08
 
 ## 🎯 Características Principales
 
@@ -399,12 +399,51 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para
 
 ---
 
-**Version**: 2.2.2  
-**Last Updated**: 2026-02-07  
+**Version**: 2.2.5  
+**Last Updated**: 2026-02-08  
 **Status**: ✅ Production Ready  
 **Region**: eu-west-1 (Ireland)
 
 ## 📝 Changelog
+
+### v2.2.5 (2026-02-08)
+- ✅ **Sistema de Sonidos**: Implementado sistema completo de sonidos
+  - votoSi.wav: Sonido al votar positivo
+  - votoNo.wav: Sonido al votar negativo
+  - chin.wav: Sonido al detectar match
+  - inicioApp.wav: Sonido al iniciar la app
+  - Integración con expo-av (requiere APK compilado)
+- ✅ **Botón de Trailer**: Botón play en pósters que abre búsqueda de YouTube
+  - Implementado en VotingRoomScreen
+  - Implementado en RecommendationsScreen
+  - Búsqueda automática: "{título} {película/serie} trailer"
+- ✅ **CustomAlert Component**: Reemplazo de Alert nativo con estilo de la app
+  - Tema oscuro (#1a1a1a background)
+  - Tres estilos de botones: default (purple), cancel (gray), destructive (red)
+  - Usado en ProfileScreen para todas las alertas
+- ✅ **Cambio de Contraseña**: Funcionalidad completa implementada
+  - Modal con validación de contraseña actual y nueva
+  - Requisitos: mín 8 chars, mayúsculas, minúsculas, números
+  - Integración con AWS Cognito updatePassword
+- ✅ **Mejoras de UI**: Ajustes de espaciado y estilos
+  - Reducido espaciado en modal "Sobre Trinity"
+  - Eliminada sombra de FloatingTabBar
+  - Reordenadas secciones en ProfileScreen
+  - Texto "Valorar App" → "Valorar"
+- ✅ **Limpieza de Proyecto**: Eliminados 45+ archivos temporales
+  - Archivos .md temporales (_FIX, _SUMMARY, _BUILD, etc.)
+  - Scripts temporales (build-*.ps1, reload-app.ps1)
+  - APKs temporales
+  - Actualizado .gitignore con patrones completos
+- ✅ **Sincronización con AWS**: Código local sincronizado con AWS
+  - Lambda functions actualizadas desde AWS
+  - Tablas DynamoDB verificadas
+  - mobile/.env actualizado con credenciales
+- ✅ **Documentación Completa**: READMEs actualizados y completos
+  - README.md principal con arquitectura y flujos
+  - infrastructure/README.md con detalles de Lambda functions
+  - mobile/README.md con pantallas y servicios
+  - Steering file completo en .kiro/steering/
 
 ### v2.2.2 (2026-02-06)
 - ✅ **Room Capacity Limit**: Implementado límite real de participantes en salas
@@ -413,13 +452,11 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para
   - Mensaje de error "Sala llena" cuando se alcanza el límite
   - Re-entrada permitida para usuarios ya en la sala
 - ✅ Mejoras en manejo de errores en JoinRoomScreen
-- ✅ Documentación completa en `ROOM_CAPACITY_LIMIT_v2.2.2.md`
 
 ### v2.2.1 (2026-02-06)
 - ✅ Fix de notificaciones duplicadas de match
 - ✅ Eliminados Alerts nativos, solo MatchCelebrationScreen
 - ✅ Navegación contextual mejorada
-- ✅ Documentación completa actualizada
 
 ### v2.2.0 (2026-02-05)
 - ✅ Smart Random Discovery en TMDB Handler

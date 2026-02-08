@@ -6,6 +6,8 @@ export { Typography } from './Typography';
 export { Chip } from './Chip';
 export { MovieCarousel } from './MovieCarousel';
 export { AppleLogo } from './AppleLogo';
+export { ChinIcon } from './ChinIcon';
 export { AppTabBar } from './AppTabBar';
 export { Icon } from './Icon';
+export { CustomAlert } from './CustomAlert';
 export type { IconName } from './Icon';

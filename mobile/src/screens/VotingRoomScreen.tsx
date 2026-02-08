@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   PanResponder,
   Animated,
+  Clipboard,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -21,6 +23,8 @@ import { GET_ROOM, VOTE } from '../services/graphql';
 import { logger } from '../services/logger';
 import { useProactiveMatchCheck, ACTION_NAMES } from '../hooks/useProactiveMatchCheck';
 import { roomSubscriptionService, userSubscriptionService } from '../services/subscriptions';
+import { Icon } from '../components';
+import { useSound } from '../context/SoundContext';
 
 type VotingRoomRouteProp = RouteProp<RootStackParamList, 'VotingRoom'>;
 
@@ -33,6 +37,7 @@ export default function VotingRoomScreen() {
   const route = useRoute<VotingRoomRouteProp>();
   const { roomId, roomCode } = route.params;
   const { addActiveRoom, removeActiveRoom, executeWithMatchCheck } = useProactiveMatchCheck();
+  const { playSound } = useSound();
 
   const [candidates, setCandidates] = useState<MovieCandidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -44,6 +49,32 @@ export default function VotingRoomScreen() {
   // Animation values
   const pan = new Animated.ValueXY();
   const scale = new Animated.Value(1);
+
+  const handleCopyCode = () => {
+    Clipboard.setString(roomCode);
+    logger.userAction('Room code copied from voting screen', { roomCode });
+  };
+
+  const handlePlayTrailer = (movie: MovieCandidate) => {
+    // Construir query de búsqueda: "Título película/serie trailer"
+    const mediaTypeText = movie.mediaType === 'MOVIE' ? 'película' : 'serie';
+    const searchQuery = `${movie.title} ${mediaTypeText} trailer`;
+    
+    // URL encode para YouTube search
+    const encodedQuery = encodeURIComponent(searchQuery);
+    const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodedQuery}`;
+    
+    Linking.openURL(youtubeSearchUrl).catch(err => {
+      console.error('Failed to open YouTube:', err);
+    });
+    
+    logger.userAction('Trailer search opened from voting screen', { 
+      movieId: movie.id,
+      title: movie.title,
+      mediaType: movie.mediaType,
+      searchQuery: searchQuery
+    });
+  };
 
   useEffect(() => {
     logger.userAction('Screen loaded: VotingRoom', {
@@ -110,6 +141,9 @@ export default function VotingRoomScreen() {
           currentUserId: userId,
           subscriptionType: 'room-based-realtime'
         });
+
+        // Play chin sound
+        playSound('chin');
 
         // Update state to show match found
         setHasExistingMatch(true);
@@ -276,6 +310,9 @@ export default function VotingRoomScreen() {
     const nextIndex = currentIndex + 1;
     setCurrentIndex(nextIndex);
     
+    // Play sound based on vote
+    playSound(vote ? 'votoSi' : 'votoNo');
+    
     logger.vote('✅ IMMEDIATE UI UPDATE: Card transitioned optimistically', {
       previousIndex: currentIndex,
       nextIndex,
@@ -385,6 +422,9 @@ export default function VotingRoomScreen() {
             roomId: result.match.roomId,
             timestamp: result.match.timestamp
           });
+
+          // Play chin sound
+          playSound('chin');
 
           // Update state to prevent further voting
           setHasExistingMatch(true);
@@ -517,10 +557,22 @@ export default function VotingRoomScreen() {
         
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backIcon}>←</Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" size={24} color="#ffffff" />
           </TouchableOpacity>
-          <Text style={styles.roomCode}>{roomCode}</Text>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>{roomCode}</Text>
+            <TouchableOpacity
+              style={styles.copyButtonHeader}
+              onPress={handleCopyCode}
+              activeOpacity={0.7}
+            >
+              <Icon name="copy" size={20} color="#9C27B0" />
+            </TouchableOpacity>
+          </View>
           <View style={styles.placeholder} />
         </View>
 
@@ -536,17 +588,17 @@ export default function VotingRoomScreen() {
           </Text>
           
           <TouchableOpacity
-            style={styles.backButton}
+            style={styles.matchButton}
             onPress={() => navigation.navigate('MyMatches' as any)}
           >
-            <Text style={styles.backButtonText}>Ver Mis Matches</Text>
+            <Text style={styles.matchButtonText}>Ver Mis Chines</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.backButton, { backgroundColor: '#666666', marginTop: 15 }]}
+            style={[styles.matchButton, { backgroundColor: '#666666', marginTop: 15 }]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backButtonText}>Salir de la Sala</Text>
+            <Text style={styles.matchButtonText}>Salir de la Sala</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -576,10 +628,10 @@ export default function VotingRoomScreen() {
             Has votado todas las películas disponibles
           </Text>
           <TouchableOpacity
-            style={styles.backButton}
+            style={styles.matchButton}
             onPress={() => navigation.navigate('Dashboard')}
           >
-            <Text style={styles.backButtonText}>Volver al Dashboard</Text>
+            <Text style={styles.matchButtonText}>Volver al Dashboard</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -594,18 +646,23 @@ export default function VotingRoomScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backIcon}>←</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
-        <Text style={styles.roomCode}>ROOM CODE: {roomCode}</Text>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>{roomCode}</Text>
+          <TouchableOpacity
+            style={styles.copyButtonHeader}
+            onPress={handleCopyCode}
+            activeOpacity={0.7}
+          >
+            <Icon name="copy" size={20} color="#9C27B0" />
+          </TouchableOpacity>
+        </View>
         <View style={styles.placeholder} />
-      </View>
-
-      {/* Progress Indicator */}
-      <View style={styles.progressContainer}>
-        <Text style={styles.progressText}>
-          {currentIndex + 1} / {candidates.length}
-        </Text>
       </View>
 
       {/* Movie Card */}
@@ -629,9 +686,18 @@ export default function VotingRoomScreen() {
             resizeMode="cover"
           />
           
+          {/* Play button overlay */}
+          <TouchableOpacity
+            style={styles.playButton}
+            onPress={() => handlePlayTrailer(currentMovie)}
+            activeOpacity={0.8}
+          >
+            <Icon name="play" size={24} color="#ffffff" />
+          </TouchableOpacity>
+          
           {/* Overlay with movie info */}
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.8)']}
+            colors={['transparent', 'rgba(0,0,0,0.95)']}
             style={styles.overlay}
           >
             <View style={styles.movieInfo}>
@@ -639,7 +705,7 @@ export default function VotingRoomScreen() {
               <Text style={styles.movieYear}>
                 {new Date(currentMovie.releaseDate).getFullYear()}
               </Text>
-              <Text style={styles.movieDescription} numberOfLines={3}>
+              <Text style={styles.movieDescription}>
                 {currentMovie.overview}
               </Text>
             </View>
@@ -650,36 +716,35 @@ export default function VotingRoomScreen() {
       {/* Action Buttons */}
       <View style={styles.actionButtons}>
         <TouchableOpacity
-          style={[
-            styles.actionButton, 
-            styles.dislikeButton
-          ]}
+          style={styles.actionButtonCircle}
           onPress={() => {
             logger.userAction('Dislike button pressed - using optimistic UI');
             handleVote(false);
           }}
+          activeOpacity={0.8}
         >
-          <Text style={styles.actionButtonText}>👎</Text>
+          <Image
+            source={require('../../assets/botonNo.png')}
+            style={styles.buttonImage}
+            resizeMode="contain"
+          />
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[
-            styles.actionButton, 
-            styles.likeButton
-          ]}
+          style={styles.actionButtonCircle}
           onPress={() => {
             logger.userAction('Like button pressed - using optimistic UI');
             handleVote(true);
           }}
+          activeOpacity={0.8}
         >
-          <Text style={styles.actionButtonText}>👍</Text>
+          <Image
+            source={require('../../assets/botonSi.png')}
+            style={styles.buttonImage}
+            resizeMode="contain"
+          />
         </TouchableOpacity>
       </View>
-
-      {/* Instructions */}
-      <Text style={styles.instructions}>
-        Desliza ← para rechazar • Desliza → para aceptar
-      </Text>
     </SafeAreaView>
   );
 }
@@ -695,34 +760,45 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
   },
-  backIcon: {
-    fontSize: 24,
-    color: '#ffffff',
-    fontWeight: 'bold',
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#333333',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  roomCode: {
-    fontSize: 16,
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  title: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#ffffff',
-    letterSpacing: 1,
+    letterSpacing: 2,
+  },
+  copyButtonHeader: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#333333',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   placeholder: {
-    width: 24,
-  },
-  progressContainer: {
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  progressText: {
-    fontSize: 14,
-    color: '#888888',
+    width: 40,
   },
   cardContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
+    paddingVertical: 20,
   },
   card: {
     width: CARD_WIDTH,
@@ -730,29 +806,34 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#2a2a2a',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 16,
   },
   poster: {
     width: '100%',
     height: '100%',
+  },
+  playButton: {
+    position: 'absolute',
+    bottom: 15,
+    right: 15,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(33, 150, 243, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   overlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: '40%',
+    minHeight: '50%',
     justifyContent: 'flex-end',
   },
   movieInfo: {
     padding: 20,
+    paddingBottom: 25,
   },
   movieTitle: {
     fontSize: 24,
@@ -773,43 +854,21 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingHorizontal: 60,
-    paddingVertical: 20,
-    gap: 40,
+    paddingHorizontal: 40,
+    paddingVertical: 30,
+    gap: 60,
   },
-  actionButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  actionButtonCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#2a2a2a',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
-  dislikeButton: {
-    backgroundColor: '#ff4458',
-  },
-  likeButton: {
-    backgroundColor: '#42c767',
-  },
-  disabledButton: {
-    backgroundColor: '#666666',
-    opacity: 0.5,
-  },
-  actionButtonText: {
-    fontSize: 24,
-  },
-  instructions: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: '#666666',
-    paddingBottom: 20,
+  buttonImage: {
+    width: 50,
+    height: 50,
   },
   loadingContainer: {
     flex: 1,
@@ -859,13 +918,13 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     lineHeight: 20,
   },
-  backButton: {
+  matchButton: {
     backgroundColor: '#4CAF50',
     paddingHorizontal: 30,
     paddingVertical: 15,
     borderRadius: 25,
   },
-  backButtonText: {
+  matchButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#ffffff',

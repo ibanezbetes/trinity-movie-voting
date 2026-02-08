@@ -29,6 +29,11 @@ Aplicación móvil multiplataforma (iOS y Android) que permite a grupos de amigo
 - ✅ Integración con TMDB
 - ✅ Navegación contextual inteligente
 - ✅ Pantalla de celebración de matches
+- ✅ Sistema de sonidos (votoSi, votoNo, chin, inicioApp)
+- ✅ Botón de trailer con búsqueda en YouTube
+- ✅ CustomAlert con tema oscuro
+- ✅ Cambio de contraseña funcional
+- ✅ Perfil de usuario completo
 
 ## 🏗️ Arquitectura
 
@@ -286,12 +291,16 @@ Expo soporta hot reload automático. Los cambios se reflejan instantáneamente e
 **Propósito**: Votación de candidatos de películas
 
 **Funcionalidades**:
-- Mostrar candidatos de películas
-- Votar positivo/negativo
-- Contador de votos
+- Mostrar candidatos de películas con póster y descripción
+- Votar positivo/negativo con botones estilizados
+- Botón de play para ver trailer en YouTube
+  - Abre búsqueda de YouTube: "{título} {película/serie} trailer"
+  - Posicionado en esquina inferior derecha del póster
+- Reproducción de sonidos (votoSi.wav, votoNo.wav, chin.wav)
+- Contador de votos realizados
 - Detección automática de matches
-- Subscripción a notificaciones de match
-- Navegación automática a celebración
+- Subscripción a notificaciones de match en tiempo real
+- Navegación automática a celebración cuando hay match
 
 **Flujo de Votación**:
 ```typescript
@@ -408,6 +417,60 @@ if (fromVotingRoom) {
 
 ## 🔧 Servicios
 
+### 0. Sound Service (`src/context/SoundContext.tsx`)
+
+**Propósito**: Sistema de sonidos de la aplicación usando expo-av
+
+**Sonidos Disponibles**:
+- `votoSi.wav`: Se reproduce al votar positivo en una película
+- `votoNo.wav`: Se reproduce al votar negativo en una película
+- `chin.wav`: Se reproduce cuando se detecta un match
+- `inicioApp.wav`: Se reproduce al iniciar la aplicación
+
+**Uso**:
+```typescript
+import { useSound } from '../context/SoundContext';
+
+const VotingRoomScreen = () => {
+  const { playSound } = useSound();
+
+  const handleVote = async (vote: boolean) => {
+    // Reproducir sonido según el voto
+    playSound(vote ? 'votoSi' : 'votoNo');
+    
+    // Procesar voto
+    await voteOnMovie({ roomId, movieId, vote });
+  };
+
+  // Reproducir sonido de match
+  const onMatchDetected = (match: Match) => {
+    playSound('chin');
+    navigation.navigate('MatchCelebration', { match });
+  };
+};
+```
+
+**Características**:
+- Carga automática de sonidos al iniciar la app
+- Reproducción asíncrona sin bloquear UI
+- Manejo de errores silencioso (logs en consola)
+- Sonido de inicio automático al abrir la app
+
+**⚠️ Importante**: 
+- Los sonidos requieren `expo-av` que es un módulo nativo
+- **NO funcionan en Expo Go** (solo logs)
+- **Funcionan en APK compilado** con `eas build`
+- Para testing de sonidos, compilar APK de producción
+
+**Archivos de Sonido**:
+```
+mobile/assets/
+├── votoSi.wav      # Sonido de voto positivo
+├── votoNo.wav      # Sonido de voto negativo
+├── chin.wav        # Sonido de match
+└── inicioApp.wav   # Sonido de inicio
+```
+
 ### 1. Auth Service (`src/services/auth.ts`)
 
 **Funciones**:
@@ -510,6 +573,68 @@ logger.apiResponse('createRoom', { success: true, roomId });
 
 logger.error('Failed to create room', error, { userId, input });
 ```
+
+## 🧩 Componentes Principales
+
+### CustomAlert (`src/components/CustomAlert.tsx`)
+
+**Propósito**: Reemplazo del Alert nativo de React Native con estilo personalizado de la app
+
+**Características**:
+- Tema oscuro (#1a1a1a background)
+- Overlay semi-transparente (85% negro)
+- Tres estilos de botones:
+  - `default`: Púrpura (#9333ea) - Acción principal
+  - `cancel`: Gris (#3a3a3a) - Cancelar
+  - `destructive`: Rojo (#ef4444) - Acciones peligrosas
+- Animación de entrada/salida
+- Soporte para múltiples botones
+- Texto personalizable
+
+**Uso**:
+```typescript
+import { showAlert } from '../components/CustomAlert';
+
+// Alert simple con un botón
+showAlert(
+  'Éxito',
+  'Tu contraseña se ha cambiado correctamente',
+  [{ text: 'OK', style: 'default' }]
+);
+
+// Alert de confirmación con dos botones
+showAlert(
+  'Confirmar',
+  '¿Estás seguro de que quieres eliminar tu cuenta?',
+  [
+    { text: 'Cancelar', style: 'cancel' },
+    { 
+      text: 'Eliminar', 
+      style: 'destructive',
+      onPress: () => handleDeleteAccount()
+    }
+  ]
+);
+```
+
+**Estilos de Botones**:
+```typescript
+interface AlertButton {
+  text: string;
+  onPress?: () => void;
+  style?: 'default' | 'cancel' | 'destructive';
+}
+
+// default: Púrpura brillante (#9333ea)
+// cancel: Gris oscuro (#3a3a3a)
+// destructive: Rojo (#ef4444)
+```
+
+**Ventajas sobre Alert nativo**:
+- Consistencia visual con el tema de la app
+- Mejor control sobre estilos y animaciones
+- Funciona igual en iOS y Android
+- Personalizable y extensible
 
 ## 🎣 Custom Hooks
 
@@ -695,6 +820,48 @@ const subscription = subscribeToUserMatches(userId, (match) => {
 console.log('Subscription active:', subscription);
 ```
 
+### Sonidos no se reproducen
+
+**Causa**: expo-av requiere módulos nativos que no están disponibles en Expo Go
+
+**Solución**:
+1. Los sonidos **NO funcionan en Expo Go** (solo se muestran logs)
+2. Para probar sonidos, compilar APK:
+```bash
+eas build --platform android --profile production
+```
+3. Instalar APK en dispositivo físico
+4. Los sonidos funcionarán correctamente en el APK compilado
+
+**Verificación en logs**:
+```
+[Sound] Playing sound: votoSi
+[Sound] Playing sound: votoNo
+[Sound] Playing sound: chin
+[Sound] Playing sound: inicioApp
+```
+
+### CustomAlert no se muestra
+
+**Causa**: Posible conflicto con Alert nativo o estado de React
+
+**Solución**:
+1. Verificar que se importa correctamente:
+```typescript
+import { showAlert } from '../components/CustomAlert';
+```
+2. Verificar que CustomAlert está montado en App.tsx
+3. Verificar logs en consola para errores
+
+### Botón de trailer no abre YouTube
+
+**Causa**: Linking no configurado correctamente o YouTube no instalado
+
+**Solución**:
+1. Verificar que YouTube está instalado en el dispositivo
+2. Si no funciona, se abrirá en navegador web
+3. Verificar permisos de Linking en AndroidManifest.xml
+
 ## 📚 Referencias
 
 - [React Native Documentation](https://reactnative.dev/)
@@ -712,6 +879,6 @@ console.log('Subscription active:', subscription);
 
 ---
 
-**Última actualización**: 2026-02-07  
-**Versión**: 2.2.2  
+**Última actualización**: 2026-02-08  
+**Versión**: 2.2.5  
 **Estado**: ✅ Production Ready

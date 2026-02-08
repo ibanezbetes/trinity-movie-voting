@@ -989,6 +989,6 @@ console.log(JSON.stringify({
 
 ---
 
-**Última actualización**: 2026-02-07  
-**Versión**: 2.2.2  
+**Última actualización**: 2026-02-08  
+**Versión**: 2.2.5  
 **Estado**: ✅ Production Ready

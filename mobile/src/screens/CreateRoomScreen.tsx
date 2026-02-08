@@ -16,7 +16,7 @@ import { MOVIE_GENRES, TV_GENRES, Genre, RootStackParamList } from '../types';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { CREATE_ROOM } from '../services/graphql';
 import { logger } from '../services/logger';
-import { Avatar, Card, Typography, Button, Chip } from '../components';
+import { Avatar, Card, Typography, Button, Chip, Icon } from '../components';
 
 type CreateRoomNavigationProp = StackNavigationProp<RootStackParamList, 'CreateRoom'>;
 
@@ -58,12 +58,12 @@ export default function CreateRoomScreen() {
         totalSelected: newSelection.length 
       });
     } else {
+      // Silently ignore - don't show alert, just don't select
       logger.userAction('Genre selection blocked - limit reached', { 
         genreId, 
         currentSelection: selectedGenres,
         limit: 2 
       });
-      Alert.alert('Límite alcanzado', 'Máximo 2 géneros permitidos');
     }
   };
 
@@ -180,75 +180,17 @@ export default function CreateRoomScreen() {
           style={styles.backButton} 
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <Icon name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
-        <Typography variant="h2">Crear Sala</Typography>
+        <Text style={styles.title}>Crear Sala</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Trini Assistant Card */}
-        <Card variant="elevated" style={styles.assistantCard}>
-          <View style={styles.assistantHeader}>
-            <View style={styles.triniIcon}>
-              <Text style={styles.triniIconText}>T</Text>
-            </View>
-            <View style={styles.assistantTextContainer}>
-              <Typography variant="h3" style={styles.assistantName}>Trini</Typography>
-              <Typography variant="caption">Tu asistente de votación</Typography>
-            </View>
-          </View>
-          <Typography variant="body" style={styles.assistantMessage}>
-            Configura tu sala de votación. Selecciona el tipo de contenido y hasta 2 géneros para comenzar.
-          </Typography>
-        </Card>
-
-        {/* Media Type Selection */}
-        <View style={styles.section}>
-          <Typography variant="h3" style={styles.sectionTitle}>Tipo de Contenido</Typography>
-          <View style={styles.radioContainer}>
-            <Button
-              title="Película"
-              variant={mediaType === 'MOVIE' ? 'primary' : 'outline'}
-              size="medium"
-              onPress={() => setMediaType('MOVIE')}
-              style={styles.radioButton}
-            />
-            <Button
-              title="Serie"
-              variant={mediaType === 'TV' ? 'primary' : 'outline'}
-              size="medium"
-              onPress={() => setMediaType('TV')}
-              style={styles.radioButton}
-            />
-          </View>
-        </View>
-
-        {/* Genre Selection */}
-        <View style={styles.section}>
-          <Typography variant="h3" style={styles.sectionTitle}>
-            Géneros ({selectedGenres.length}/2)
-          </Typography>
-          <View style={styles.genreGrid}>
-            {currentGenres.map((genre) => (
-              <Chip
-                key={genre.id}
-                label={genre.name}
-                selected={selectedGenres.includes(genre.id)}
-                onPress={() => handleGenreToggle(genre.id)}
-                style={styles.genreChip}
-              />
-            ))}
-          </View>
-        </View>
-
-        {/* Participants Selection */}
+        {/* Participants Selection - PRIMERO */}
         <View style={styles.section}>
           <Typography variant="h3" style={styles.sectionTitle}>
             Participantes
-          </Typography>
-          <Typography variant="caption" style={styles.sectionSubtitle}>
-            Se producirá match cuando {maxParticipants} personas voten "Sí" a la misma película
           </Typography>
           <View style={styles.participantsContainer}>
             {[2, 3, 4, 5, 6].map((num) => (
@@ -267,6 +209,51 @@ export default function CreateRoomScreen() {
                   {num}
                 </Text>
               </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Media Type Selection - SEGUNDO */}
+        <View style={styles.section}>
+          <Typography variant="h3" style={styles.sectionTitle}>Películas / Series</Typography>
+          <View style={styles.radioContainer}>
+            <Button
+              title="Películas"
+              variant={mediaType === 'MOVIE' ? 'primary' : 'outline'}
+              size="medium"
+              onPress={() => {
+                setMediaType('MOVIE');
+                setSelectedGenres([]); // Reset genres when changing media type
+              }}
+              style={styles.radioButton}
+            />
+            <Button
+              title="Series"
+              variant={mediaType === 'TV' ? 'primary' : 'outline'}
+              size="medium"
+              onPress={() => {
+                setMediaType('TV');
+                setSelectedGenres([]); // Reset genres when changing media type
+              }}
+              style={styles.radioButton}
+            />
+          </View>
+        </View>
+
+        {/* Genre Selection - TERCERO */}
+        <View style={styles.section}>
+          <Typography variant="h3" style={styles.sectionTitle}>
+            Géneros
+          </Typography>
+          <View style={styles.genreGrid}>
+            {currentGenres.map((genre) => (
+              <Chip
+                key={genre.id}
+                label={genre.name}
+                selected={selectedGenres.includes(genre.id)}
+                onPress={() => handleGenreToggle(genre.id)}
+                style={styles.genreChip}
+              />
             ))}
           </View>
         </View>
@@ -291,7 +278,7 @@ export default function CreateRoomScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#1a1a1a',
   },
   header: {
     flexDirection: 'row',
@@ -300,7 +287,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    borderBottomColor: '#333333',
   },
   backButton: {
     width: 40,
@@ -308,12 +295,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#333333',
   },
-  backButtonText: {
+  title: {
     fontSize: 20,
-    color: '#ffffff',
     fontWeight: 'bold',
+    color: '#ffffff',
+    letterSpacing: 1,
   },
   placeholder: {
     width: 40,
@@ -322,46 +310,14 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-  assistantCard: {
-    marginBottom: 24,
-  },
-  assistantHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  triniIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#7c3aed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  triniIconText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  assistantTextContainer: {
-    flex: 1,
-  },
-  assistantName: {
-    marginBottom: 2,
-  },
-  assistantMessage: {
-    lineHeight: 22,
-  },
   section: {
     marginBottom: 28,
   },
   sectionTitle: {
-    marginBottom: 12,
-  },
-  sectionSubtitle: {
     marginBottom: 16,
-    lineHeight: 20,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   radioContainer: {
     flexDirection: 'row',
@@ -390,13 +346,13 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#2a2a2a',
+    borderColor: '#333333',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#2a2a2a',
   },
   participantButtonSelected: {
-    borderColor: '#7c3aed',
-    backgroundColor: '#7c3aed',
+    borderColor: '#9333ea',
+    backgroundColor: '#9333ea',
   },
   participantText: {
     fontSize: 24,
@@ -409,7 +365,8 @@ const styles = StyleSheet.create({
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#2a2a2a',
+    borderTopColor: '#333333',
+    backgroundColor: '#1a1a1a',
   },
   createButton: {
     width: '100%',

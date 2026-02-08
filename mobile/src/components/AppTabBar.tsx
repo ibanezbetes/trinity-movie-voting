@@ -4,6 +4,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 import { FloatingTabBar } from './FloatingTabBar';
 import { IconName } from './Icon';
+import { ChinIcon } from './ChinIcon';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -15,7 +16,8 @@ export const AppTabBar: React.FC<AppTabBarProps> = ({ activeTab }) => {
   const navigation = useNavigation<NavigationProp>();
 
   const tabs: Array<{
-    icon: IconName;
+    icon?: IconName;
+    customIcon?: React.ReactNode;
     label: string;
     onPress: () => void;
     active: boolean;
@@ -27,8 +29,8 @@ export const AppTabBar: React.FC<AppTabBarProps> = ({ activeTab }) => {
       active: activeTab === 'home',
     },
     {
-      icon: 'heart',
-      label: 'Matches',
+      customIcon: <ChinIcon size={22} color={activeTab === 'matches' ? '#ffffff' : '#888888'} />,
+      label: 'Chines',
       onPress: () => navigation.navigate('MyMatches'),
       active: activeTab === 'matches',
     },
@@ -40,7 +42,7 @@ export const AppTabBar: React.FC<AppTabBarProps> = ({ activeTab }) => {
     },
     {
       icon: 'star',
-      label: 'Recomendaciones',
+      label: 'Descubre',
       onPress: () => navigation.navigate('Recommendations'),
       active: activeTab === 'recommendations',
     },

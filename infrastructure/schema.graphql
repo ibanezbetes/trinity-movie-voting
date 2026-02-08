@@ -16,6 +16,7 @@ type MovieCandidate {
   posterPath: String
   releaseDate: String
   mediaType: MediaType!
+  trailerKey: String
 }
 
 type Match {
@@ -70,6 +71,8 @@ type Query {
   getRoomMembers(roomId: ID!): [RoomMembership!]!
   getUserRooms(userId: String!): [RoomMembership!]!
   getUsernameEmail(username: String!): UsernameMapping @aws_api_key
+  getRecommendations: [RecommendationCategory!]! @aws_iam @aws_cognito_user_pools
+  getRecommendationsByCategory(categoryId: String!): RecommendationCategory @aws_iam @aws_cognito_user_pools
 }
 
 type Subscription {
@@ -155,6 +158,23 @@ type DeletedItems {
   rooms: Int!
   votes: Int!
   matches: Int!
+}
+
+type RecommendationCategory {
+  categoryId: String!
+  title: String!
+  description: String!
+  movies: [RecommendationMovie!]!
+}
+
+type RecommendationMovie {
+  movieId: Int!
+  title: String!
+  posterPath: String!
+  alternativePosterUrl: String
+  year: String!
+  description: String!
+  trailerKey: String
 }
 
 input RoomMatchInput {

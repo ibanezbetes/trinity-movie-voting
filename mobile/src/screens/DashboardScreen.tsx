@@ -12,7 +12,7 @@ import { getCurrentUser } from 'aws-amplify/auth';
 import { RootStackParamList } from '../types';
 import { logger } from '../services/logger';
 import { useProactiveMatchCheck, ACTION_NAMES } from '../hooks/useProactiveMatchCheck';
-import { Avatar, AppTabBar, Card, Typography, Button, Icon } from '../components';
+import { AppTabBar, Card, Typography, Button, Icon, ChinIcon } from '../components';
 
 type DashboardNavigationProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;
 
@@ -115,11 +115,6 @@ export default function DashboardScreen() {
     navigation.navigate('Recommendations');
   };
 
-  const handleProfile = async () => {
-    logger.userAction('Dashboard button pressed: Profile');
-    navigation.navigate('Profile');
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
@@ -127,12 +122,9 @@ export default function DashboardScreen() {
       {/* Header with Avatar */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <View>
-            <Typography variant="h1" style={styles.title}>
-              ¡Hola {userName}!
-            </Typography>
-          </View>
-          <Avatar onPress={handleProfile} size={44} />
+          <Typography variant="h1" style={styles.title}>
+            ¡Hola {userName}!
+          </Typography>
         </View>
       </View>
 
@@ -167,9 +159,9 @@ export default function DashboardScreen() {
           </Card>
           
           <Card style={styles.statCard} onPress={handleMyMatches}>
-            <Icon name="heart" size={32} color="#7c3aed" />
+            <ChinIcon size={32} color="#7c3aed" />
             <Typography variant="h3" align="center">{matchesCount}</Typography>
-            <Typography variant="caption" align="center">Matches</Typography>
+            <Typography variant="caption" align="center">Chines</Typography>
           </Card>
         </View>
       </View>
@@ -191,9 +183,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   title: {
     marginBottom: 4,

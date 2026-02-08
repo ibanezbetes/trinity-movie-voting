@@ -3,7 +3,8 @@ import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Icon, IconName } from './Icon';
 
 interface TabItem {
-  icon: IconName;
+  icon?: IconName;
+  customIcon?: React.ReactNode;
   label: string;
   onPress: () => void;
   active?: boolean;
@@ -24,11 +25,15 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({ tabs }) => {
             onPress={tab.onPress}
             activeOpacity={0.7}
           >
-            <Icon 
-              name={tab.icon} 
-              size={22} 
-              color={tab.active ? '#ffffff' : '#888888'} 
-            />
+            {tab.customIcon ? (
+              tab.customIcon
+            ) : tab.icon ? (
+              <Icon 
+                name={tab.icon} 
+                size={22} 
+                color={tab.active ? '#ffffff' : '#888888'} 
+              />
+            ) : null}
             <Text style={[styles.label, tab.active && styles.labelActive]}>
               {tab.label}
             </Text>
@@ -54,14 +59,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 8,
     gap: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 16,
     borderWidth: 1,
     borderColor: '#3a3a3a',
   },

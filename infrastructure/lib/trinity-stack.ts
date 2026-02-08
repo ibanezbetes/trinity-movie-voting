@@ -51,6 +51,15 @@ export class TrinityStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    // Recommendations table - stores social/sustainable movie recommendations
+    const recommendationsTable = new dynamodb.Table(this, 'RecommendationsTable', {
+      tableName: 'trinity-recommendations',
+      partitionKey: { name: 'categoryId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'movieId', type: dynamodb.AttributeType.NUMBER },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN, // Keep data on stack deletion
+    });
+
     // Lambda Trigger for Cognito - Auto-confirm users and store username mapping
     const preSignUpTrigger = new lambda.Function(this, 'PreSignUpTrigger', {
       runtime: lambda.Runtime.NODEJS_18_X,
@@ -206,6 +215,16 @@ export class TrinityStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
     });
 
+    const recommendationsHandler = new lambda.Function(this, 'RecommendationsHandler', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../src/handlers/recommendations')),
+      environment: {
+        RECOMMENDATIONS_TABLE: recommendationsTable.tableName,
+      },
+      timeout: cdk.Duration.seconds(10),
+    });
+
     // Grant permissions
     roomsTable.grantReadWriteData(roomHandler);
     votesTable.grantReadWriteData(roomHandler);
@@ -218,6 +237,7 @@ export class TrinityStack extends cdk.Stack {
     roomsTable.grantReadWriteData(usernameHandler);
     votesTable.grantReadWriteData(usernameHandler);
     matchesTable.grantReadWriteData(usernameHandler);
+    recommendationsTable.grantReadData(recommendationsHandler);
 
     // Grant Cognito permissions to username handler
     usernameHandler.addToRolePolicy(
@@ -244,6 +264,7 @@ export class TrinityStack extends cdk.Stack {
     const voteDataSource = api.addLambdaDataSource('VoteDataSource', voteHandler);
     const matchDataSource = api.addLambdaDataSource('MatchDataSource', matchHandler);
     const usernameDataSource = api.addLambdaDataSource('UsernameDataSource', usernameHandler);
+    const recommendationsDataSource = api.addLambdaDataSource('RecommendationsDataSource', recommendationsHandler);
 
     // Resolvers
     roomDataSource.createResolver('CreateRoomResolver', {
@@ -284,6 +305,16 @@ export class TrinityStack extends cdk.Stack {
     usernameDataSource.createResolver('DeleteUserAccountResolver', {
       typeName: 'Mutation',
       fieldName: 'deleteUserAccount',
+    });
+
+    recommendationsDataSource.createResolver('GetRecommendationsResolver', {
+      typeName: 'Query',
+      fieldName: 'getRecommendations',
+    });
+
+    recommendationsDataSource.createResolver('GetRecommendationsByCategoryResolver', {
+      typeName: 'Query',
+      fieldName: 'getRecommendationsByCategory',
     });
 
     // Subscription resolvers (no-op resolvers for triggering subscriptions)

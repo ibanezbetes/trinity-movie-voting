@@ -7,6 +7,7 @@ interface MovieCandidate {
     releaseDate: string;
     mediaType: 'MOVIE' | 'TV';
     genreIds?: number[];
+    trailerKey?: string;
 }
 interface TMDBEvent {
     mediaType: 'MOVIE' | 'TV';

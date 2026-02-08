@@ -29,7 +29,11 @@ export type IconName =
   | 'sparkles'
   | 'people'
   | 'calendar'
-  | 'time';
+  | 'time'
+  | 'logo-instagram'
+  | 'mail-outline'
+  | 'globe-outline'
+  | 'copy';
 
 interface IconProps {
   name: IconName;
@@ -66,6 +70,10 @@ const iconMap: Record<IconName, keyof typeof Ionicons.glyphMap> = {
   'people': 'people-outline',
   'calendar': 'calendar-outline',
   'time': 'time-outline',
+  'logo-instagram': 'logo-instagram',
+  'mail-outline': 'mail-outline',
+  'globe-outline': 'globe-outline',
+  'copy': 'copy-outline',
 };
 
 export const Icon: React.FC<IconProps> = ({ name, size = 24, color = '#ffffff' }) => {

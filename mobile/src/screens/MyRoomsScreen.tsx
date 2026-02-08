@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Clipboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -87,9 +88,14 @@ export default function MyRoomsScreen() {
     loadMyRooms();
   };
 
+  const handleCopyCode = (code: string) => {
+    Clipboard.setString(code);
+    logger.userAction('Room code copied', { code });
+  };
+
   const handleJoinRoom = (room: Room) => {
     logger.userAction('Join room from My Rooms', { roomId: room.id, roomCode: room.code });
-    navigation.navigate('VotingRoom', { roomId: room.id });
+    navigation.navigate('VotingRoom', { roomId: room.id, roomCode: room.code });
   };
 
   const getMediaTypeText = (mediaType: string) => {
@@ -143,10 +149,16 @@ export default function MyRoomsScreen() {
       <View style={styles.roomHeader}>
         <View style={styles.roomCodeContainer}>
           <Text style={styles.roomCode}>{item.code}</Text>
-          <View style={styles.badgeContainer}>
-            {item.isHost && <Text style={styles.hostBadge}>HOST</Text>}
-            {!item.isHost && <Text style={styles.participantBadge}>PARTICIPANTE</Text>}
-          </View>
+          <TouchableOpacity
+            style={styles.copyButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleCopyCode(item.code);
+            }}
+            activeOpacity={0.7}
+          >
+            <Icon name="copy" size={20} color="#4CAF50" />
+          </TouchableOpacity>
         </View>
         <Text style={styles.roomDate}>{formatDate(item.createdAt)}</Text>
       </View>
@@ -193,12 +205,7 @@ export default function MyRoomsScreen() {
           <Icon name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
         <Text style={styles.title}>Salas</Text>
-        <TouchableOpacity
-          style={styles.refreshButton}
-          onPress={handleRefresh}
-        >
-          <Icon name="refresh" size={24} color="#ffffff" />
-        </TouchableOpacity>
+        <View style={styles.placeholder} />
       </View>
 
       {/* Content */}
@@ -260,13 +267,8 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     letterSpacing: 1,
   },
-  refreshButton: {
+  placeholder: {
     width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#333333',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   loadingContainer: {
     flex: 1,
@@ -301,6 +303,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    gap: 8,
   },
   roomCode: {
     fontSize: 18,
@@ -308,28 +311,13 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     letterSpacing: 2,
   },
-  badgeContainer: {
-    flexDirection: 'row',
-    marginLeft: 8,
-    gap: 4,
-  },
-  hostBadge: {
-    fontSize: 10,
-    color: '#ffffff',
-    backgroundColor: '#FF9800',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    fontWeight: 'bold',
-  },
-  participantBadge: {
-    fontSize: 10,
-    color: '#ffffff',
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    fontWeight: 'bold',
+  copyButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#333333',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   roomDate: {
     fontSize: 12,

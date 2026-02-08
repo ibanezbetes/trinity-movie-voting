@@ -2,7 +2,7 @@
   "expo": {
     "name": "Trinity",
     "slug": "trinity-app",
-    "version": "1.0.0",
+    "version": "2.2.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -31,7 +31,7 @@
       "EXPO_PUBLIC_AWS_REGION": "eu-west-1",
       "EXPO_PUBLIC_USER_POOL_ID": "eu-west-1_RPkdnO7Ju",
       "EXPO_PUBLIC_USER_POOL_CLIENT_ID": "61nf41i2bff1c4oc4qo9g36m1k",
-      "EXPO_PUBLIC_GRAPHQL_ENDPOINT": "https://nvokqs473bbfdizeq4n5oosjpy.appsync-api.eu-west-1.amazonaws.com/graphql",
+      "EXPO_PUBLIC_GRAPHQL_ENDPOINT": "https://ctpyevpldfe53jtmmabeld4hhm.appsync-api.eu-west-1.amazonaws.com/graphql",
       "EXPO_PUBLIC_AUTH_TYPE": "AMAZON_COGNITO_USER_POOLS",
       "eas": {
         "projectId": "175789a5-9869-4ca2-88af-33641d5a845a"
@@ -40,7 +40,7 @@
         "region": "eu-west-1",
         "userPoolId": "eu-west-1_RPkdnO7Ju",
         "userPoolWebClientId": "61nf41i2bff1c4oc4qo9g36m1k",
-        "graphqlEndpoint": "https://nvokqs473bbfdizeq4n5oosjpy.appsync-api.eu-west-1.amazonaws.com/graphql",
+        "graphqlEndpoint": "https://ctpyevpldfe53jtmmabeld4hhm.appsync-api.eu-west-1.amazonaws.com/graphql",
         "authenticationType": "AMAZON_COGNITO_USER_POOLS"
       }
     }

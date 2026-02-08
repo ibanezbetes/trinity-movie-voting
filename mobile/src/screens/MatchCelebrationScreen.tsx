@@ -68,7 +68,7 @@ export default function MatchCelebrationScreen() {
       <View style={styles.header}>
         <Text style={styles.celebrationEmoji}>🎉</Text>
         <Text style={styles.title}>
-          {wasInRoom ? '¡MATCH EN TU SALA!' : '¡MATCH ENCONTRADO!'}
+          {wasInRoom ? '¡CHIN EN TU SALA!' : '¡CHIN ENCONTRADO!'}
         </Text>
         <Text style={styles.subtitle}>
           {wasInRoom 
@@ -109,7 +109,7 @@ export default function MatchCelebrationScreen() {
           </View>
           
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Fecha del match:</Text>
+            <Text style={styles.infoLabel}>Fecha del chin:</Text>
             <Text style={styles.infoValue}>
               {new Date(match.timestamp).toLocaleDateString('es-ES', {
                 day: 'numeric',
@@ -137,7 +137,7 @@ export default function MatchCelebrationScreen() {
           onPress={handleViewMatches}
           activeOpacity={0.8}
         >
-          <Text style={styles.primaryButtonText}>Ver Mis Matches</Text>
+          <Text style={styles.primaryButtonText}>Ver Mis Chines</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

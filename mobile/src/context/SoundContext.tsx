@@ -5,7 +5,7 @@ import { logger } from '../services/logger';
 interface SoundContextType {
   isMuted: boolean;
   toggleSound: () => void;
-  playSound: (soundName: string) => void;
+  playSound: (soundName: 'votoSi' | 'votoNo' | 'chin' | 'inicioApp') => void;
 }
 
 const SoundContext = createContext<SoundContextType | undefined>(undefined);
@@ -47,10 +47,9 @@ export const SoundProvider: React.FC<SoundProviderProps> = ({ children }) => {
     }
   };
 
-  const playSound = (soundName: string) => {
+  const playSound = (soundName: 'votoSi' | 'votoNo' | 'chin' | 'inicioApp') => {
     if (!isMuted) {
-      // Aquí puedes implementar la lógica real de reproducción de sonidos
-      // Por ejemplo, usando expo-av o react-native-sound
+      // Log sound play (actual implementation will be in APK build)
       logger.info('SOUND', `Playing sound: ${soundName}`);
       console.log(`🔊 Playing sound: ${soundName}`);
     } else {

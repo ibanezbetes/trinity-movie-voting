@@ -35,6 +35,7 @@ interface MovieCandidate {
   releaseDate: string;
   mediaType: 'MOVIE' | 'TV';
   genreIds?: number[]; // Store genre IDs for prioritization
+  trailerKey?: string; // YouTube trailer key (optional)
 }
 
 interface TMDBEvent {
@@ -271,6 +272,16 @@ class TMDBClient {
       const shuffledCandidates = this.shuffleArray(candidatesArray);
       const finalCandidates = shuffledCandidates.slice(0, this.TARGET_COUNT);
       
+      // PHASE 5: FETCH TRAILERS for final candidates (in parallel)
+      console.log(`PHASE 5: Fetching trailers for ${finalCandidates.length} candidates`);
+      await Promise.all(
+        finalCandidates.map(async (candidate) => {
+          candidate.trailerKey = await this.fetchTrailerKey(candidate.mediaType, candidate.id);
+        })
+      );
+      const candidatesWithTrailers = finalCandidates.filter(c => c.trailerKey).length;
+      console.log(`  → ${candidatesWithTrailers} candidates have trailers`);
+      
       console.log(`✅ Smart Random Discovery complete: ${finalCandidates.length} candidates (target: ${this.TARGET_COUNT})`);
       console.log(`   Strategy: ${useStrictLogic ? 'STRICT (AND)' : 'FALLBACK (OR)'}, Total available: ${totalAvailableResults}`);
       
@@ -365,6 +376,60 @@ class TMDBClient {
     console.log(`TMDB returned ${results.length} results for page ${page} (total: ${total_results} across ${total_pages} pages)`);
     
     return { results, total_results, total_pages };
+  }
+
+  /**
+   * Fetch trailer key for a movie/TV show from TMDB
+   */
+  private async fetchTrailerKey(mediaType: 'MOVIE' | 'TV', tmdbId: number): Promise<string | undefined> {
+    try {
+      const endpoint = mediaType === 'MOVIE' ? `/movie/${tmdbId}/videos` : `/tv/${tmdbId}/videos`;
+      
+      const response = await axios.get(`${this.baseUrl}${endpoint}`, {
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${this.readToken}`
+        },
+        params: {
+          language: 'es-ES' // Try Spanish first
+        }
+      });
+
+      const videos = response.data.results || [];
+      
+      // Find official YouTube trailer
+      const trailer = videos.find((video: any) => 
+        video.site === 'YouTube' && 
+        video.type === 'Trailer' && 
+        video.official === true
+      );
+      
+      // If no official Spanish trailer, try English
+      if (!trailer) {
+        const responseEn = await axios.get(`${this.baseUrl}${endpoint}`, {
+          headers: {
+            'accept': 'application/json',
+            'Authorization': `Bearer ${this.readToken}`
+          },
+          params: {
+            language: 'en-US'
+          }
+        });
+
+        const videosEn = responseEn.data.results || [];
+        const trailerEn = videosEn.find((video: any) => 
+          video.site === 'YouTube' && 
+          video.type === 'Trailer'
+        );
+        
+        return trailerEn?.key;
+      }
+      
+      return trailer?.key;
+    } catch (error) {
+      console.log(`Could not fetch trailer for ${mediaType} ${tmdbId}:`, error);
+      return undefined;
+    }
   }
 
   /**

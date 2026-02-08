@@ -16,7 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { client, verifyAuthStatus } from '../services/amplify';
 import { GET_MATCHES } from '../services/graphql';
 import { logger } from '../services/logger';
-import { AppTabBar, Icon } from '../components';
+import { AppTabBar, Icon, ChinIcon } from '../components';
 
 interface Match {
   id: string;
@@ -43,7 +43,7 @@ export default function MyMatchesScreen() {
       const authStatus = await verifyAuthStatus();
       if (!authStatus.isAuthenticated) {
         logger.authError('User not authenticated for matches', null);
-        Alert.alert('Error', 'Debes iniciar sesión para ver tus matches');
+        Alert.alert('Error', 'Debes iniciar sesión para ver tus chines');
         return;
       }
 
@@ -61,7 +61,7 @@ export default function MyMatchesScreen() {
     } catch (error) {
       logger.matchError('Failed to load user matches', error);
       console.error('Error loading matches:', error);
-      Alert.alert('Error', 'No se pudieron cargar tus matches');
+      Alert.alert('Error', 'No se pudieron cargar tus chines');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -109,7 +109,7 @@ export default function MyMatchesScreen() {
             {item.title}
           </Text>
           <Text style={styles.matchDate}>
-            Match: {formatDate(item.timestamp)}
+            Chin: {formatDate(item.timestamp)}
           </Text>
           <Text style={styles.matchId}>
             ID: {item.movieId}
@@ -119,24 +119,18 @@ export default function MyMatchesScreen() {
       
       <View style={styles.matchFooter}>
         <Icon name="sparkles" size={18} color="#E91E63" />
-        <Text style={styles.matchSuccess}>¡Match encontrado!</Text>
+        <Text style={styles.matchSuccess}>¡Chin encontrado!</Text>
       </View>
     </View>
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Icon name="heart" size={80} color="#888888" />
-      <Text style={styles.emptyTitle}>No tienes matches aún</Text>
+      <ChinIcon size={80} color="#888888" />
+      <Text style={styles.emptyTitle}>No tienes chines aún</Text>
       <Text style={styles.emptyDescription}>
-        Únete a una sala y comienza a votar para encontrar películas que te gusten a ti y a otros usuarios
+        Únete o crea una sala y comienza a votar para intentar hacer chin con otros usuarios
       </Text>
-      <TouchableOpacity 
-        style={styles.emptyButton}
-        onPress={() => navigation.navigate('Dashboard' as never)}
-      >
-        <Text style={styles.emptyButtonText}>Ir al Dashboard</Text>
-      </TouchableOpacity>
     </View>
   );
 
@@ -152,20 +146,15 @@ export default function MyMatchesScreen() {
         >
           <Icon name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
-        <Text style={styles.title}>Matches</Text>
-        <TouchableOpacity
-          style={styles.refreshButton}
-          onPress={handleRefresh}
-        >
-          <Icon name="refresh" size={24} color="#ffffff" />
-        </TouchableOpacity>
+        <Text style={styles.title}>Chines</Text>
+        <View style={styles.placeholder} />
       </View>
 
       {/* Content */}
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#E91E63" />
-          <Text style={styles.loadingText}>Cargando tus matches...</Text>
+          <Text style={styles.loadingText}>Cargando tus chines...</Text>
         </View>
       ) : (
         <FlatList
@@ -220,13 +209,8 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     letterSpacing: 1,
   },
-  refreshButton: {
+  placeholder: {
     width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#333333',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   loadingContainer: {
     flex: 1,
