@@ -1,4 +1,4 @@
-import { client, realtimeClient } from './amplify';
+import { client, realtimeClient, getAuthMode } from './amplify';
 import { logger } from './logger';
 
 // GraphQL subscription for user-specific match notifications
@@ -99,19 +99,19 @@ interface Match {
 }
 
 interface UserSubscriptionService {
-  subscribeToUser: (userId: string, onMatch: (match: UserMatchEvent) => void) => () => void;
+  subscribeToUser: (userId: string, onMatch: (match: UserMatchEvent) => void) => Promise<() => void>;
   unsubscribeFromUser: (userId: string) => void;
   unsubscribeFromAllUsers: () => void;
 }
 
 interface RoomSubscriptionService {
-  subscribeToRoom: (roomId: string, userId: string, onMatch: (match: RoomMatchEvent) => void) => () => void;
+  subscribeToRoom: (roomId: string, userId: string, onMatch: (match: RoomMatchEvent) => void) => Promise<() => void>;
   unsubscribeFromRoom: (roomId: string) => void;
   unsubscribeFromAllRooms: () => void;
 }
 
 interface MatchSubscriptionService {
-  subscribe: (userId: string, onMatch: (match: Match) => void) => () => void;
+  subscribe: (userId: string, onMatch: (match: Match) => void) => Promise<() => void>;
   unsubscribe: () => void;
 }
 
@@ -121,32 +121,36 @@ class UserSubscriptionManager implements UserSubscriptionService {
   private maxRetries = 3;
   private retryDelay = 2000; // 2 seconds
 
-  subscribeToUser(userId: string, onMatch: (match: UserMatchEvent) => void): () => void {
+  async subscribeToUser(userId: string, onMatch: (match: UserMatchEvent) => void): Promise<() => void> {
     if (this.subscriptions.has(userId)) {
       logger.match('Already subscribed to user notifications', { userId });
       return () => this.unsubscribeFromUser(userId);
     }
 
-    return this.establishUserSubscription(userId, onMatch, 0);
+    return await this.establishUserSubscription(userId, onMatch, 0);
   }
 
-  private establishUserSubscription(
+  private async establishUserSubscription(
     userId: string, 
     onMatch: (match: UserMatchEvent) => void, 
     retryCount: number
-  ): () => void {
+  ): Promise<() => void> {
     try {
+      // Get the appropriate auth mode based on login type
+      const authMode = await getAuthMode();
+      
       logger.match('🔔 Establishing user-specific match subscription', { 
         userId, 
         retryCount,
+        authMode,
         usingRealtimeClient: true 
       });
 
-      // CRITICAL: Use realtimeClient for better WebSocket handling
+      // CRITICAL: Use realtimeClient for better WebSocket handling with dynamic authMode
       const subscription = realtimeClient.graphql({
         query: USER_MATCH_SUBSCRIPTION,
         variables: { userId },
-        authMode: 'userPool',
+        authMode: authMode as any,
       }).subscribe({
         next: ({ data }) => {
           if (data?.userMatch) {
@@ -284,34 +288,38 @@ class RoomSubscriptionManager implements RoomSubscriptionService {
   private maxRetries = 3;
   private retryDelay = 2000; // 2 seconds
 
-  subscribeToRoom(roomId: string, userId: string, onMatch: (match: RoomMatchEvent) => void): () => void {
+  async subscribeToRoom(roomId: string, userId: string, onMatch: (match: RoomMatchEvent) => void): Promise<() => void> {
     if (this.subscriptions.has(roomId)) {
       logger.match('Already subscribed to room notifications', { roomId });
       return () => this.unsubscribeFromRoom(roomId);
     }
 
-    return this.establishRoomSubscription(roomId, userId, onMatch, 0);
+    return await this.establishRoomSubscription(roomId, userId, onMatch, 0);
   }
 
-  private establishRoomSubscription(
+  private async establishRoomSubscription(
     roomId: string, 
     userId: string, 
     onMatch: (match: RoomMatchEvent) => void, 
     retryCount: number
-  ): () => void {
+  ): Promise<() => void> {
     try {
+      // Get the appropriate auth mode based on login type
+      const authMode = await getAuthMode();
+      
       logger.match('🔔 Establishing room-based match subscription', { 
         roomId, 
         userId, 
         retryCount,
+        authMode,
         usingRealtimeClient: true 
       });
 
-      // CRITICAL: Use realtimeClient for better WebSocket handling
+      // CRITICAL: Use realtimeClient for better WebSocket handling with dynamic authMode
       const subscription = realtimeClient.graphql({
         query: ROOM_MATCH_SUBSCRIPTION,
         variables: { roomId },
-        authMode: 'userPool',
+        authMode: authMode as any,
       }).subscribe({
         next: ({ data }) => {
           if (data?.roomMatch) {
@@ -453,31 +461,35 @@ class MatchSubscriptionManager implements MatchSubscriptionService {
   private maxRetries = 3;
   private retryDelay = 2000;
 
-  subscribe(userId: string, onMatch: (match: Match) => void): () => void {
+  async subscribe(userId: string, onMatch: (match: Match) => void): Promise<() => void> {
     if (this.isSubscribed) {
       logger.match('Already subscribed to match notifications');
       return () => this.unsubscribe();
     }
 
-    return this.establishLegacySubscription(userId, onMatch, 0);
+    return await this.establishLegacySubscription(userId, onMatch, 0);
   }
 
-  private establishLegacySubscription(
+  private async establishLegacySubscription(
     userId: string, 
     onMatch: (match: Match) => void, 
     retryCount: number
-  ): () => void {
+  ): Promise<() => void> {
     try {
+      // Get the appropriate auth mode based on login type
+      const authMode = await getAuthMode();
+      
       logger.match('🔔 Establishing AppSync match subscription (legacy)', { 
         userId, 
         retryCount,
+        authMode,
         usingRealtimeClient: true 
       });
 
-      // CRITICAL: Use realtimeClient for better WebSocket handling
+      // CRITICAL: Use realtimeClient for better WebSocket handling with dynamic authMode
       this.subscription = realtimeClient.graphql({
         query: MATCH_SUBSCRIPTION,
-        authMode: 'userPool',
+        authMode: authMode as any,
       }).subscribe({
         next: ({ data }) => {
           if (data?.onMatchCreated) {
@@ -606,10 +618,19 @@ export function useUserMatchSubscription(
   React.useEffect(() => {
     if (!userId) return;
 
-    const unsubscribe = userSubscriptionService.subscribeToUser(userId, onMatch);
+    let unsubscribe: (() => void) | null = null;
+
+    // Subscribe asynchronously
+    userSubscriptionService.subscribeToUser(userId, onMatch).then((unsub) => {
+      unsubscribe = unsub;
+    }).catch((error) => {
+      logger.matchError('Failed to subscribe to user match notifications', error, { userId });
+    });
     
     return () => {
-      unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [userId, onMatch]);
 }
@@ -623,10 +644,19 @@ export function useRoomMatchSubscription(
   React.useEffect(() => {
     if (!roomId || !userId) return;
 
-    const unsubscribe = roomSubscriptionService.subscribeToRoom(roomId, userId, onMatch);
+    let unsubscribe: (() => void) | null = null;
+
+    // Subscribe asynchronously
+    roomSubscriptionService.subscribeToRoom(roomId, userId, onMatch).then((unsub) => {
+      unsubscribe = unsub;
+    }).catch((error) => {
+      logger.matchError('Failed to subscribe to room match notifications', error, { roomId, userId });
+    });
     
     return () => {
-      unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [roomId, userId, onMatch]);
 }
@@ -636,10 +666,19 @@ export function useMatchSubscription(userId: string | null, onMatch: (match: Mat
   React.useEffect(() => {
     if (!userId) return;
 
-    const unsubscribe = matchSubscriptionService.subscribe(userId, onMatch);
+    let unsubscribe: (() => void) | null = null;
+
+    // Subscribe asynchronously
+    matchSubscriptionService.subscribe(userId, onMatch).then((unsub) => {
+      unsubscribe = unsub;
+    }).catch((error) => {
+      logger.matchError('Failed to subscribe to match notifications', error, { userId });
+    });
     
     return () => {
-      unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [userId, onMatch]);
 }

@@ -455,14 +455,26 @@ export function MatchNotificationProvider({
   };
 
   const showMatchNotification = (match: Match, wasInRoom: boolean, originalAction?: () => void) => {
-    // Don't show Alert - let the navigation handler show the MatchCelebration screen
-    logger.match('Match notification handled', {
+    logger.match('🎉 Match notification - triggering navigation', {
       matchTitle: match.title,
       wasInRoom,
-      currentRoute: 'context'
+      currentRoute: 'context',
+      hasCallback: !!onMatchFound
     });
 
-    // The onMatchFound callback will handle navigation to MatchCelebration screen
+    // CRITICAL FIX: Actually call the onMatchFound callback to trigger navigation
+    if (onMatchFound) {
+      onMatchFound(match, wasInRoom);
+      logger.match('✅ onMatchFound callback executed - navigation triggered', {
+        matchTitle: match.title,
+        wasInRoom
+      });
+    } else {
+      logger.matchError('❌ onMatchFound callback not available', null, {
+        matchTitle: match.title,
+        wasInRoom
+      });
+    }
   };
 
   const subscribeToRoom = (roomId: string) => {

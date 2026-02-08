@@ -161,6 +161,7 @@ build-*.sh
 build-*.ps1
 install-*.bat
 install-*.sh
+install-*.ps1
 verify-*.bat
 verify-*.sh
 test-*.js
@@ -183,6 +184,10 @@ upload-*.ps1
 upload-*.sh
 reload-*.ps1
 reload-*.sh
+capturar-*.ps1
+analizar-*.ps1
+ver-*.ps1
+fix-*.ps1
 
 # Mantener scripts oficiales
 !cleanup.ps1
@@ -266,6 +271,11 @@ cleanup-project.ps1
 QUICK_START_*.md
 SYNC_FROM_AWS_*.md
 RESUMEN_*.md
+GUIA_*.md
+SOLUCION_*.md
+INICIO_*.txt
+COMO_*.md
+COMANDOS_*.md
 
 # Rollback and deployment status files
 ROLLBACK_*.md
@@ -281,6 +291,10 @@ PROJECT_STATUS_*.md
 ROOM_CAPACITY_*.md
 MATCH_NOTIFICATION_*.md
 BACKUP_INFO*.md
+
+# Log files
+logs_*.txt
+*.log
 
 # Keep only official cleanup script
 !cleanup.ps1

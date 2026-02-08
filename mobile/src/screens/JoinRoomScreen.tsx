@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
-import { client, verifyAuthStatus } from '../services/amplify';
+import { client, verifyAuthStatus, getAuthMode } from '../services/amplify';
 import { JOIN_ROOM } from '../services/graphql';
 import { logger } from '../services/logger';
 import { CustomAlert } from '../components';
@@ -86,12 +86,44 @@ export default function JoinRoomScreen() {
 
       logger.apiRequest('joinRoom mutation', { code: roomCode });
 
+      // Get the appropriate auth mode based on login type
+      const authMode = await getAuthMode();
+      logger.auth('Using auth mode for joinRoom', { authMode });
+      
+      // Log current auth status with detailed credentials info
+      const AsyncStorage = await import('@react-native-async-storage/async-storage');
+      const authType = await AsyncStorage.default.getItem('@trinity_auth_type');
+      const hasAccessKey = !!(await AsyncStorage.default.getItem('@trinity_aws_access_key'));
+      const hasSecretKey = !!(await AsyncStorage.default.getItem('@trinity_aws_secret_key'));
+      const hasSessionToken = !!(await AsyncStorage.default.getItem('@trinity_aws_session_token'));
+      const expiration = await AsyncStorage.default.getItem('@trinity_aws_expiration');
+      
+      logger.auth('🔍 DETAILED AUTH STATE BEFORE JOIN ROOM', {
+        authType,
+        authMode,
+        hasAccessKey,
+        hasSecretKey,
+        hasSessionToken,
+        expiration,
+        isExpired: expiration ? new Date(expiration) < new Date() : 'unknown',
+      });
+      
+      console.log('🔍 === DETAILED AUTH DEBUG ===');
+      console.log('Auth Type:', authType);
+      console.log('Auth Mode:', authMode);
+      console.log('Has Access Key:', hasAccessKey);
+      console.log('Has Secret Key:', hasSecretKey);
+      console.log('Has Session Token:', hasSessionToken);
+      console.log('Expiration:', expiration);
+      console.log('Is Expired:', expiration ? new Date(expiration) < new Date() : 'unknown');
+      console.log('=========================');
+
       const response = await client.graphql({
         query: JOIN_ROOM,
         variables: {
           code: roomCode,
         },
-        authMode: 'userPool', // Explicitly specify auth mode
+        authMode: authMode as any,
       });
 
       logger.apiResponse('joinRoom mutation success', {
@@ -135,26 +167,54 @@ export default function JoinRoomScreen() {
         roomCode,
         timestamp: new Date().toISOString()
       });
-      console.error('Error joining room:', error);
+      
+      // Log detailed error information
+      console.error('🚨 === JOIN ROOM ERROR DETAILS ===');
+      console.error('Error message:', error.message);
+      console.error('Error name:', error.name);
+      console.error('Error errors:', JSON.stringify(error.errors, null, 2));
+      console.error('Error data:', JSON.stringify(error.data, null, 2));
+      console.error('Full error:', JSON.stringify(error, null, 2));
+      console.error('================================');
       
       // Check for specific error messages
-      const errorMessage = error?.errors?.[0]?.message || error?.message || 'Error desconocido';
+      let errorMessage = 'No se pudo unir a la sala. Inténtalo de nuevo.';
       
-      if (errorMessage.includes('está llena')) {
+      if (error.errors && error.errors.length > 0) {
+        const firstError = error.errors[0];
+        console.error('🔴 GraphQL Error:', JSON.stringify(firstError, null, 2));
+        
+        if (firstError.message) {
+          errorMessage = firstError.message;
+        }
+        
+        if (firstError.errorType === 'Unauthorized' || firstError.errorType === 'UnauthorizedException') {
+          errorMessage = 'Error de autenticación. Por favor, cierre sesión e inicie sesión de nuevo.';
+          console.error('🔴 UNAUTHORIZED ERROR - User needs to re-authenticate');
+        }
+        
+        if (firstError.errorType === 'DynamoDB:ConditionalCheckFailedException') {
+          console.error('🔴 DYNAMODB ERROR - Conditional check failed');
+        }
+      }
+      
+      const originalErrorMessage = error?.errors?.[0]?.message || error?.message || 'Error desconocido';
+      
+      if (originalErrorMessage.includes('está llena')) {
         setAlertConfig({
           visible: true,
           title: 'Sala Llena',
           message: 'Esta sala ya tiene el máximo de participantes permitidos.',
           buttons: [{ text: 'OK' }]
         });
-      } else if (errorMessage.includes('not found')) {
+      } else if (originalErrorMessage.includes('not found')) {
         setAlertConfig({
           visible: true,
           title: 'Error',
           message: 'Sala no encontrada. Verifica el código.',
           buttons: [{ text: 'OK' }]
         });
-      } else if (errorMessage.includes('expired')) {
+      } else if (originalErrorMessage.includes('expired')) {
         setAlertConfig({
           visible: true,
           title: 'Error',

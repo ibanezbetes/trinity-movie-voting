@@ -89,21 +89,45 @@ function AppContent() {
     logger.auth('Checking authentication status');
     
     try {
-      const user = await getCurrentUser();
+      // First check if user logged in with Google
+      const AsyncStorage = await import('@react-native-async-storage/async-storage');
+      const authType = await AsyncStorage.default.getItem('@trinity_auth_type');
       
-      // Also verify we have valid tokens
-      const { verifyAuthStatus } = await import('./src/services/amplify');
-      const authStatus = await verifyAuthStatus();
-      
-      if (authStatus.isAuthenticated) {
-        logger.auth('User is authenticated with valid tokens', {
-          userId: user.userId,
-          username: user.username
-        });
-        setIsAuthenticated(true);
+      if (authType === 'google') {
+        logger.auth('Google login detected, reconfiguring Amplify');
+        
+        // Reconfigure Amplify for Google login
+        const { configureAmplifyForGoogle, verifyAuthStatus } = await import('./src/services/amplify');
+        await configureAmplifyForGoogle();
+        
+        // Verify Google credentials are still valid
+        const authStatus = await verifyAuthStatus();
+        
+        if (authStatus.isAuthenticated) {
+          logger.auth('Google user is authenticated with valid credentials');
+          setIsAuthenticated(true);
+        } else {
+          logger.auth('Google credentials are invalid or expired');
+          setIsAuthenticated(false);
+        }
       } else {
-        logger.auth('User found but tokens are invalid, signing out');
-        setIsAuthenticated(false);
+        // Regular User Pool login
+        const user = await getCurrentUser();
+        
+        // Also verify we have valid tokens
+        const { verifyAuthStatus } = await import('./src/services/amplify');
+        const authStatus = await verifyAuthStatus();
+        
+        if (authStatus.isAuthenticated) {
+          logger.auth('User is authenticated with valid tokens', {
+            userId: user.userId,
+            username: user.username
+          });
+          setIsAuthenticated(true);
+        } else {
+          logger.auth('User found but tokens are invalid, signing out');
+          setIsAuthenticated(false);
+        }
       }
     } catch (error) {
       logger.auth('User is not authenticated', { error: error.message });

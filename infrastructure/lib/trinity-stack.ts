@@ -124,6 +124,66 @@ export class TrinityStack extends cdk.Stack {
       },
     });
 
+    // Cognito Identity Pool for Federated Sign-In (Google, Apple)
+    // CRITICAL: For native Google Sign-In to work, we need to configure the Identity Pool
+    // to accept tokens from Google OAuth. The token will have the Web Client ID as audience
+    // but will be generated through native sign-in flow.
+    const identityPool = new cognito.CfnIdentityPool(this, 'TrinityIdentityPool', {
+      identityPoolName: 'trinity-identity-pool',
+      allowUnauthenticatedIdentities: false,
+      cognitoIdentityProviders: [
+        {
+          clientId: userPoolClient.userPoolClientId,
+          providerName: userPool.userPoolProviderName,
+        },
+      ],
+      supportedLoginProviders: {
+        // Use Web Client ID - this is what the token's 'aud' field will contain
+        // even when using native sign-in with @react-native-google-signin/google-signin
+        'accounts.google.com': '1022509849017-1bcq0tpo9babgeoh80get5akv84bgdq0.apps.googleusercontent.com',
+      },
+      // Allow classic flow for Google federation
+      allowClassicFlow: true,
+    });
+
+    // IAM roles for authenticated users
+    const authenticatedRole = new iam.Role(this, 'CognitoAuthenticatedRole', {
+      assumedBy: new iam.CompositePrincipal(
+        // Allow Cognito Identity Pool to assume this role
+        new iam.FederatedPrincipal(
+          'cognito-identity.amazonaws.com',
+          {
+            StringEquals: {
+              'cognito-identity.amazonaws.com:aud': identityPool.ref,
+            },
+            'ForAnyValue:StringLike': {
+              'cognito-identity.amazonaws.com:amr': 'authenticated',
+            },
+          },
+          'sts:AssumeRoleWithWebIdentity'
+        ),
+        // CRITICAL: Allow Google to assume this role directly
+        // This is required for native Google Sign-In to work with Cognito Identity Pool
+        new iam.FederatedPrincipal(
+          'accounts.google.com',
+          {
+            StringEquals: {
+              'accounts.google.com:aud': '1022509849017-1bcq0tpo9babgeoh80get5akv84bgdq0.apps.googleusercontent.com',
+            },
+          },
+          'sts:AssumeRoleWithWebIdentity'
+        )
+      ),
+    });
+
+    // Attach role to identity pool
+    new cognito.CfnIdentityPoolRoleAttachment(this, 'IdentityPoolRoleAttachment', {
+      identityPoolId: identityPool.ref,
+      roles: {
+        authenticated: authenticatedRole.roleArn,
+      },
+    });
+
     // GraphQL API
     const api = new appsync.GraphqlApi(this, 'TrinityApi', {
       name: 'trinity-api',
@@ -151,6 +211,15 @@ export class TrinityStack extends cdk.Stack {
         fieldLogLevel: appsync.FieldLogLevel.ALL,
       },
     });
+
+    // Grant authenticated users from Identity Pool access to AppSync
+    authenticatedRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['appsync:GraphQL'],
+        resources: [`${api.arn}/*`],
+      })
+    );
 
     // Lambda Functions
     const tmdbHandler = new lambda.Function(this, 'TmdbHandler', {
@@ -411,6 +480,11 @@ export class TrinityStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'UserPoolClientId', {
       value: userPoolClient.userPoolClientId,
       description: 'Cognito User Pool Client ID',
+    });
+
+    new cdk.CfnOutput(this, 'IdentityPoolId', {
+      value: identityPool.ref,
+      description: 'Cognito Identity Pool ID',
     });
 
     new cdk.CfnOutput(this, 'Region', {

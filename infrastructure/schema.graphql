@@ -1,4 +1,4 @@
-type Room {
+type Room @aws_iam @aws_cognito_user_pools {
   id: ID!
   code: String!
   hostId: String!
@@ -9,7 +9,7 @@ type Room {
   maxParticipants: Int!
 }
 
-type MovieCandidate {
+type MovieCandidate @aws_iam @aws_cognito_user_pools {
   id: Int!
   title: String!
   overview: String!
@@ -19,7 +19,7 @@ type MovieCandidate {
   trailerKey: String
 }
 
-type Match {
+type Match @aws_iam @aws_cognito_user_pools {
   id: ID!
   roomId: String!
   movieId: Int!
@@ -29,7 +29,7 @@ type Match {
   matchedUsers: [String!]!
 }
 
-type Vote {
+type Vote @aws_iam @aws_cognito_user_pools {
   roomId: String!
   userId: String!
   movieId: Int!
@@ -42,16 +42,16 @@ enum MediaType {
 }
 
 type Mutation {
-  createRoom(input: CreateRoomInput!): Room!
-  joinRoom(code: String!): Room!
-  vote(input: VoteInput!): VoteResult!
-  createMatch(input: CreateMatchInput!): Match!
+  createRoom(input: CreateRoomInput!): Room! @aws_iam @aws_cognito_user_pools
+  joinRoom(code: String!): Room! @aws_iam @aws_cognito_user_pools
+  vote(input: VoteInput!): VoteResult! @aws_iam @aws_cognito_user_pools
+  createMatch(input: CreateMatchInput!): Match! @aws_iam @aws_cognito_user_pools
   publishRoomMatch(roomId: ID!, matchData: RoomMatchInput!): RoomMatchEvent! @aws_iam
   publishUserMatch(userId: ID!, matchData: RoomMatchInput!): UserMatchEvent! @aws_iam
-  addRoomMember(roomId: ID!, userId: String!): RoomMembership!
-  removeRoomMember(roomId: ID!, userId: String!): Boolean!
-  leaveRoom(roomId: ID!): Boolean!
-  deleteUserAccount: DeleteUserResult!
+  addRoomMember(roomId: ID!, userId: String!): RoomMembership! @aws_iam @aws_cognito_user_pools
+  removeRoomMember(roomId: ID!, userId: String!): Boolean! @aws_iam @aws_cognito_user_pools
+  leaveRoom(roomId: ID!): Boolean! @aws_iam @aws_cognito_user_pools
+  deleteUserAccount: DeleteUserResult! @aws_iam @aws_cognito_user_pools
 }
 
 input CreateMatchInput {
@@ -63,13 +63,13 @@ input CreateMatchInput {
 }
 
 type Query {
-  getRoom(id: String!): Room
-  getMyRooms: [Room!]!
-  getMyMatches: [Match!]!
-  checkRoomMatch(roomId: String!): Match
-  checkUserMatches: [Match!]!
-  getRoomMembers(roomId: ID!): [RoomMembership!]!
-  getUserRooms(userId: String!): [RoomMembership!]!
+  getRoom(id: String!): Room @aws_iam @aws_cognito_user_pools
+  getMyRooms: [Room!]! @aws_iam @aws_cognito_user_pools
+  getMyMatches: [Match!]! @aws_iam @aws_cognito_user_pools
+  checkRoomMatch(roomId: String!): Match @aws_iam @aws_cognito_user_pools
+  checkUserMatches: [Match!]! @aws_iam @aws_cognito_user_pools
+  getRoomMembers(roomId: ID!): [RoomMembership!]! @aws_iam @aws_cognito_user_pools
+  getUserRooms(userId: String!): [RoomMembership!]! @aws_iam @aws_cognito_user_pools
   getUsernameEmail(username: String!): UsernameMapping @aws_api_key
   getRecommendations: [RecommendationCategory!]! @aws_iam @aws_cognito_user_pools
   getRecommendationsByCategory(categoryId: String!): RecommendationCategory @aws_iam @aws_cognito_user_pools
@@ -78,6 +78,8 @@ type Query {
 type Subscription {
   onMatchCreated: Match
     @aws_subscribe(mutations: ["createMatch"])
+    @aws_iam
+    @aws_cognito_user_pools
   roomMatch(roomId: ID!): RoomMatchEvent
     @aws_subscribe(mutations: ["publishRoomMatch"])
     @aws_iam
@@ -100,7 +102,7 @@ input VoteInput {
   vote: Boolean!
 }
 
-type VoteResult {
+type VoteResult @aws_iam @aws_cognito_user_pools {
   success: Boolean!
   match: Match
 }
@@ -134,7 +136,7 @@ type MatchDetails @aws_iam {
   matchType: String!
 }
 
-type RoomMembership {
+type RoomMembership @aws_iam @aws_cognito_user_pools {
   roomId: ID!
   userId: String!
   joinedAt: AWSDateTime!
@@ -147,27 +149,27 @@ type UsernameMapping @aws_api_key {
   email: String!
 }
 
-type DeleteUserResult {
+type DeleteUserResult @aws_iam @aws_cognito_user_pools {
   success: Boolean!
   message: String!
   deletedItems: DeletedItems!
 }
 
-type DeletedItems {
+type DeletedItems @aws_iam @aws_cognito_user_pools {
   username: Boolean!
   rooms: Int!
   votes: Int!
   matches: Int!
 }
 
-type RecommendationCategory {
+type RecommendationCategory @aws_iam @aws_cognito_user_pools {
   categoryId: String!
   title: String!
   description: String!
   movies: [RecommendationMovie!]!
 }
 
-type RecommendationMovie {
+type RecommendationMovie @aws_iam @aws_cognito_user_pools {
   movieId: Int!
   title: String!
   posterPath: String!

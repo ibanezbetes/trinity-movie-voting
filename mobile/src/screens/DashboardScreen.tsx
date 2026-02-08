@@ -42,6 +42,23 @@ export default function DashboardScreen() {
 
   const loadUserName = async () => {
     try {
+      // Check if user logged in with Google
+      const AsyncStorage = await import('@react-native-async-storage/async-storage');
+      const authType = await AsyncStorage.default.getItem('@trinity_auth_type');
+      
+      if (authType === 'google') {
+        // Get email from Google login
+        const googleEmail = await AsyncStorage.default.getItem('@trinity_google_email');
+        if (googleEmail) {
+          // Extract prefix from email (before @)
+          const emailPrefix = googleEmail.split('@')[0];
+          setUserName(emailPrefix);
+          logger.info('Loaded Google user name', { emailPrefix });
+          return;
+        }
+      }
+      
+      // For regular User Pool login
       const user = await getCurrentUser();
       // Try to get preferred_username from user attributes
       // If not available, fall back to username
@@ -58,20 +75,20 @@ export default function DashboardScreen() {
   const loadCounts = async () => {
     try {
       // Importar las queries necesarias
-      const { client } = await import('../services/amplify');
+      const { client, getAuthMode } = await import('../services/amplify');
       const { GET_MY_ROOMS, GET_MATCHES } = await import('../services/graphql');
 
       // Obtener salas
       const roomsResponse = await client.graphql({
         query: GET_MY_ROOMS,
-        authMode: 'userPool',
+        authMode: await getAuthMode() as any,
       });
       setRoomsCount(roomsResponse.data.getMyRooms?.length || 0);
 
       // Obtener matches
       const matchesResponse = await client.graphql({
         query: GET_MATCHES,
-        authMode: 'userPool',
+        authMode: await getAuthMode() as any,
       });
       setMatchesCount(matchesResponse.data.getMyMatches?.length || 0);
 

@@ -332,21 +332,167 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const handleGoogleLogin = async () => {
     try {
       setIsLoading(true);
-      logger.auth('Google login initiated');
+      logger.auth('Google native login initiated');
       
-      const { signInWithRedirect } = await import('aws-amplify/auth');
+      // Import Google Sign-In and AsyncStorage
+      const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+      const AsyncStorage = await import('@react-native-async-storage/async-storage');
       
-      await signInWithRedirect({
-        provider: 'Google',
+      // CRITICAL: Configure with Web Client ID ONLY
+      GoogleSignin.configure({
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '1022509849017-1bcq0tpo9babgeoh80get5akv84bgdq0.apps.googleusercontent.com',
+        offlineAccess: true,
+        scopes: ['email', 'profile', 'openid'],
       });
       
-      logger.auth('Google login redirect initiated');
-    } catch (error) {
+      logger.auth('Google Sign-In configured');
+      
+      // Check if device supports Google Play Services
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      logger.auth('Google Play Services available');
+      
+      // Sign in with Google natively - this shows the native account picker
+      const userInfo = await GoogleSignin.signIn();
+      const userEmail = userInfo?.data?.user?.email || userInfo?.user?.email;
+      const userName = userInfo?.data?.user?.name || userInfo?.user?.name;
+      
+      logger.auth('Google native sign-in successful', { 
+        email: userEmail,
+        name: userName
+      });
+      
+      // Get the ID token from Google
+      const tokens = await GoogleSignin.getTokens();
+      logger.auth('Google tokens obtained', { 
+        hasIdToken: !!tokens.idToken,
+        hasAccessToken: !!tokens.accessToken
+      });
+      
+      if (!tokens.idToken) {
+        logger.authError('No ID token in response', { tokens });
+        throw new Error('No ID token received from Google');
+      }
+      
+      // Decode JWT to see the audience (aud) field
+      try {
+        const tokenParts = tokens.idToken.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          logger.auth('Token decoded', { 
+            aud: payload.aud,
+            iss: payload.iss,
+            email: payload.email,
+            azp: payload.azp
+          });
+          console.log('🔍 Token Audience (aud):', payload.aud);
+          console.log('🔍 Token Authorized Party (azp):', payload.azp);
+        }
+      } catch (e) {
+        logger.auth('Could not decode token', { error: e });
+      }
+      
+      // Get AWS credentials from Identity Pool
+      const { fromCognitoIdentityPool } = await import('@aws-sdk/credential-providers');
+      
+      const identityPoolId = process.env.EXPO_PUBLIC_IDENTITY_POOL_ID || 'eu-west-1:b4eec05c-2426-4e5e-80e9-5316a6acbcc2';
+      const region = process.env.EXPO_PUBLIC_AWS_REGION || 'eu-west-1';
+      
+      logger.auth('Getting AWS credentials from Identity Pool');
+      
+      // Create credentials provider with Google token
+      const credentialsProvider = fromCognitoIdentityPool({
+        identityPoolId: identityPoolId,
+        logins: {
+          'accounts.google.com': tokens.idToken
+        },
+        clientConfig: { region }
+      });
+      
+      // Get credentials to verify they work
+      const credentials = await credentialsProvider();
+      
+      // CRITICAL: Extract Cognito Identity ID from credentials
+      // This is the actual userId that backend uses for IAM auth
+      // @ts-ignore - identityId is not in the types but exists at runtime
+      const cognitoIdentityId = credentials.identityId;
+      
+      logger.auth('AWS credentials obtained', {
+        hasAccessKeyId: !!credentials.accessKeyId,
+        hasSecretAccessKey: !!credentials.secretAccessKey,
+        hasSessionToken: !!credentials.sessionToken,
+        expiration: credentials.expiration,
+        cognitoIdentityId,
+      });
+      
+      if (!credentials.accessKeyId || !credentials.secretAccessKey) {
+        throw new Error('Invalid credentials received from Cognito Identity Pool');
+      }
+      
+      // Store authentication data in AsyncStorage
+      await AsyncStorage.default.setItem('@trinity_auth_type', 'google');
+      await AsyncStorage.default.setItem('@trinity_google_token', tokens.idToken);
+      await AsyncStorage.default.setItem('@trinity_google_email', userEmail || '');
+      await AsyncStorage.default.setItem('@trinity_google_name', userName || '');
+      await AsyncStorage.default.setItem('@trinity_aws_access_key', credentials.accessKeyId);
+      await AsyncStorage.default.setItem('@trinity_aws_secret_key', credentials.secretAccessKey);
+      await AsyncStorage.default.setItem('@trinity_aws_session_token', credentials.sessionToken || '');
+      await AsyncStorage.default.setItem('@trinity_aws_expiration', credentials.expiration?.toISOString() || '');
+      
+      // CRITICAL: Store Cognito Identity ID for subscriptions
+      if (cognitoIdentityId) {
+        await AsyncStorage.default.setItem('@trinity_cognito_identity_id', cognitoIdentityId);
+        logger.auth('Cognito Identity ID stored', { cognitoIdentityId });
+      }
+      
+      logger.auth('Authentication data stored in AsyncStorage');
+      
+      // Reconfigure Amplify to use IAM auth with persistent credentials provider
+      const { configureAmplifyForGoogle } = await import('../services/amplify');
+      await configureAmplifyForGoogle();
+      
+      logger.auth('Amplify reconfigured with Google credentials');
+      
+      // Success! The app will use these credentials for GraphQL calls
+      logger.auth('Google login successful');
+      onAuthSuccess();
+      
+    } catch (error: any) {
       logger.authError('Google login failed', error);
+      console.error('Google login error:', error);
+      console.error('Error details:', {
+        name: error?.name,
+        code: error?.code,
+        message: error?.message,
+        stack: error?.stack
+      });
+      
+      let errorMessage = 'No se pudo iniciar sesión con Google. Por favor intenta de nuevo.';
+      
+      if (error.code === 'SIGN_IN_CANCELLED' || error.code === '-5') {
+        errorMessage = 'Inicio de sesión cancelado';
+        logger.auth('User cancelled Google sign-in');
+        setIsLoading(false);
+        return; // Don't show error for cancellation
+      } else if (error.code === 'IN_PROGRESS') {
+        errorMessage = 'Inicio de sesión en progreso';
+      } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
+        errorMessage = 'Google Play Services no está disponible en este dispositivo';
+      } else if (error.message?.includes('network')) {
+        errorMessage = 'Error de conexión. Verifica tu internet.';
+      } else if (error.message) {
+        // Include detailed error for debugging
+        errorMessage = `Error: ${error.message}`;
+        
+        // Add more context if available
+        if (error.code) {
+          errorMessage += ` (${error.code})`;
+        }
+      }
+      
       setAlertConfig({
         visible: true,
-        title: 'Error',
-        message: 'No se pudo iniciar sesión con Google. Por favor intenta de nuevo.',
+        title: 'Error de Google Sign-In',
+        message: errorMessage,
         buttons: [{ text: 'OK' }]
       });
       setIsLoading(false);

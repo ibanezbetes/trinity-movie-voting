@@ -17,13 +17,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList, MovieCandidate } from '../types';
-import { client, verifyAuthStatus } from '../services/amplify';
+import { client, verifyAuthStatus, getAuthMode } from '../services/amplify';
 import { GET_ROOM, VOTE } from '../services/graphql';
 import { logger } from '../services/logger';
 import { useProactiveMatchCheck, ACTION_NAMES } from '../hooks/useProactiveMatchCheck';
 import { roomSubscriptionService, userSubscriptionService } from '../services/subscriptions';
 import { Icon, CustomAlert } from '../components';
 import { useSound } from '../context/SoundContext';
+import { useMatchNotification } from '../context/MatchNotificationContext';
 
 type VotingRoomRouteProp = RouteProp<RootStackParamList, 'VotingRoom'>;
 
@@ -37,6 +38,9 @@ export default function VotingRoomScreen() {
   const { roomId, roomCode } = route.params;
   const { addActiveRoom, removeActiveRoom, executeWithMatchCheck } = useProactiveMatchCheck();
   const { playSound } = useSound();
+  
+  // CRITICAL: Get the match notification context to trigger navigation
+  const matchNotificationContext = useMatchNotification();
 
   const [candidates, setCandidates] = useState<MovieCandidate[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -63,6 +67,28 @@ export default function VotingRoomScreen() {
   const handleCopyCode = () => {
     Clipboard.setString(roomCode);
     logger.userAction('Room code copied from voting screen', { roomCode });
+  };
+
+  // CRITICAL: Helper function to handle match detection and navigation
+  const handleMatchDetected = (match: any) => {
+    logger.match('🎉 MATCH DETECTED IN VOTING ROOM - NAVIGATING', {
+      matchId: match.id,
+      title: match.title,
+      roomId: match.roomId,
+    });
+
+    // Play chin sound
+    playSound('chin');
+
+    // Update state to prevent further voting
+    setHasExistingMatch(true);
+    setExistingMatch(match);
+
+    // CRITICAL: Navigate to MatchCelebration screen
+    navigation.navigate('MatchCelebration', { 
+      match, 
+      wasInRoom: true 
+    });
   };
 
   const handlePlayTrailer = (movie: MovieCandidate) => {
@@ -117,10 +143,10 @@ export default function VotingRoomScreen() {
     const interval = setInterval(async () => {
       logger.room('🔍 AGGRESSIVE periodic match check', { roomId });
       const hasMatch = await checkForExistingMatch();
-      if (hasMatch) {
-        // If match found, navigate to MatchCelebration screen
-        // The navigation will be handled by the context provider
-        logger.room('Match found via periodic check - navigation handled by context');
+      if (hasMatch && existingMatch) {
+        // CRITICAL: Navigate to MatchCelebration screen
+        logger.room('Match found via periodic check - navigating to celebration');
+        handleMatchDetected(existingMatch);
       }
     }, 2000); // Verificar cada 2 segundos (más agresivo)
 
@@ -152,21 +178,18 @@ export default function VotingRoomScreen() {
           subscriptionType: 'room-based-realtime'
         });
 
-        // Play chin sound
-        playSound('chin');
-
-        // Update state to show match found
-        setHasExistingMatch(true);
-        setExistingMatch({
+        // Convert to match format
+        const match = {
           id: roomMatchEvent.matchId,
           title: roomMatchEvent.movieTitle,
           movieId: parseInt(roomMatchEvent.movieId),
           posterPath: roomMatchEvent.posterPath,
           timestamp: roomMatchEvent.timestamp,
-        });
+          roomId: roomMatchEvent.roomId,
+        };
 
-        // Navigation to MatchCelebration will be handled by the context provider
-        logger.room('Match notification received - navigation handled by context');
+        // CRITICAL: Navigate to MatchCelebration screen
+        handleMatchDetected(match);
       });
       
       logger.room('✅ Room subscription system established for real-time notifications', { roomId, userId });
@@ -201,7 +224,7 @@ export default function VotingRoomScreen() {
             }
           }
         `,
-        authMode: 'userPool',
+        authMode: await getAuthMode() as any,
       });
 
       const matches = response.data.getMyMatches || [];
@@ -219,8 +242,9 @@ export default function VotingRoomScreen() {
         setHasExistingMatch(true);
         setExistingMatch(roomMatch);
         
-        // Navigation to MatchCelebration will be handled by the context provider
-        logger.room('Existing match found - navigation handled by context');
+        // CRITICAL: Navigate to MatchCelebration screen
+        logger.room('Existing match found - navigating to celebration');
+        handleMatchDetected(roomMatch);
         
         return true;
       } else {
@@ -269,7 +293,7 @@ export default function VotingRoomScreen() {
       const response = await client.graphql({
         query: GET_ROOM,
         variables: { id: roomId },
-        authMode: 'userPool', // Explicitly specify auth mode
+        authMode: await getAuthMode() as any, // Explicitly specify auth mode
       });
 
       logger.apiResponse('getRoom query success', {
@@ -394,7 +418,7 @@ export default function VotingRoomScreen() {
         const roomCheckResponse = await client.graphql({
           query: GET_ROOM,
           variables: { id: roomId },
-          authMode: 'userPool',
+          authMode: await getAuthMode() as any,
         });
 
         if (!roomCheckResponse.data.getRoom) {
@@ -427,7 +451,7 @@ export default function VotingRoomScreen() {
               vote,
             },
           },
-          authMode: 'userPool',
+          authMode: await getAuthMode() as any,
         });
 
         logger.apiResponse('vote mutation success', {
@@ -448,15 +472,8 @@ export default function VotingRoomScreen() {
             timestamp: result.match.timestamp
           });
 
-          // Play chin sound
-          playSound('chin');
-
-          // Update state to prevent further voting
-          setHasExistingMatch(true);
-          setExistingMatch(result.match);
-
-          // Navigation to MatchCelebration will be handled by the context provider
-          logger.vote('Match detected - navigation handled by context');
+          // CRITICAL: Navigate to MatchCelebration screen
+          handleMatchDetected(result.match);
         } else {
           logger.vote('✅ BACKGROUND VOTE COMPLETED: No match, continuing flow', {
             movieTitle: currentMovie.title,
@@ -478,9 +495,9 @@ export default function VotingRoomScreen() {
         // Check if error is due to room not found (potential match)
         const errorMessage = error?.message || error?.toString() || '';
         if (errorMessage.includes('Room not found') || errorMessage.includes('has expired')) {
-          // Room disappeared, likely due to match
-          // Navigation will be handled by the context provider
-          logger.voteError('Room not found error - navigation handled by context', error);
+          // Room disappeared, likely due to match - check for match
+          logger.voteError('Room not found error - checking for match', error);
+          await checkForExistingMatch();
         }
         // For other errors, don't interrupt the user flow
         // The vote failed but the user can continue voting

@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
-import { client, verifyAuthStatus } from '../services/amplify';
+import { client, verifyAuthStatus, getAuthMode } from '../services/amplify';
 import { GET_MY_ROOMS } from '../services/graphql';
 import { logger } from '../services/logger';
 import { AppTabBar, Icon, CustomAlert } from '../components';
@@ -73,7 +73,7 @@ export default function MyRoomsScreen() {
 
       const response = await client.graphql({
         query: GET_MY_ROOMS,
-        authMode: 'userPool',
+        authMode: await getAuthMode() as any,
       });
 
       const userRooms = response.data.getMyRooms || [];

@@ -120,6 +120,24 @@ export default function ProfileScreen() {
     try {
       logger.auth('Loading user profile data');
       
+      // Check if user logged in with Google
+      const AsyncStorage = await import('@react-native-async-storage/async-storage');
+      const authType = await AsyncStorage.default.getItem('@trinity_auth_type');
+      
+      if (authType === 'google') {
+        // Get email from Google login
+        const googleEmail = await AsyncStorage.default.getItem('@trinity_google_email');
+        if (googleEmail) {
+          // Extract prefix from email (before @)
+          const emailPrefix = googleEmail.split('@')[0];
+          setUserName(emailPrefix);
+          logger.info('Loaded Google user profile', { emailPrefix });
+          setIsLoading(false);
+          return;
+        }
+      }
+      
+      // For regular User Pool login
       const user = await getCurrentUser();
       
       // Get preferred_username from user attributes
@@ -234,8 +252,54 @@ export default function ProfileScreen() {
             
             try {
               logger.auth('Sign out attempt started');
-              await signOut();
-              logger.auth('Sign out successful');
+              
+              // Check if user logged in with Google
+              const AsyncStorage = await import('@react-native-async-storage/async-storage');
+              const authType = await AsyncStorage.default.getItem('@trinity_auth_type');
+              
+              if (authType === 'google') {
+                logger.auth('Signing out Google user');
+                
+                // Try to sign out from Google
+                try {
+                  const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+                  
+                  // Configure first
+                  GoogleSignin.configure({
+                    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '1022509849017-1bcq0tpo9babgeoh80get5akv84bgdq0.apps.googleusercontent.com',
+                  });
+                  
+                  const isSignedIn = await GoogleSignin.isSignedIn();
+                  if (isSignedIn) {
+                    await GoogleSignin.signOut();
+                    logger.auth('Google sign out successful');
+                  }
+                } catch (googleError) {
+                  logger.auth('Google sign out error (non-critical)', googleError);
+                  // Continue even if Google sign out fails
+                }
+                
+                // Clear AsyncStorage data (this is the critical part)
+                await AsyncStorage.default.multiRemove([
+                  '@trinity_auth_type',
+                  '@trinity_google_token',
+                  '@trinity_google_email',
+                  '@trinity_google_name',
+                  '@trinity_aws_access_key',
+                  '@trinity_aws_secret_key',
+                  '@trinity_aws_session_token',
+                  '@trinity_aws_expiration',
+                  '@trinity_cognito_identity_id',
+                ]);
+                
+                logger.auth('Google session data cleared from AsyncStorage');
+              } else {
+                // Sign out from Cognito User Pool
+                await signOut();
+                logger.auth('Cognito sign out successful');
+              }
+              
+              // Call onSignOut to update app state
               onSignOut();
             } catch (error) {
               logger.authError('Sign out failed', error);
@@ -267,31 +331,94 @@ export default function ProfileScreen() {
             try {
               logger.auth('Delete account attempt started');
               
-              // Delete user from Cognito
-              await deleteUser();
+              // Check if user logged in with Google
+              const AsyncStorage = await import('@react-native-async-storage/async-storage');
+              const authType = await AsyncStorage.default.getItem('@trinity_auth_type');
               
-              logger.auth('Account deleted successfully');
-              showAlert(
-                'Cuenta Eliminada',
-                'Tu cuenta ha sido eliminada exitosamente.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      onSignOut();
+              if (authType === 'google') {
+                logger.auth('Deleting Google user session');
+                
+                // For Google users, we can't delete the Google account
+                // But we can sign them out and clear their data
+                try {
+                  const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+                  
+                  // Configure first
+                  GoogleSignin.configure({
+                    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '1022509849017-1bcq0tpo9babgeoh80get5akv84bgdq0.apps.googleusercontent.com',
+                  });
+                  
+                  const isSignedIn = await GoogleSignin.isSignedIn();
+                  if (isSignedIn) {
+                    await GoogleSignin.signOut();
+                    logger.auth('Google sign out successful');
+                  }
+                } catch (googleError) {
+                  logger.auth('Google sign out error (non-critical)', googleError);
+                  // Continue even if Google sign out fails
+                }
+                
+                // Clear AsyncStorage data (this is the critical part)
+                await AsyncStorage.default.multiRemove([
+                  '@trinity_auth_type',
+                  '@trinity_google_token',
+                  '@trinity_google_email',
+                  '@trinity_google_name',
+                  '@trinity_aws_access_key',
+                  '@trinity_aws_secret_key',
+                  '@trinity_aws_session_token',
+                  '@trinity_aws_expiration',
+                  '@trinity_cognito_identity_id',
+                ]);
+                
+                logger.auth('Google account data cleared from AsyncStorage');
+                
+                // Hide the current alert first
+                setIsDeletingAccount(false);
+                
+                // Show success message and sign out
+                showAlert(
+                  'Sesión Cerrada',
+                  'Tu sesión de Google ha sido cerrada y tus datos locales han sido eliminados.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        onSignOut();
+                      },
                     },
-                  },
-                ]
-              );
+                  ]
+                );
+              } else {
+                // Delete user from Cognito User Pool
+                await deleteUser();
+                
+                logger.auth('Account deleted successfully');
+                
+                // Hide the current alert first
+                setIsDeletingAccount(false);
+                
+                showAlert(
+                  'Cuenta Eliminada',
+                  'Tu cuenta ha sido eliminada exitosamente.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        onSignOut();
+                      },
+                    },
+                  ]
+                );
+              }
             } catch (error) {
               logger.authError('Account deletion failed', error);
               console.error('Error deleting account:', error);
+              setIsDeletingAccount(false);
               showAlert(
                 'Error',
                 'No se pudo eliminar la cuenta. Por favor, intenta de nuevo más tarde.'
               );
-            } finally {
-              setIsDeletingAccount(false);
             }
           },
         },
@@ -394,68 +521,13 @@ export default function ProfileScreen() {
               thumbColor={!isMuted ? '#ffffff' : '#f4f3f4'}
             />
           </View>
-
-          {/* Botones de prueba de sonido */}
-          {!isMuted && (
-            <View style={styles.soundTestContainer}>
-              <Typography variant="caption" style={[styles.soundTestTitle, { color: colors.textSecondary }]}>
-                Probar sonidos:
-              </Typography>
-              <View style={styles.soundTestButtons}>
-                <TouchableOpacity
-                  style={[styles.soundTestButton, { backgroundColor: colors.primary }]}
-                  onPress={() => {
-                    logger.info('SOUND', 'Testing votoSi sound');
-                    playSound('votoSi');
-                  }}
-                >
-                  <Typography variant="caption" style={styles.soundTestButtonText}>
-                    Voto Sí
-                  </Typography>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.soundTestButton, { backgroundColor: colors.primary }]}
-                  onPress={() => {
-                    logger.info('SOUND', 'Testing votoNo sound');
-                    playSound('votoNo');
-                  }}
-                >
-                  <Typography variant="caption" style={styles.soundTestButtonText}>
-                    Voto No
-                  </Typography>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.soundTestButton, { backgroundColor: colors.primary }]}
-                  onPress={() => {
-                    logger.info('SOUND', 'Testing chin sound');
-                    playSound('chin');
-                  }}
-                >
-                  <Typography variant="caption" style={styles.soundTestButtonText}>
-                    Chin
-                  </Typography>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.soundTestButton, { backgroundColor: colors.primary }]}
-                  onPress={() => {
-                    logger.info('SOUND', 'Testing inicioApp sound');
-                    playSound('inicioApp');
-                  }}
-                >
-                  <Typography variant="caption" style={styles.soundTestButtonText}>
-                    Inicio
-                  </Typography>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
         </View>
 
         {/* SECCIÓN 4: SOPORTE */}
         <View style={styles.section}>
           <TouchableOpacity 
             style={[styles.menuItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}
-            onPress={() => handleOpenURL('https://google.com', 'Ayuda / FAQs')}
+            onPress={() => handleOpenURL('https://trinity-app.es/faqs', 'Ayuda / FAQs')}
           >
             <Icon name="help-circle" size={22} color={colors.text} />
             <Typography variant="body" style={[styles.menuItemText, { color: colors.text }]}>
@@ -723,7 +795,7 @@ export default function ProfileScreen() {
               <View style={styles.legalLinksContainer}>
                 <TouchableOpacity 
                   style={styles.legalLink}
-                  onPress={() => handleOpenURL('https://google.com', 'Política de Privacidad')}
+                  onPress={() => handleOpenURL('https://trinity-app.es/privacy', 'Política de Privacidad')}
                 >
                   <Typography variant="body" style={[styles.legalLinkText, { color: colors.primary }]}>
                     Política de Privacidad
@@ -732,7 +804,7 @@ export default function ProfileScreen() {
 
                 <TouchableOpacity 
                   style={styles.legalLink}
-                  onPress={() => handleOpenURL('https://google.com', 'Términos de Uso')}
+                  onPress={() => handleOpenURL('https://trinity-app.es/terms', 'Términos de Uso')}
                 >
                   <Typography variant="body" style={[styles.legalLinkText, { color: colors.primary }]}>
                     Términos de Uso
@@ -1003,33 +1075,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
-  },
-  
-  // Sound test buttons
-  soundTestContainer: {
-    padding: 15,
-    paddingTop: 10,
-  },
-  soundTestTitle: {
-    fontSize: 12,
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  soundTestButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  soundTestButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  soundTestButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600',
   },
   
   bottomSpacer: {

@@ -96,6 +96,11 @@ android {
         versionName "1.0.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+        
+        // Only build for arm64-v8a to avoid path length issues
+        ndk {
+            abiFilters "arm64-v8a"
+        }
     }
     signingConfigs {
         debug {
@@ -131,8 +136,7 @@ android {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
     
-    // Disable lint to avoid file locking issues
-    lintOptions {
+    lint {
         checkReleaseBuilds false
         abortOnError false
     }

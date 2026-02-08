@@ -680,8 +680,26 @@ export const handler: Handler = async (event) => {
   console.log('Vote Lambda received AppSync event:', JSON.stringify(event));
 
   try {
+    // CRITICAL DEBUG: Log full identity structure to understand userId format
+    console.log('🔍 IDENTITY DEBUG:', JSON.stringify({
+      identityType: event.identity?.constructor?.name,
+      claims: event.identity?.claims,
+      username: event.identity?.username,
+      sourceIp: event.identity?.sourceIp,
+      userArn: event.identity?.userArn,
+      accountId: event.identity?.accountId,
+      cognitoIdentityPoolId: event.identity?.cognitoIdentityPoolId,
+      cognitoIdentityId: event.identity?.cognitoIdentityId,
+      principalOrgId: event.identity?.principalOrgId,
+    }));
+
     // Extract user ID from AppSync context
-    const userId = event.identity?.claims?.sub || event.identity?.username;
+    // For IAM auth (Google): use cognitoIdentityId
+    // For User Pool auth: use claims.sub
+    const userId = event.identity?.cognitoIdentityId || event.identity?.claims?.sub || event.identity?.username;
+    
+    console.log('🆔 EXTRACTED USER ID:', userId);
+    
     if (!userId) {
       console.error('User not authenticated for vote');
       return { success: false }; // Return proper VoteResult instead of throwing
