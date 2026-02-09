@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MOVIE_GENRES, TV_GENRES, Genre, RootStackParamList } from '../types';
-import { client, verifyAuthStatus, getAuthMode } from '../services/amplify';
+import { getClient, verifyAuthStatus, getAuthMode } from '../services/amplify';
 import { CREATE_ROOM } from '../services/graphql';
 import { logger } from '../services/logger';
 import { Avatar, Card, Typography, Button, Chip, Icon, CustomAlert } from '../components';
@@ -137,7 +137,8 @@ export default function CreateRoomScreen() {
       const authMode = await getAuthMode();
       logger.auth('Using auth mode for createRoom', { authMode });
 
-      const response = await client.graphql({
+      const dynamicClient = await getClient();
+      const response = await dynamicClient.graphql({
         query: CREATE_ROOM,
         variables: {
           input: {
@@ -146,7 +147,6 @@ export default function CreateRoomScreen() {
             maxParticipants,
           },
         },
-        authMode: authMode as any,
       });
 
       logger.apiResponse('createRoom mutation success', {

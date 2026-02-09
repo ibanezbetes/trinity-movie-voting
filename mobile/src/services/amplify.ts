@@ -35,7 +35,7 @@ const amplifyConfig = {
     GraphQL: {
       endpoint: awsConfig.graphqlEndpoint,
       region: awsConfig.region,
-      defaultAuthMode: awsConfig.authenticationType,
+      defaultAuthMode: 'userPool', // CRITICAL FIX: Use 'userPool' instead of 'AMAZON_COGNITO_USER_POOLS'
       apiKey: process.env.EXPO_PUBLIC_GRAPHQL_API_KEY,
     },
   },
@@ -165,26 +165,63 @@ export const configureAmplifyForGoogle = async () => {
   }
 };
 
+// CRITICAL FIX: Create GraphQL client factory that properly handles IAM credentials
+// The client must be created dynamically to use the correct auth mode and credentials
+
+// Helper to create a client with proper IAM credentials
+const createClientWithAuth = async (authMode: 'userPool' | 'iam') => {
+  if (authMode === 'iam') {
+    // For IAM auth, we need to ensure Amplify uses the credentials from AsyncStorage
+    logger.info('AMPLIFY', 'Creating GraphQL client with IAM auth mode');
+    
+    // Verify credentials are available
+    const accessKey = await AsyncStorage.getItem('@trinity_aws_access_key');
+    const secretKey = await AsyncStorage.getItem('@trinity_aws_secret_key');
+    
+    if (!accessKey || !secretKey) {
+      logger.error('AMPLIFY', 'No AWS credentials found for IAM auth');
+      throw new Error('No AWS credentials available for IAM authentication');
+    }
+    
+    logger.info('AMPLIFY', 'AWS credentials verified for IAM auth', {
+      hasAccessKey: !!accessKey,
+      hasSecretKey: !!secretKey,
+    });
+    
+    // CRITICAL FIX: Reconfigure Amplify with credentials provider before creating client
+    // This ensures the client uses the credentials from AsyncStorage
+    await configureAmplifyForGoogle();
+  }
+  
+  return generateClient({ authMode });
+};
+
 // Create GraphQL client with dynamic authentication
 // This will be recreated after login to use the correct auth mode
 let _client: any = null;
 let _realtimeClient: any = null;
 
 export const getClient = async () => {
-  if (!_client) {
-    const authMode = await getAuthMode();
-    _client = generateClient({ authMode });
+  const authMode = await getAuthMode();
+  
+  // Always recreate client to ensure fresh credentials for IAM
+  if (authMode === 'iam' || !_client) {
+    _client = await createClientWithAuth(authMode);
     logger.info('AMPLIFY', `GraphQL client created with ${authMode} auth mode`);
   }
+  
   return _client;
 };
 
 export const getRealtimeClient = async () => {
-  if (!_realtimeClient) {
-    const authMode = await getAuthMode();
-    _realtimeClient = generateClient({ authMode });
+  const authMode = await getAuthMode();
+  
+  // Always recreate client to ensure fresh credentials for IAM
+  if (authMode === 'iam' || !_realtimeClient) {
+    _realtimeClient = await createClientWithAuth(authMode);
     logger.info('AMPLIFY', `Realtime client created with ${authMode} auth mode`);
   }
+  
   return _realtimeClient;
 };
 
@@ -195,9 +232,21 @@ export const resetClients = () => {
   logger.info('AMPLIFY', 'GraphQL clients reset');
 };
 
-// Legacy exports for backward compatibility
-export const client = generateClient({ authMode: 'userPool' });
-export const realtimeClient = generateClient({ authMode: 'userPool' });
+// CRITICAL FIX: Export dynamic clients that check auth mode at runtime
+// These replace the legacy static exports
+export const client = {
+  graphql: async (options: any) => {
+    const dynamicClient = await getClient();
+    return dynamicClient.graphql(options);
+  }
+};
+
+export const realtimeClient = {
+  graphql: async (options: any) => {
+    const dynamicClient = await getRealtimeClient();
+    return dynamicClient.graphql(options);
+  }
+};
 
 logger.info('AMPLIFY', 'GraphQL clients created successfully (standard + realtime)');
 

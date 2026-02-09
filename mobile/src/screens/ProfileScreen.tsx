@@ -782,7 +782,7 @@ export default function ProfileScreen() {
 
               {/* Versión */}
               <Typography variant="caption" style={styles.modalVersion}>
-                Versión 1.0.0
+                Versión 1.0.2
               </Typography>
 
               {/* Separador */}

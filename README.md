@@ -1,8 +1,8 @@
 # 🎬 Trinity - Movie Chining App
 
-**Version**: 1.0.0  
+**Version**: 1.0.6  
 **Status**: ✅ Production Ready  
-**Last Updated**: 2026-02-08
+**Last Updated**: 2026-02-09
 
 Trinity is a real-time movie chining application that helps groups of friends decide what to watch together. Stop endless scrolling and reach consensus in seconds with our innovative voting system.
 
@@ -186,6 +186,28 @@ Trinity supports multiple authentication methods:
 - One-tap Google authentication
 - Seamless OAuth flow
 - Automatic account creation
+
+### ⚠️ CRITICAL: User Identification for Google Users
+
+For users authenticated with Google OAuth, the system uses **`cognitoIdentityId`** as the unique user identifier, NOT `username`.
+
+**Why this matters:**
+- All Google users share the same `username` (the IAM role name)
+- Each Google user has a unique `cognitoIdentityId` from Cognito Identity Pool
+- Using `username` would treat all Google users as the same person
+
+**Correct implementation:**
+```typescript
+// ✅ Correct - Use cognitoIdentityId for Google users
+const userId = event.identity?.cognitoIdentityId || event.identity?.claims?.sub;
+
+// ❌ Wrong - username is not unique for Google users
+const userId = event.identity?.username;
+```
+
+This is implemented in:
+- `infrastructure/src/handlers/vote/index.ts`
+- `infrastructure/src/handlers/match/index.ts`
 
 ## 📊 Data Model
 

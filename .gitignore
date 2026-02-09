@@ -295,6 +295,27 @@ BACKUP_INFO*.md
 # Log files
 logs_*.txt
 *.log
+*-logs-*.txt
+all-logs-*.txt
+lambda-logs-*.txt
+vote-logs-*.txt
+match-logs-*.txt
+recent-logs-*.txt
+google-match-test-*.txt
+match-notification-debug-*.txt
 
-# Keep only official cleanup script
+# Debug and monitoring scripts (temporary)
+capture-*.ps1
+debug-*.ps1
+get-logs-*.ps1
+get-match-*.ps1
+get-recent-*.ps1
+monitor-*.ps1
+test-google-*.ps1
+test-v*.ps1
+test-vote-*.ps1
+list-lambda-*.ps1
+
+# Keep only official scripts
 !cleanup.ps1
+!infrastructure/create-zips.ps1

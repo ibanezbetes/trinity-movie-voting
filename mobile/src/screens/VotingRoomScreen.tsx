@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList, MovieCandidate } from '../types';
-import { client, verifyAuthStatus, getAuthMode } from '../services/amplify';
+import { getClient, verifyAuthStatus, getAuthMode } from '../services/amplify';
 import { GET_ROOM, VOTE } from '../services/graphql';
 import { logger } from '../services/logger';
 import { useProactiveMatchCheck, ACTION_NAMES } from '../hooks/useProactiveMatchCheck';
@@ -129,7 +129,6 @@ export default function VotingRoomScreen() {
     // Cleanup: remove room from active rooms and unsubscribe when leaving
     return () => {
       removeActiveRoom(roomId);
-      roomSubscriptionService.unsubscribeFromRoom(roomId);
       if (currentUserId) {
         userSubscriptionService.unsubscribeFromUser(currentUserId);
       }
@@ -164,39 +163,41 @@ export default function VotingRoomScreen() {
       const userId = authStatus.user.userId;
       setCurrentUserId(userId);
 
-      logger.room('🔔 Setting up CRITICAL room subscription system', { roomId, userId });
+      logger.room('🔔 Setting up user-specific match subscription', { roomId, userId });
 
-      // CRITICAL FIX: Use ONLY room-based subscription for immediate notifications
-      // This ensures ALL users in the room get notified when ANY match occurs
-      roomSubscriptionService.subscribeToRoom(roomId, userId, (roomMatchEvent) => {
-        logger.room('🎉 ROOM MATCH NOTIFICATION RECEIVED in VotingRoom', {
-          roomId: roomMatchEvent.roomId,
-          matchId: roomMatchEvent.matchId,
-          movieTitle: roomMatchEvent.movieTitle,
-          matchedUsers: roomMatchEvent.matchedUsers,
+      // CRITICAL FIX: Use user-specific subscription instead of room-based
+      // This ensures EACH user gets their own notification directly
+      // Backend sends individual notifications to each user via publishUserMatch
+      userSubscriptionService.subscribeToUser(userId, (userMatchEvent) => {
+        logger.room('🎉 USER MATCH NOTIFICATION RECEIVED in VotingRoom', {
+          userId: userMatchEvent.userId,
+          roomId: userMatchEvent.roomId,
+          matchId: userMatchEvent.matchId,
+          movieTitle: userMatchEvent.movieTitle,
+          matchedUsers: userMatchEvent.matchedUsers,
           currentUserId: userId,
-          subscriptionType: 'room-based-realtime'
+          subscriptionType: 'user-specific-realtime'
         });
 
         // Convert to match format
         const match = {
-          id: roomMatchEvent.matchId,
-          title: roomMatchEvent.movieTitle,
-          movieId: parseInt(roomMatchEvent.movieId),
-          posterPath: roomMatchEvent.posterPath,
-          timestamp: roomMatchEvent.timestamp,
-          roomId: roomMatchEvent.roomId,
+          id: userMatchEvent.matchId,
+          title: userMatchEvent.movieTitle,
+          movieId: parseInt(userMatchEvent.movieId),
+          posterPath: userMatchEvent.posterPath,
+          timestamp: userMatchEvent.timestamp,
+          roomId: userMatchEvent.roomId,
         };
 
         // CRITICAL: Navigate to MatchCelebration screen
         handleMatchDetected(match);
       });
       
-      logger.room('✅ Room subscription system established for real-time notifications', { roomId, userId });
+      logger.room('✅ User-specific match subscription established', { roomId, userId });
 
     } catch (error) {
-      logger.roomError('Failed to setup room subscription', error, { roomId });
-      console.error('Failed to setup room subscription:', error);
+      logger.roomError('Failed to setup user subscription', error, { roomId, userId });
+      console.error('Failed to setup user subscription:', error);
     }
   };
 
@@ -210,7 +211,8 @@ export default function VotingRoomScreen() {
         return false;
       }
 
-      const response = await client.graphql({
+      const dynamicClient = await getClient();
+      const response = await dynamicClient.graphql({
         query: `
           query GetMatches {
             getMyMatches {
@@ -224,7 +226,6 @@ export default function VotingRoomScreen() {
             }
           }
         `,
-        authMode: await getAuthMode() as any,
       });
 
       const matches = response.data.getMyMatches || [];
@@ -290,10 +291,10 @@ export default function VotingRoomScreen() {
 
       logger.apiRequest('getRoom query', { roomId });
 
-      const response = await client.graphql({
+      const dynamicClient = await getClient();
+      const response = await dynamicClient.graphql({
         query: GET_ROOM,
         variables: { id: roomId },
-        authMode: await getAuthMode() as any, // Explicitly specify auth mode
       });
 
       logger.apiResponse('getRoom query success', {
@@ -415,10 +416,10 @@ export default function VotingRoomScreen() {
 
         // FINAL CHECK: Verify room still exists before voting
         logger.vote('🔍 Final room existence check before vote submission');
-        const roomCheckResponse = await client.graphql({
+        const dynamicClient = await getClient();
+        const roomCheckResponse = await dynamicClient.graphql({
           query: GET_ROOM,
           variables: { id: roomId },
-          authMode: await getAuthMode() as any,
         });
 
         if (!roomCheckResponse.data.getRoom) {
@@ -442,7 +443,8 @@ export default function VotingRoomScreen() {
           },
         });
 
-        const response = await client.graphql({
+        const dynamicClient2 = await getClient();
+        const response = await dynamicClient2.graphql({
           query: VOTE,
           variables: {
             input: {
@@ -451,7 +453,6 @@ export default function VotingRoomScreen() {
               vote,
             },
           },
-          authMode: await getAuthMode() as any,
         });
 
         logger.apiResponse('vote mutation success', {

@@ -380,11 +380,13 @@ export const handler: Handler = async (event) => {
     }));
 
     // Extract user ID from AppSync context
-    // For IAM auth (Google): use cognitoIdentityId
+    // For IAM auth (Google): use cognitoIdentityId (REQUIRED - this is the unique user ID)
     // For User Pool auth: use claims.sub
-    const userId = event.identity?.cognitoIdentityId || event.identity?.claims?.sub || event.identity?.username;
+    // CRITICAL: Do NOT use username as fallback - it's the IAM role name, not unique per user!
+    const userId = event.identity?.cognitoIdentityId || event.identity?.claims?.sub;
     
     console.log('🆔 EXTRACTED USER ID:', userId);
+    console.log('🆔 USERNAME (for reference only):', event.identity?.username);
     
     // Determine operation from AppSync field name
     const fieldName = event.info?.fieldName;

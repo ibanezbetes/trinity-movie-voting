@@ -1,4 +1,4 @@
-import { client, realtimeClient, getAuthMode } from './amplify';
+import { getClient, getRealtimeClient, getAuthMode } from './amplify';
 import { logger } from './logger';
 
 // GraphQL subscription for user-specific match notifications
@@ -139,6 +139,18 @@ class UserSubscriptionManager implements UserSubscriptionService {
       // Get the appropriate auth mode based on login type
       const authMode = await getAuthMode();
       
+      // Get the realtime client with proper auth
+      const rtClient = await getRealtimeClient();
+      
+      // 🔍 DIAGNOSTIC LOGS - REMOVE AFTER DEBUGGING
+      console.log('═══════════════════════════════════════');
+      console.log('🔍 ESTABLISHING USER SUBSCRIPTION');
+      console.log('═══════════════════════════════════════');
+      console.log('🔍 USER ID:', userId);
+      console.log('🔍 AUTH MODE:', authMode);
+      console.log('🔍 RETRY COUNT:', retryCount);
+      console.log('═══════════════════════════════════════');
+      
       logger.match('🔔 Establishing user-specific match subscription', { 
         userId, 
         retryCount,
@@ -147,13 +159,25 @@ class UserSubscriptionManager implements UserSubscriptionService {
       });
 
       // CRITICAL: Use realtimeClient for better WebSocket handling with dynamic authMode
-      const subscription = realtimeClient.graphql({
+      // RELEASE FIX: Ensure proper error handling and logging that survives R8 obfuscation
+      const subscription = rtClient.graphql({
         query: USER_MATCH_SUBSCRIPTION,
         variables: { userId },
         authMode: authMode as any,
       }).subscribe({
         next: ({ data }) => {
-          if (data?.userMatch) {
+          // RELEASE FIX: Add defensive checks to prevent silent failures
+          try {
+            if (!data) {
+              logger.matchError('❌ Received null/undefined data in user match subscription', null, { userId });
+              return;
+            }
+            
+            if (!data.userMatch) {
+              logger.match('ℹ️ Received data without userMatch field', { data, userId });
+              return;
+            }
+            
             const userMatchEvent = data.userMatch;
             
             logger.match('📡 User match notification received from AppSync', {
@@ -178,6 +202,9 @@ class UserSubscriptionManager implements UserSubscriptionService {
             });
             
             onMatch(userMatchEvent);
+          } catch (error) {
+            logger.matchError('❌ Error processing user match event', error, { userId, data });
+            console.error('Error processing user match event:', error);
           }
         },
         error: (error) => {
@@ -307,6 +334,9 @@ class RoomSubscriptionManager implements RoomSubscriptionService {
       // Get the appropriate auth mode based on login type
       const authMode = await getAuthMode();
       
+      // Get the realtime client with proper auth
+      const rtClient = await getRealtimeClient();
+      
       logger.match('🔔 Establishing room-based match subscription', { 
         roomId, 
         userId, 
@@ -316,13 +346,25 @@ class RoomSubscriptionManager implements RoomSubscriptionService {
       });
 
       // CRITICAL: Use realtimeClient for better WebSocket handling with dynamic authMode
-      const subscription = realtimeClient.graphql({
+      // RELEASE FIX: Ensure proper error handling and logging that survives R8 obfuscation
+      const subscription = rtClient.graphql({
         query: ROOM_MATCH_SUBSCRIPTION,
         variables: { roomId },
         authMode: authMode as any,
       }).subscribe({
         next: ({ data }) => {
-          if (data?.roomMatch) {
+          // RELEASE FIX: Add defensive checks to prevent silent failures
+          try {
+            if (!data) {
+              logger.matchError('❌ Received null/undefined data in room match subscription', null, { roomId });
+              return;
+            }
+            
+            if (!data.roomMatch) {
+              logger.match('ℹ️ Received data without roomMatch field', { data, roomId });
+              return;
+            }
+            
             const roomMatchEvent = data.roomMatch;
             
             logger.match('📡 Room match notification received from AppSync', {
@@ -349,6 +391,9 @@ class RoomSubscriptionManager implements RoomSubscriptionService {
             });
             
             onMatch(roomMatchEvent);
+          } catch (error) {
+            logger.matchError('❌ Error processing room match event', error, { roomId, userId, data });
+            console.error('Error processing room match event:', error);
           }
         },
         error: (error) => {
@@ -479,6 +524,9 @@ class MatchSubscriptionManager implements MatchSubscriptionService {
       // Get the appropriate auth mode based on login type
       const authMode = await getAuthMode();
       
+      // Get the realtime client with proper auth
+      const rtClient = await getRealtimeClient();
+      
       logger.match('🔔 Establishing AppSync match subscription (legacy)', { 
         userId, 
         retryCount,
@@ -487,12 +535,24 @@ class MatchSubscriptionManager implements MatchSubscriptionService {
       });
 
       // CRITICAL: Use realtimeClient for better WebSocket handling with dynamic authMode
-      this.subscription = realtimeClient.graphql({
+      // RELEASE FIX: Ensure proper error handling and logging that survives R8 obfuscation
+      this.subscription = rtClient.graphql({
         query: MATCH_SUBSCRIPTION,
         authMode: authMode as any,
       }).subscribe({
         next: ({ data }) => {
-          if (data?.onMatchCreated) {
+          // RELEASE FIX: Add defensive checks to prevent silent failures
+          try {
+            if (!data) {
+              logger.matchError('❌ Received null/undefined data in legacy match subscription', null, { userId });
+              return;
+            }
+            
+            if (!data.onMatchCreated) {
+              logger.match('ℹ️ Received data without onMatchCreated field', { data, userId });
+              return;
+            }
+            
             const match = data.onMatchCreated;
             
             logger.match('📡 Match notification received from AppSync (legacy)', {
@@ -527,6 +587,9 @@ class MatchSubscriptionManager implements MatchSubscriptionService {
                 matchedUsers: match.matchedUsers,
               });
             }
+          } catch (error) {
+            logger.matchError('❌ Error processing legacy match event', error, { userId, data });
+            console.error('Error processing legacy match event:', error);
           }
         },
         error: (error) => {

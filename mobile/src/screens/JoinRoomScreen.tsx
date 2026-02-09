@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
-import { client, verifyAuthStatus, getAuthMode } from '../services/amplify';
+import { getClient, verifyAuthStatus, getAuthMode } from '../services/amplify';
 import { JOIN_ROOM } from '../services/graphql';
 import { logger } from '../services/logger';
 import { CustomAlert } from '../components';
@@ -118,12 +118,12 @@ export default function JoinRoomScreen() {
       console.log('Is Expired:', expiration ? new Date(expiration) < new Date() : 'unknown');
       console.log('=========================');
 
-      const response = await client.graphql({
+      const dynamicClient = await getClient();
+      const response = await dynamicClient.graphql({
         query: JOIN_ROOM,
         variables: {
           code: roomCode,
         },
-        authMode: authMode as any,
       });
 
       logger.apiResponse('joinRoom mutation success', {

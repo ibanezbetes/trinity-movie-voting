@@ -211,21 +211,24 @@ class VoteService {
 
   private async checkForMatch(roomId: string, movieId: number, movieCandidate: MovieCandidate): Promise<Match | undefined> {
     try {
+      console.log(`🔍 MATCH CHECK STARTED for movie ${movieId} in room ${roomId}`);
+      
       // Get room details to know maxParticipants
       const room = await this.getRoom(roomId);
       if (!room) {
-        console.error(`Room ${roomId} not found when checking for match`);
+        console.error(`❌ Room ${roomId} not found when checking for match`);
         return undefined;
       }
 
       // Get maxParticipants from room (with backward compatibility)
       const maxParticipants = room.maxParticipants || 2; // Default to 2 for old rooms
-      console.log(`Room ${roomId} requires ${maxParticipants} positive votes for a match`);
+      console.log(`📊 Room ${roomId} requires ${maxParticipants} positive votes for a match`);
 
       // Get all votes for this movie in this room (excluding participation records)
       // CRITICAL: Use ConsistentRead to ensure we see the vote that was just written
       // Without this, DynamoDB's eventual consistency can cause race conditions where
       // two users voting simultaneously don't see each other's votes
+      console.log(`🔎 Querying votes table for roomId=${roomId}, movieId=${movieId}`);
       const votesResult = await docClient.send(new QueryCommand({
         TableName: this.votesTable,
         KeyConditionExpression: 'roomId = :roomId',
@@ -240,10 +243,14 @@ class VoteService {
       }));
 
       const positiveVotes = votesResult.Items || [];
+      console.log(`📋 Raw positive votes retrieved: ${positiveVotes.length} items`);
+      console.log(`📋 Vote details:`, JSON.stringify(positiveVotes, null, 2));
+      
       const positiveUserIds = new Set(positiveVotes.map(vote => (vote as Vote).userId));
       const positiveVoteCount = positiveUserIds.size;
 
-      console.log(`Found ${positiveVoteCount} unique positive votes for movie ${movieId} in room ${roomId}`);
+      console.log(`✅ Found ${positiveVoteCount} unique positive votes for movie ${movieId} in room ${roomId}`);
+      console.log(`👥 User IDs who voted YES:`, Array.from(positiveUserIds));
 
       // NEW LOGIC: Match occurs when positive votes === maxParticipants
       // It doesn't matter how many users are in the room or have voted
@@ -251,20 +258,22 @@ class VoteService {
       if (positiveVoteCount === maxParticipants) {
         // We have a match! Exactly maxParticipants users voted positively
         console.log(`🎉 MATCH DETECTED! ${positiveVoteCount} users (= maxParticipants) voted positively for movie ${movieId}`);
+        console.log(`🎉 Matched users:`, Array.from(positiveUserIds));
         
         // Check if match already exists
         const existingMatch = await this.getExistingMatch(roomId, movieId);
         if (existingMatch) {
-          console.log('Match already exists, returning existing match');
+          console.log('⚠️ Match already exists, returning existing match');
           return existingMatch;
         }
 
         // Create new match
+        console.log(`🆕 Creating new match for movie ${movieId} in room ${roomId}`);
         const match = await this.createMatch(roomId, movieId, movieCandidate, Array.from(positiveUserIds));
         return match;
       }
 
-      console.log(`No match yet. Positive votes: ${positiveVoteCount}, Required: ${maxParticipants}`);
+      console.log(`⏳ No match yet. Positive votes: ${positiveVoteCount}, Required: ${maxParticipants}`);
       return undefined;
 
     } catch (error) {
@@ -521,6 +530,8 @@ class VoteService {
         movieTitle: match.title,
         posterPath: match.posterPath,
         matchedUsers: match.matchedUsers,
+        roomId: match.roomId, // Incluir roomId para consistencia con userMatch
+        timestamp: match.timestamp, // Incluir timestamp para consistencia con userMatch
         matchDetails: {
           voteCount: match.matchedUsers.length,
           requiredVotes: match.matchedUsers.length,
@@ -677,7 +688,7 @@ class VoteService {
 
 // Lambda Handler for AppSync
 export const handler: Handler = async (event) => {
-  console.log('Vote Lambda received AppSync event:', JSON.stringify(event));
+  console.log('🚀 Vote Lambda received AppSync event:', JSON.stringify(event));
 
   try {
     // CRITICAL DEBUG: Log full identity structure to understand userId format
@@ -694,14 +705,23 @@ export const handler: Handler = async (event) => {
     }));
 
     // Extract user ID from AppSync context
-    // For IAM auth (Google): use cognitoIdentityId
+    // For IAM auth (Google): use cognitoIdentityId (REQUIRED - this is the unique user ID)
     // For User Pool auth: use claims.sub
-    const userId = event.identity?.cognitoIdentityId || event.identity?.claims?.sub || event.identity?.username;
+    // CRITICAL: Do NOT use username as fallback - it's the IAM role name, not unique per user!
+    const userId = event.identity?.cognitoIdentityId || event.identity?.claims?.sub;
     
     console.log('🆔 EXTRACTED USER ID:', userId);
+    console.log('🆔 USER ID TYPE:', typeof userId);
+    console.log('🆔 USER ID LENGTH:', userId?.length);
+    console.log('🆔 USERNAME (for reference only):', event.identity?.username);
     
     if (!userId) {
-      console.error('User not authenticated for vote');
+      console.error('❌ User not authenticated for vote - no cognitoIdentityId or claims.sub found');
+      return { success: false }; // Return proper VoteResult instead of throwing
+    }
+    
+    if (!userId) {
+      console.error('❌ User not authenticated for vote - no cognitoIdentityId or claims.sub found');
       return { success: false }; // Return proper VoteResult instead of throwing
     }
 
@@ -709,34 +729,38 @@ export const handler: Handler = async (event) => {
     const { input } = event.arguments;
     const { roomId, movieId, vote } = input;
 
+    console.log('📥 VOTE INPUT:', JSON.stringify({ roomId, movieId, vote, userId }));
+
     // Validate input
     if (!roomId) {
-      console.error('Room ID is required');
+      console.error('❌ Room ID is required');
       return { success: false }; // Return proper VoteResult instead of throwing
     }
 
     if (typeof movieId !== 'number') {
-      console.error('Movie ID must be a number');
+      console.error('❌ Movie ID must be a number');
       return { success: false }; // Return proper VoteResult instead of throwing
     }
 
     if (typeof vote !== 'boolean') {
-      console.error('Vote must be a boolean');
+      console.error('❌ Vote must be a boolean');
       return { success: false }; // Return proper VoteResult instead of throwing
     }
 
     const voteService = new VoteService();
     
     try {
+      console.log(`📝 Processing vote: User ${userId} voting ${vote ? 'YES' : 'NO'} for movie ${movieId} in room ${roomId}`);
       const result = await voteService.processVote(userId, roomId, movieId, vote);
+      console.log(`✅ Vote processed successfully:`, JSON.stringify(result));
       return result; // This already returns { success: true, match?: Match }
     } catch (error) {
-      console.error('Error processing vote:', error);
+      console.error('❌ Error processing vote:', error);
       return { success: false }; // Return proper VoteResult on error
     }
 
   } catch (error) {
-    console.error('Vote Lambda error:', error);
+    console.error('❌ Vote Lambda error:', error);
     return { success: false }; // Always return proper VoteResult, never throw
   }
 };

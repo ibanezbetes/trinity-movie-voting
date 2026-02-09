@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { client, verifyAuthStatus } from '../services/amplify';
+import { getClient, verifyAuthStatus } from '../services/amplify';
 import { GET_MATCHES } from '../services/graphql';
 import { logger } from '../services/logger';
 
@@ -65,7 +65,8 @@ export function useMatchPolling({
       }
 
       // CRITICAL: Use getMyMatches for more reliable match detection
-      const response = await client.graphql({
+      const dynamicClient = await getClient();
+      const response = await dynamicClient.graphql({
         query: `
           query GetMatches {
             getMyMatches {
@@ -79,7 +80,6 @@ export function useMatchPolling({
             }
           }
         `,
-        authMode: 'userPool',
       });
 
       const allMatches = response.data.getMyMatches || [];
@@ -205,9 +205,9 @@ export function useMatchPolling({
         return [];
       }
 
-      const response = await client.graphql({
+      const dynamicClient = await getClient();
+      const response = await dynamicClient.graphql({
         query: GET_MATCHES,
-        authMode: 'userPool',
       });
 
       return response.data.getMyMatches || [];
@@ -257,7 +257,8 @@ export function useGlobalMatchPolling(onNewMatch?: (match: Match) => void) {
       if (!authStatus.isAuthenticated) return;
 
       // Use the reliable getMyMatches query
-      const response = await client.graphql({
+      const dynamicClient = await getClient();
+      const response = await dynamicClient.graphql({
         query: `
           query GetMatches {
             getMyMatches {
@@ -271,7 +272,6 @@ export function useGlobalMatchPolling(onNewMatch?: (match: Match) => void) {
             }
           }
         `,
-        authMode: 'userPool',
       });
 
       const allMatches = response.data.getMyMatches || [];

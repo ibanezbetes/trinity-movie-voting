@@ -15,7 +15,7 @@ import {
 import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { client, verifyAuthStatus, getAuthMode } from '../services/amplify';
+import { getClient, verifyAuthStatus, getAuthMode } from '../services/amplify';
 import { GET_MATCHES } from '../services/graphql';
 import { logger } from '../services/logger';
 import { AppTabBar, Icon, ChinIcon, CustomAlert } from '../components';
@@ -80,9 +80,9 @@ export default function MyMatchesScreen() {
 
       logger.match('Loading user matches');
 
-      const response = await client.graphql({
+      const dynamicClient = await getClient();
+      const response = await dynamicClient.graphql({
         query: GET_MATCHES,
-        authMode: await getAuthMode() as any,
       });
 
       const userMatches = response.data.getMyMatches || [];

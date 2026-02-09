@@ -75,20 +75,20 @@ export default function DashboardScreen() {
   const loadCounts = async () => {
     try {
       // Importar las queries necesarias
-      const { client, getAuthMode } = await import('../services/amplify');
+      const { getClient } = await import('../services/amplify');
       const { GET_MY_ROOMS, GET_MATCHES } = await import('../services/graphql');
 
+      const dynamicClient = await getClient();
+
       // Obtener salas
-      const roomsResponse = await client.graphql({
+      const roomsResponse = await dynamicClient.graphql({
         query: GET_MY_ROOMS,
-        authMode: await getAuthMode() as any,
       });
       setRoomsCount(roomsResponse.data.getMyRooms?.length || 0);
 
       // Obtener matches
-      const matchesResponse = await client.graphql({
+      const matchesResponse = await dynamicClient.graphql({
         query: GET_MATCHES,
-        authMode: await getAuthMode() as any,
       });
       setMatchesCount(matchesResponse.data.getMyMatches?.length || 0);
 

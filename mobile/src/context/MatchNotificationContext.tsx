@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { client, verifyAuthStatus } from '../services/amplify';
+import { getClient, verifyAuthStatus } from '../services/amplify';
 import { GET_MATCHES } from '../services/graphql';
 import { matchSubscriptionService, roomSubscriptionService } from '../services/subscriptions';
 import { useMatchPolling, useGlobalMatchPolling } from '../hooks/useMatchPolling';
@@ -155,6 +155,16 @@ export function MatchNotificationProvider({
           const userId = authStatus.user.userId;
           setCurrentUserId(userId);
 
+          // 🔍 DIAGNOSTIC LOGS - REMOVE AFTER DEBUGGING
+          console.log('═══════════════════════════════════════');
+          console.log('🔍 MATCH NOTIFICATION SETUP');
+          console.log('═══════════════════════════════════════');
+          console.log('🔍 USER ID:', userId);
+          console.log('🔍 USER ID TYPE:', typeof userId);
+          console.log('🔍 USER ID LENGTH:', userId?.length);
+          console.log('🔍 CURRENT ROOM ID:', currentRoomId);
+          console.log('═══════════════════════════════════════');
+
           // CRITICAL FIX: Use BOTH legacy and room-based subscriptions for maximum coverage
           
           // 1. Legacy subscription for backward compatibility
@@ -302,7 +312,8 @@ export function MatchNotificationProvider({
 
       // CRITICAL: SYNCHRONOUS match checking - block until complete
       try {
-        const response = await client.graphql({
+        const dynamicClient = await getClient();
+        const response = await dynamicClient.graphql({
           query: `
             query GetMatches {
               getMyMatches {
@@ -316,7 +327,6 @@ export function MatchNotificationProvider({
               }
             }
           `,
-          authMode: 'userPool',
         });
 
         const userMatches = response.data.getMyMatches || [];
