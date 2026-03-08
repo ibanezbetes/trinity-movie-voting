@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, IconName } from './Icon';
 
 interface TabItem {
@@ -15,8 +16,10 @@ interface FloatingTabBarProps {
 }
 
 export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({ tabs }) => {
+  const insets = useSafeAreaInsets();
+  
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { bottom: Math.max(insets.bottom, 20) }]}>
       <View style={styles.island}>
         {tabs.map((tab, index) => (
           <TouchableOpacity
@@ -47,7 +50,6 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({ tabs }) => {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 20,
     left: 20,
     right: 20,
     alignItems: 'center',

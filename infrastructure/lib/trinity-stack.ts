@@ -122,6 +122,15 @@ export class TrinityStack extends cdk.Stack {
         userPassword: true,
         userSrp: true,
       },
+      // CRITICAL: Configure token expiration times to MAXIMUM allowed by Cognito
+      // Users will stay logged in indefinitely as long as they use the app
+      accessTokenValidity: cdk.Duration.days(1),      // Access token: 1 day (Cognito maximum)
+      idTokenValidity: cdk.Duration.days(1),          // ID token: 1 day (Cognito maximum)
+      refreshTokenValidity: cdk.Duration.days(3650),  // Refresh token: 10 YEARS (Cognito maximum)
+      // Enable token refresh
+      enableTokenRevocation: true,
+      // Prevent token refresh errors
+      preventUserExistenceErrors: true,
     });
 
     // Cognito Identity Pool for Federated Sign-In (Google, Apple)

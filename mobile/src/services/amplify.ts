@@ -381,35 +381,121 @@ export const refreshAuthSession = async () => {
     const authType = await AsyncStorage.getItem('@trinity_auth_type');
     
     if (authType === 'google') {
-      // For Google auth, refresh AWS credentials using the Google token
-      const googleToken = await AsyncStorage.getItem('@trinity_google_token');
+      // For Google auth, check if credentials are expired
+      const expiration = await AsyncStorage.getItem('@trinity_aws_expiration');
       
-      if (!googleToken) {
-        throw new Error('No Google token found');
+      if (expiration) {
+        const expirationDate = new Date(expiration);
+        const now = new Date();
+        const timeUntilExpiry = expirationDate.getTime() - now.getTime();
+        const hoursUntilExpiry = timeUntilExpiry / (1000 * 60 * 60);
+        
+        logger.auth('Checking Google credentials expiration', {
+          expiration: expirationDate.toISOString(),
+          now: now.toISOString(),
+          hoursUntilExpiry: hoursUntilExpiry.toFixed(2),
+        });
+        
+        // If credentials expire in less than 1 hour, refresh them
+        if (hoursUntilExpiry < 1) {
+          logger.auth('Google credentials expiring soon, refreshing');
+          
+          const googleToken = await AsyncStorage.getItem('@trinity_google_token');
+          
+          if (!googleToken) {
+            throw new Error('No Google token found for refresh');
+          }
+          
+          // Import credentials provider
+          const { fromCognitoIdentityPool } = await import('@aws-sdk/credential-providers');
+          
+          const credentialsProvider = fromCognitoIdentityPool({
+            identityPoolId: awsConfig.identityPoolId,
+            logins: {
+              'accounts.google.com': googleToken
+            },
+            clientConfig: { region: awsConfig.region }
+          });
+          
+          const credentials = await credentialsProvider();
+          
+          // Update stored credentials
+          await AsyncStorage.setItem('@trinity_aws_access_key', credentials.accessKeyId);
+          await AsyncStorage.setItem('@trinity_aws_secret_key', credentials.secretAccessKey);
+          await AsyncStorage.setItem('@trinity_aws_session_token', credentials.sessionToken || '');
+          await AsyncStorage.setItem('@trinity_aws_expiration', credentials.expiration?.toISOString() || '');
+          
+          // Extract and store Cognito Identity ID if available
+          // @ts-ignore - identityId is not in the types but exists at runtime
+          const identityId = credentials.identityId;
+          if (identityId) {
+            await AsyncStorage.setItem('@trinity_cognito_identity_id', identityId);
+            logger.auth('Cognito Identity ID updated', { identityId });
+          }
+          
+          logger.auth('Google auth session refreshed successfully', {
+            newExpiration: credentials.expiration?.toISOString(),
+          });
+          
+          return { credentials };
+        } else {
+          logger.auth('Google credentials still valid', { hoursUntilExpiry: hoursUntilExpiry.toFixed(2) });
+          
+          // Return existing credentials
+          const accessKey = await AsyncStorage.getItem('@trinity_aws_access_key');
+          const secretKey = await AsyncStorage.getItem('@trinity_aws_secret_key');
+          const sessionToken = await AsyncStorage.getItem('@trinity_aws_session_token');
+          
+          return {
+            credentials: {
+              accessKeyId: accessKey!,
+              secretAccessKey: secretKey!,
+              sessionToken: sessionToken || undefined,
+              expiration: expirationDate,
+            }
+          };
+        }
+      } else {
+        // No expiration stored, refresh to be safe
+        logger.auth('No expiration found for Google credentials, refreshing');
+        
+        const googleToken = await AsyncStorage.getItem('@trinity_google_token');
+        
+        if (!googleToken) {
+          throw new Error('No Google token found');
+        }
+        
+        // Import credentials provider
+        const { fromCognitoIdentityPool } = await import('@aws-sdk/credential-providers');
+        
+        const credentialsProvider = fromCognitoIdentityPool({
+          identityPoolId: awsConfig.identityPoolId,
+          logins: {
+            'accounts.google.com': googleToken
+          },
+          clientConfig: { region: awsConfig.region }
+        });
+        
+        const credentials = await credentialsProvider();
+        
+        // Update stored credentials
+        await AsyncStorage.setItem('@trinity_aws_access_key', credentials.accessKeyId);
+        await AsyncStorage.setItem('@trinity_aws_secret_key', credentials.secretAccessKey);
+        await AsyncStorage.setItem('@trinity_aws_session_token', credentials.sessionToken || '');
+        await AsyncStorage.setItem('@trinity_aws_expiration', credentials.expiration?.toISOString() || '');
+        
+        // Extract and store Cognito Identity ID if available
+        // @ts-ignore - identityId is not in the types but exists at runtime
+        const identityId = credentials.identityId;
+        if (identityId) {
+          await AsyncStorage.setItem('@trinity_cognito_identity_id', identityId);
+          logger.auth('Cognito Identity ID stored', { identityId });
+        }
+        
+        logger.auth('Google auth session refreshed successfully');
+        
+        return { credentials };
       }
-      
-      // Import credentials provider
-      const { fromCognitoIdentityPool } = await import('@aws-sdk/credential-providers');
-      
-      const credentialsProvider = fromCognitoIdentityPool({
-        identityPoolId: awsConfig.identityPoolId,
-        logins: {
-          'accounts.google.com': googleToken
-        },
-        clientConfig: { region: awsConfig.region }
-      });
-      
-      const credentials = await credentialsProvider();
-      
-      // Update stored credentials
-      await AsyncStorage.setItem('@trinity_aws_access_key', credentials.accessKeyId);
-      await AsyncStorage.setItem('@trinity_aws_secret_key', credentials.secretAccessKey);
-      await AsyncStorage.setItem('@trinity_aws_session_token', credentials.sessionToken || '');
-      await AsyncStorage.setItem('@trinity_aws_expiration', credentials.expiration?.toISOString() || '');
-      
-      logger.auth('Google auth session refreshed successfully');
-      
-      return { credentials };
     }
     
     // For User Pool auth, use standard refresh
