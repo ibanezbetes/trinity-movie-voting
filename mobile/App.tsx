@@ -111,8 +111,13 @@ function AppContent() {
         if (pendingCode) {
           logger.auth('Pending room code found after authentication', { roomCode: pendingCode });
           setPendingRoomCode(pendingCode);
-          // Clear the pending code
+          // Clear the pending code after setting it (will be used by AppNavigator)
           await AsyncStorage.default.removeItem('@trinity_pending_room_code');
+          
+          // Clear the state after 2 seconds to allow navigation to complete
+          setTimeout(() => {
+            setPendingRoomCode(null);
+          }, 2000);
         }
       }
     };
