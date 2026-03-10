@@ -5,8 +5,6 @@
       "namespace": "android_app",
       "package_name": "com.trinityapp.mobile",
       "sha256_cert_fingerprints": [
-        "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C",
-        "33:79:58:38:1D:54:97:04:6C:81:8A:5D:EB:46:42:99:76:57:45:DD:26:A4:44:DD:F7:4B:1A:96:8B:49:5C:12",
         "F9:75:E8:C1:B7:6A:BE:A3:D3:29:65:98:CC:E3:20:DA:6D:4A:97:3E:B9:9B:2E:72:57:93:F1:54:7A:CE:EC:61"
       ]
     }

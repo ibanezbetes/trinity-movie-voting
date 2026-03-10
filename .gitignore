@@ -32,6 +32,7 @@ mobile/android/gradlew
 mobile/android/gradlew.bat
 *.apk
 *.aab
+!mobile/android/app/build/outputs/bundle/release/app-release.aab
 
 # iOS
 mobile/ios/build/
@@ -101,6 +102,9 @@ response*.json
 *.tar.gz
 !infrastructure/lambda-zips/*.zip
 
+# CDK cache zips
+infrastructure/cdk.out/.cache/*.zip
+
 # Documentation temporal files
 *_SOLUTION*.md
 *_FIX*.md
@@ -158,6 +162,7 @@ PROJECT_STATUS_*.md
 ROOM_CAPACITY_*.md
 MATCH_NOTIFICATION_*.md
 BACKUP_INFO*.md
+BACKUP_COMPLETADO*.md
 ROLLBACK_*.md
 DEPLOYMENT_STATUS*.md
 LAMBDA_ZIPS_STATUS*.md
@@ -252,6 +257,9 @@ infrastructure/*.report.json
 *.backup/
 docu_trinity/
 docs_backup/
+KEYSTORE_BACKUP/
+KEYSTORE_BACKUP_*/
+trinity-keystore-backup.*
 
 # CDK cache
 infrastructure/cdk.out/.cache/

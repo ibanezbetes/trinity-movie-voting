@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -40,21 +40,7 @@ export default function JoinRoomScreen() {
 
   logger.userAction('Screen loaded: JoinRoom');
 
-  // Handle initial room code from deep link
-  React.useEffect(() => {
-    const initialRoomCode = route.params?.initialRoomCode;
-    if (initialRoomCode) {
-      logger.userAction('Initial room code received from deep link', { roomCode: initialRoomCode });
-      setRoomCode(initialRoomCode);
-      
-      // Auto-join the room after a short delay
-      setTimeout(() => {
-        handleJoinRoom(initialRoomCode);
-      }, 500);
-    }
-  }, [route.params?.initialRoomCode]);
-
-  const handleJoinRoom = async (codeToJoin?: string) => {
+  const handleJoinRoom = useCallback(async (codeToJoin?: string) => {
     const code = codeToJoin || roomCode;
     logger.userAction('Join room button pressed', { roomCode: code });
 
@@ -249,7 +235,19 @@ export default function JoinRoomScreen() {
       setIsJoining(false);
       logger.room('Room join process completed', { isJoining: false });
     }
-  };
+  }, [roomCode, navigation]);
+
+  // Handle initial room code from deep link
+  React.useEffect(() => {
+    const initialRoomCode = route.params?.initialRoomCode;
+    if (initialRoomCode) {
+      logger.userAction('Initial room code received from deep link', { roomCode: initialRoomCode });
+      setRoomCode(initialRoomCode);
+      
+      // Auto-join the room immediately
+      handleJoinRoom(initialRoomCode);
+    }
+  }, [route.params?.initialRoomCode, handleJoinRoom]);
 
   const handleCodeChange = (text: string) => {
     // Convert to uppercase and limit to 6 characters
@@ -329,7 +327,7 @@ export default function JoinRoomScreen() {
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.joinButton, (roomCode.length !== 6 || isJoining) && styles.joinButtonDisabled]}
-          onPress={handleJoinRoom}
+          onPress={() => handleJoinRoom()}
           disabled={roomCode.length !== 6 || isJoining}
         >
           {isJoining ? (

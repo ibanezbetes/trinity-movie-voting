@@ -1,6 +1,6 @@
 # 🎬 Trinity - Movie Matching App
 
-**Version**: 1.0.8  
+**Version**: 1.0.9  
 **Status**: ✅ Production Ready  
 **Last Updated**: 2026-03-10
 
@@ -341,21 +341,49 @@ npm test
 ```
 
 ### Building for Production
+
+#### Lambda Functions
 ```bash
-# Build Lambda functions
 cd infrastructure
 npm run build
 ./create-zips.ps1
-
-# Build Android APK (for testing)
-cd mobile
-npx eas build --platform android --profile production-apk
-
-# Build Android AAB (for Google Play Store)
-cd mobile
-./create-keystore.ps1    # First time only
-./generate-aab.ps1       # Generate AAB
 ```
+
+#### Android App Bundle (AAB) for Google Play Store
+
+**⚠️ CRITICAL: DO NOT USE EAS BUILD**
+
+Trinity MUST be compiled using the traditional React Native method with Gradle directly. Using EAS Build will generate a different keystore and cause upload failures to Google Play Store.
+
+**Correct Build Process:**
+```bash
+cd mobile/android
+./gradlew bundleRelease -PreactNativeArchitectures=arm64-v8a
+```
+
+The AAB will be generated at:
+```
+mobile/android/app/build/outputs/bundle/release/app-release.aab
+```
+
+**Keystore Information:**
+- **Location**: `mobile/android/app/trinity-release-key.keystore`
+- **Alias**: `trinity-key-alias`
+- **Store Password**: `TrinityApp2024!`
+- **Key Password**: `TrinityApp2024!`
+- **SHA1**: `5E:91:A9:4E:3C:5A:2F:0D:0D:BF:CD:E0:8D:47:43:F7:43:8F:AE:24`
+- **SHA256**: `56:CF:A1:1B:79:1B:36:A5:4D:F5:17:18:FA:E8:D9:A2:FE:F9:8E:5E:2A:C7:75:8C:6E:9D:2A:F2:B8:1E:6A:97`
+
+**NEVER:**
+- ❌ Use `eas build` for production builds
+- ❌ Generate a new keystore
+- ❌ Lose the keystore file (backup in multiple secure locations)
+
+**If keystore is lost:**
+1. Go to Google Play Console → App → Setup → App Integrity
+2. Click "Request upload key reset"
+3. Generate new certificate: `keytool -export -rfc -keystore trinity-release-key.keystore -alias trinity-key-alias -file upload_certificate.pem`
+4. Upload the PEM file and wait for Google approval (2-3 days)
 
 ### Publishing to Google Play Store
 

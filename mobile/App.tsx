@@ -34,15 +34,13 @@ function AppContent() {
       // Handle OAuth callback
       if (event.url.includes('callback')) {
         logger.auth('OAuth callback detected, checking auth status');
-        // Wait a bit for Amplify to process the OAuth callback
-        setTimeout(() => {
-          checkAuthStatus();
-        }, 1000);
+        // Check auth status immediately - Amplify should have processed the callback by now
+        checkAuthStatus();
         return;
       }
       
       // Handle room deep link: https://trinity-app.es/room/{CODE} or myapp://room/{CODE}
-      const roomLinkMatch = event.url.match(/(?:trinity-app\.es|myapp:)\/room\/([A-Z0-9]{6})/i);
+      const roomLinkMatch = event.url.match(/(?:https:\/\/trinity-app\.es|myapp:)\/room\/([A-Z0-9]{6})/i);
       if (roomLinkMatch) {
         const roomCode = roomLinkMatch[1].toUpperCase();
         logger.auth('Room deep link detected', { roomCode, url: event.url });
@@ -85,6 +83,12 @@ function AppContent() {
         case 'customOAuthState':
           logger.auth('Custom OAuth state received', payload.data);
           break;
+        case 'tokenRefresh':
+          logger.auth('Token refresh completed');
+          break;
+        case 'tokenRefresh_failure':
+          logger.authError('Token refresh failed', payload.data);
+          break;
       }
     });
 
@@ -111,19 +115,26 @@ function AppContent() {
         if (pendingCode) {
           logger.auth('Pending room code found after authentication', { roomCode: pendingCode });
           setPendingRoomCode(pendingCode);
-          // Clear the pending code after setting it (will be used by AppNavigator)
+          // Clear the pending code immediately after setting it
           await AsyncStorage.default.removeItem('@trinity_pending_room_code');
-          
-          // Clear the state after 2 seconds to allow navigation to complete
-          setTimeout(() => {
-            setPendingRoomCode(null);
-          }, 2000);
         }
       }
     };
     
     checkPendingRoomCode();
   }, [isAuthenticated, isLoading]);
+
+  // Clear pending room code after it's been used for navigation
+  useEffect(() => {
+    if (pendingRoomCode) {
+      // Reset after navigation has been triggered
+      const resetTimer = setTimeout(() => {
+        setPendingRoomCode(null);
+      }, 100); // Very short timeout just to ensure navigation has started
+      
+      return () => clearTimeout(resetTimer);
+    }
+  }, [pendingRoomCode]);
 
   const checkAuthStatus = async () => {
     logger.auth('Checking authentication status');

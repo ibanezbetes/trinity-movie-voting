@@ -1,0 +1,18 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAM_ID.com.trinityapp.mobile"],
+        "components": [
+          {
+            "/": "/room/*",
+            "comment": "Matches any room URL"
+          }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["TEAM_ID.com.trinityapp.mobile"]
+  }
+}

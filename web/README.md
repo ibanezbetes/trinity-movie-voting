@@ -270,90 +270,66 @@ Referrer-Policy: strict-origin-when-cross-origin
 - **Instagram**: [@trinity.app](https://www.instagram.com/trinity.app/)
 
 
-## 🔗 Android App Links
+## 🔗 Universal Links y App Links
 
-### Archivo assetlinks.json
+Trinity implementa **Universal Links (iOS)** y **App Links (Android)** para funcionar exactamente como Playtomic. Cuando compartes un enlace de sala, funciona de manera inteligente:
 
-El archivo `.well-known/assetlinks.json` es necesario para que los deep links de Android funcionen sin mostrar el diálogo de selección de app.
+- **App instalada**: Se abre directamente la app → Usuario va a la sala
+- **App NO instalada**: Se abre el navegador → Página con botón para descargar
 
-**Ubicación**: `web/.well-known/assetlinks.json`
+### Archivos de Verificación
 
-**Contenido actual**:
+**iOS - Universal Links**:
+- Archivo: `web/.well-known/apple-app-site-association`
+- Verifica que `trinity-app.es` puede abrir `com.trinityapp.mobile`
+
+**Android - App Links**:
+- Archivo: `web/.well-known/assetlinks.json`
+- Contiene fingerprints SHA-256 de la app
 - Package: `com.trinityapp.mobile`
-- Debug SHA-256: `FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C`
-- Release SHA-256: `33:79:58:38:1D:54:97:04:6C:81:8A:5D:EB:46:42:99:76:57:45:DD:26:A4:44:DD:F7:4B:1A:96:8B:49:5C:12`
-
-### Deployment del archivo assetlinks.json
-
-**IMPORTANTE**: Este archivo DEBE ser accesible en:
-```
-https://trinity-app.es/.well-known/assetlinks.json
-```
-
-**Requisitos**:
-- ✅ Accesible vía HTTPS
-- ✅ Content-Type: `application/json`
-- ✅ Sin autenticación
-- ✅ Sin redirects
-- ✅ Código 200 OK
-
-### Verificar Deployment
-
-1. **Verificar accesibilidad**:
-```bash
-curl https://trinity-app.es/.well-known/assetlinks.json
-```
-
-2. **Verificar con Google**:
-- Ir a: https://developers.google.com/digital-asset-links/tools/generator
-- Ingresar dominio: `trinity-app.es`
-- Verificar que el archivo sea válido
-
-3. **Probar deep link**:
-```bash
-adb shell am start -W -a android.intent.action.VIEW \
-  -d "https://trinity-app.es/room/ABC123" \
-  com.trinityapp.mobile
-```
-
-### Configuración del Servidor
-
-**Apache (.htaccess)** - Ya incluido:
-```apache
-<Files "assetlinks.json">
-  Header set Content-Type "application/json"
-  Header set Access-Control-Allow-Origin "*"
-</Files>
-```
-
-**Nginx**:
-```nginx
-location /.well-known/assetlinks.json {
-    add_header Content-Type application/json;
-    add_header Access-Control-Allow-Origin *;
-}
-```
-
-**Netlify/Vercel**: Funciona automáticamente, solo asegúrate de subir la carpeta `.well-known/`
-
-### Actualizar SHA-256 Fingerprints
-
-Si cambias el certificado de firma de la app:
-
-1. Obtener nuevo fingerprint:
-```bash
-cd mobile/android
-./gradlew signingReport
-```
-
-2. Actualizar `web/.well-known/assetlinks.json` con el nuevo SHA-256
-
-3. Re-deployar el sitio web
 
 ### Deep Links Soportados
 
 - **Unirse a sala**: `https://trinity-app.es/room/{CODE}`
   - Ejemplo: `https://trinity-app.es/room/ABC123`
-  - Abre la app y une automáticamente a la sala
+  - Funciona desde WhatsApp, email, SMS, etc.
+  - Abre la app automáticamente si está instalada
 
-Ver `docs/DEEP_LINKING_GUIDE.md` para más detalles sobre la implementación.
+### Página de Fallback
+
+**room.html**:
+- Se carga cuando la app no está instalada
+- Detecta el dispositivo (iOS/Android/Desktop)
+- Intenta abrir la app automáticamente
+- Muestra botones de fallback si no funciona
+- Redirige a Play Store para descargar
+
+### Verificar Funcionamiento
+
+**Requisitos**:
+- ✅ HTTPS obligatorio (no funciona con HTTP)
+- ✅ Archivos `.well-known/` accesibles
+- ✅ Content-Type: `application/json`
+- ✅ Sin redirects ni autenticación
+
+**Verificar archivos**:
+```bash
+# iOS
+curl https://trinity-app.es/.well-known/apple-app-site-association
+
+# Android
+curl https://trinity-app.es/.well-known/assetlinks.json
+```
+
+**Probar deep links**:
+```bash
+# Android
+adb shell am start -W -a android.intent.action.VIEW \
+  -d "https://trinity-app.es/room/TEST01" \
+  com.trinityapp.mobile
+
+# iOS Simulator
+xcrun simctl openurl booted "https://trinity-app.es/room/TEST01"
+```
+
+Ver `docs/UNIVERSAL_LINKS_GUIDE.md` para la guía completa de implementación.

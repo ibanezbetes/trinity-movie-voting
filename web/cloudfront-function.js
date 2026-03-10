@@ -2,14 +2,19 @@
 // Esta función reescribe las URLs /room/* a /room.html
 
 function handler(event) {
-    var request = event.request;
-    var uri = request.uri;
+    const request = event.request;
+    const uri = request.uri;
     
     // Si la URI es /room/CODIGO, reescribir a /room.html
     if (uri.match(/^\/room\/[A-Z0-9]{6}$/i)) {
         request.uri = '/room.html';
     }
-    // Si la URI no tiene extensión, agregar .html
+    // Permitir acceso a archivos .well-known para Universal Links
+    else if (uri.startsWith('/.well-known/')) {
+        // No modificar, permitir acceso directo
+        return request;
+    }
+    // Si la URI no tiene extensión y no es root, agregar .html
     else if (!uri.includes('.') && uri !== '/') {
         request.uri = uri + '.html';
     }

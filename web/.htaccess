@@ -6,9 +6,10 @@ RewriteEngine On
 # Deep linking - Redirect /room/* to room.html
 RewriteRule ^room/([A-Z0-9]{6})$ /room.html [L,QSA]
 
-# Remove .html extension from URLs
+# Remove .html extension from URLs (except for room.html which is handled above)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !^/room/
 RewriteRule ^([^\.]+)$ $1.html [NC,L]
 
 # Redirect www to non-www (optional)
@@ -35,11 +36,17 @@ ErrorDocument 404 /404.html
     
     # Referrer policy
     Header set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # Allow access to .well-known directory for Universal Links
+    <FilesMatch "^\.well-known">
+        Header unset X-Frame-Options
+        Header set Content-Type "application/json"
+    </FilesMatch>
 </IfModule>
 
 # Compression
 <IfModule mod_deflate.c>
-    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
 </IfModule>
 
 # Browser Caching
@@ -59,7 +66,15 @@ ErrorDocument 404 /404.html
     
     # HTML
     ExpiresByType text/html "access plus 1 hour"
+    
+    # Well-known files (Universal Links)
+    ExpiresByType application/json "access plus 1 day"
 </IfModule>
 
 # Charset
 AddDefaultCharset UTF-8
+
+# Allow access to .well-known directory
+<Directory ".well-known">
+    Require all granted
+</Directory>

@@ -30,16 +30,14 @@ export default function AppNavigator({ onSignOut, pendingRoomCode }: AppNavigato
   logger.info('NAVIGATION', 'AppNavigator initialized', { hasPendingRoomCode: !!pendingRoomCode });
 
   // Handle pending room code navigation
+  const [isNavigationReady, setIsNavigationReady] = React.useState(false);
+  
   React.useEffect(() => {
-    if (pendingRoomCode && navigationRef.current) {
+    if (pendingRoomCode && navigationRef.current && isNavigationReady) {
       logger.navigation('Navigating to JoinRoom with pending room code', { roomCode: pendingRoomCode });
-      
-      // Wait for navigation to be ready
-      setTimeout(() => {
-        navigationRef.current?.navigate('JoinRoom', { initialRoomCode: pendingRoomCode });
-      }, 500);
+      navigationRef.current.navigate('JoinRoom', { initialRoomCode: pendingRoomCode });
     }
-  }, [pendingRoomCode]);
+  }, [pendingRoomCode, isNavigationReady]);
 
   const handleNavigateToHome = () => {
     if (navigationRef.current) {
@@ -68,6 +66,10 @@ export default function AppNavigator({ onSignOut, pendingRoomCode }: AppNavigato
       >
         <NavigationContainer
           ref={navigationRef}
+          onReady={() => {
+            logger.navigation('Navigation container ready');
+            setIsNavigationReady(true);
+          }}
           onStateChange={(state) => {
             if (state) {
               const currentRoute = state.routes[state.index];
