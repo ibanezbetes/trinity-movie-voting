@@ -119,7 +119,10 @@ export default function MyRoomsScreen() {
   };
 
   const getMediaTypeText = (mediaType: string) => {
-    return mediaType === 'movie' ? 'Películas' : 'Series';
+    if (mediaType === 'MOVIE') return 'Películas';
+    if (mediaType === 'TV') return 'Series';
+    if (mediaType === 'BOTH') return 'Películas y Series';
+    return 'Desconocido';
   };
 
   const getGenreText = (genreIds: number[]) => {

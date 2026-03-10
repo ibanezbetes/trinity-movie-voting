@@ -12,6 +12,9 @@ import {
   Animated,
   Clipboard,
   Linking,
+  ScrollView,
+  Share,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -48,6 +51,8 @@ export default function VotingRoomScreen() {
   const [hasExistingMatch, setHasExistingMatch] = useState(false);
   const [existingMatch, setExistingMatch] = useState<any>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{
     visible: boolean;
     title: string;
@@ -66,7 +71,37 @@ export default function VotingRoomScreen() {
 
   const handleCopyCode = () => {
     Clipboard.setString(roomCode);
+    setShowShareMenu(false);
     logger.userAction('Room code copied from voting screen', { roomCode });
+    
+    // Mostrar feedback visual
+    setAlertConfig({
+      visible: true,
+      title: '✓ Código copiado',
+      message: `El código ${roomCode} se ha copiado al portapapeles`,
+      buttons: [{ text: 'OK', onPress: () => setAlertConfig({ ...alertConfig, visible: false }) }]
+    });
+  };
+
+  const handleShareRoom = async () => {
+    setShowShareMenu(false);
+    const shareUrl = `https://trinity-app.es/room/${roomCode}`;
+    const shareMessage = `¿Qué vemos hoy?\n\n${shareUrl}`;
+    
+    try {
+      const result = await Share.share({
+        message: shareMessage,
+        url: shareUrl, // iOS usa esto
+        title: '¿Qué vemos hoy?'
+      });
+      
+      if (result.action === Share.sharedAction) {
+        logger.userAction('Room shared successfully', { roomCode, shareUrl });
+      }
+    } catch (error) {
+      logger.error('Error sharing room', error, { roomCode });
+      console.error('Error sharing:', error);
+    }
   };
 
   // CRITICAL: Helper function to handle match detection and navigation
@@ -355,6 +390,9 @@ export default function VotingRoomScreen() {
       hasExistingMatch
     });
 
+    // Reset description expanded state when moving to next card
+    setIsDescriptionExpanded(false);
+
     // 1. OPTIMISTIC UPDATE: Move to next card IMMEDIATELY (UI First)
     const nextIndex = currentIndex + 1;
     setCurrentIndex(nextIndex);
@@ -519,21 +557,26 @@ export default function VotingRoomScreen() {
 
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gestureState) => {
-      // Allow gestures even if there's an existing match (rooms persist now)
-      return Math.abs(gestureState.dx) > 20 || Math.abs(gestureState.dy) > 20;
+      // Más sensible: detectar gestos con solo 5 píxeles de movimiento
+      return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
     },
     onPanResponderGrant: () => {
       pan.setOffset({
         x: pan.x._value,
         y: pan.y._value,
       });
+      // Pequeña animación de "agarre"
+      Animated.spring(scale, {
+        toValue: 0.98,
+        useNativeDriver: true,
+      }).start();
     },
     onPanResponderMove: (_, gestureState) => {
       pan.setValue({ x: gestureState.dx, y: gestureState.dy });
       
-      // Scale effect based on distance
+      // Scale effect más suave basado en distancia
       const distance = Math.sqrt(gestureState.dx * gestureState.dx + gestureState.dy * gestureState.dy);
-      const scaleValue = Math.max(0.95, 1 - distance / 1000);
+      const scaleValue = Math.max(0.92, 1 - distance / 800);
       scale.setValue(scaleValue);
     },
     onPanResponderRelease: async (_, gestureState) => {
@@ -541,19 +584,35 @@ export default function VotingRoomScreen() {
       
       logger.userAction('Swipe gesture detected - processing vote', {
         gestureX: gestureState.dx,
-        gestureY: gestureState.dy
+        gestureY: gestureState.dy,
+        velocityX: gestureState.vx
       });
       
-      const swipeThreshold = 120;
+      // Umbral más bajo (80px) y considerar velocidad del gesto
+      const swipeThreshold = 80;
+      const velocityThreshold = 0.3;
       
-      if (gestureState.dx > swipeThreshold) {
-        // Swipe right - Like
+      // Detectar swipe por distancia O por velocidad
+      const isSwipeRight = gestureState.dx > swipeThreshold || 
+                          (gestureState.dx > 40 && gestureState.vx > velocityThreshold);
+      const isSwipeLeft = gestureState.dx < -swipeThreshold || 
+                         (gestureState.dx < -40 && gestureState.vx < -velocityThreshold);
+      
+      if (isSwipeRight) {
+        // Swipe right - Like (Sí)
         logger.userAction('Swipe right detected - processing like vote with optimistic UI');
-        Animated.timing(pan, {
-          toValue: { x: screenWidth, y: gestureState.dy },
-          duration: 200,
-          useNativeDriver: false,
-        }).start(() => {
+        Animated.parallel([
+          Animated.timing(pan, {
+            toValue: { x: screenWidth, y: gestureState.dy },
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scale, {
+            toValue: 0.8,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
           // Reset animation for next card
           pan.setValue({ x: 0, y: 0 });
           scale.setValue(1);
@@ -561,14 +620,21 @@ export default function VotingRoomScreen() {
           // Process vote with optimistic UI
           handleVote(true);
         });
-      } else if (gestureState.dx < -swipeThreshold) {
-        // Swipe left - Dislike
+      } else if (isSwipeLeft) {
+        // Swipe left - Dislike (No)
         logger.userAction('Swipe left detected - processing dislike vote with optimistic UI');
-        Animated.timing(pan, {
-          toValue: { x: -screenWidth, y: gestureState.dy },
-          duration: 200,
-          useNativeDriver: false,
-        }).start(() => {
+        Animated.parallel([
+          Animated.timing(pan, {
+            toValue: { x: -screenWidth, y: gestureState.dy },
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scale, {
+            toValue: 0.8,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
           // Reset animation for next card
           pan.setValue({ x: 0, y: 0 });
           scale.setValue(1);
@@ -577,16 +643,20 @@ export default function VotingRoomScreen() {
           handleVote(false);
         });
       } else {
-        // Snap back
+        // Snap back - animación más suave
         logger.userAction('Swipe gesture too small - snapping back');
         Animated.parallel([
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
-            useNativeDriver: false,
+            friction: 7,
+            tension: 40,
+            useNativeDriver: true,
           }),
           Animated.spring(scale, {
             toValue: 1,
-            useNativeDriver: false,
+            friction: 7,
+            tension: 40,
+            useNativeDriver: true,
           }),
         ]).start();
       }
@@ -636,22 +706,63 @@ export default function VotingRoomScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => navigation.navigate('Dashboard')}
         >
           <Icon name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>{roomCode}</Text>
           <TouchableOpacity
-            style={styles.copyButtonHeader}
-            onPress={handleCopyCode}
+            style={styles.shareButtonHeader}
+            onPress={() => setShowShareMenu(true)}
             activeOpacity={0.7}
           >
-            <Icon name="copy" size={20} color="#9C27B0" />
+            <Image
+              source={require('../../assets/share.png')}
+              style={styles.shareIconHeader}
+              resizeMode="contain"
+            />
           </TouchableOpacity>
         </View>
-        <View style={styles.placeholder} />
       </View>
+
+      {/* Share Menu Modal */}
+      <Modal
+        visible={showShareMenu}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowShareMenu(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowShareMenu(false)}
+        >
+          <View style={styles.shareMenuContainer}>
+            <TouchableOpacity
+              style={styles.shareMenuItem}
+              onPress={handleCopyCode}
+              activeOpacity={0.7}
+            >
+              <Icon name="copy" size={24} color="#9C27B0" />
+              <Text style={styles.shareMenuText}>Copiar código</Text>
+            </TouchableOpacity>
+            <View style={styles.shareMenuDivider} />
+            <TouchableOpacity
+              style={styles.shareMenuItem}
+              onPress={handleShareRoom}
+              activeOpacity={0.7}
+            >
+              <Image
+                source={require('../../assets/share.png')}
+                style={styles.shareIconMenu}
+                resizeMode="contain"
+              />
+              <Text style={styles.shareMenuText}>Compartir enlace</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Movie Card */}
       <View style={styles.cardContainer}>
@@ -674,6 +785,41 @@ export default function VotingRoomScreen() {
             resizeMode="cover"
           />
           
+          {/* Overlay de feedback visual para swipe */}
+          <Animated.View
+            style={[
+              styles.swipeOverlay,
+              {
+                backgroundColor: 'rgba(76, 175, 80, 0.7)', // Verde para "Sí"
+                opacity: pan.x.interpolate({
+                  inputRange: [0, 100],
+                  outputRange: [0, 1],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Text style={styles.swipeText}>✓ SÍ</Text>
+          </Animated.View>
+          
+          <Animated.View
+            style={[
+              styles.swipeOverlay,
+              {
+                backgroundColor: 'rgba(244, 67, 54, 0.7)', // Rojo para "No"
+                opacity: pan.x.interpolate({
+                  inputRange: [-100, 0],
+                  outputRange: [1, 0],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Text style={styles.swipeText}>✗ NO</Text>
+          </Animated.View>
+          
           {/* Play button overlay */}
           <TouchableOpacity
             style={styles.playButton}
@@ -693,9 +839,36 @@ export default function VotingRoomScreen() {
               <Text style={styles.movieYear}>
                 {new Date(currentMovie.releaseDate).getFullYear()}
               </Text>
-              <Text style={styles.movieDescription}>
-                {currentMovie.overview}
-              </Text>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => {
+                  setIsDescriptionExpanded(!isDescriptionExpanded);
+                  logger.userAction('Description toggled', {
+                    expanded: !isDescriptionExpanded,
+                    movieTitle: currentMovie.title
+                  });
+                }}
+              >
+                {isDescriptionExpanded ? (
+                  <ScrollView 
+                    style={styles.descriptionScrollView}
+                    showsVerticalScrollIndicator={true}
+                    nestedScrollEnabled={true}
+                  >
+                    <Text style={styles.movieDescription}>
+                      {currentMovie.overview}
+                    </Text>
+                  </ScrollView>
+                ) : (
+                  <Text 
+                    style={styles.movieDescription}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                  >
+                    {currentMovie.overview}
+                  </Text>
+                )}
+              </TouchableOpacity>
             </View>
           </LinearGradient>
         </Animated.View>
@@ -712,7 +885,7 @@ export default function VotingRoomScreen() {
           activeOpacity={0.8}
         >
           <Image
-            source={require('../../assets/botonNo.png')}
+            source={require('../../assets/votoNoMorado.png')}
             style={styles.buttonImage}
             resizeMode="contain"
           />
@@ -727,7 +900,7 @@ export default function VotingRoomScreen() {
           activeOpacity={0.8}
         >
           <Image
-            source={require('../../assets/botonSi.png')}
+            source={require('../../assets/votoSiMorado.png')}
             style={styles.buttonImage}
             resizeMode="contain"
           />
@@ -778,13 +951,56 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     letterSpacing: 2,
   },
-  copyButtonHeader: {
+  shareButtonHeader: {
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: '#333333',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  shareIconHeader: {
+    width: 20,
+    height: 20,
+    tintColor: '#9C27B0',
+  },
+  shareIconMenu: {
+    width: 24,
+    height: 24,
+    tintColor: '#9C27B0',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareMenuContainer: {
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    padding: 8,
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  shareMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  shareMenuText: {
+    fontSize: 16,
+    color: '#ffffff',
+    fontWeight: '500',
+  },
+  shareMenuDivider: {
+    height: 1,
+    backgroundColor: '#333333',
+    marginHorizontal: 8,
   },
   placeholder: {
     width: 40,
@@ -806,6 +1022,24 @@ const styles = StyleSheet.create({
   poster: {
     width: '100%',
     height: '100%',
+  },
+  swipeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  swipeText: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 10,
   },
   playButton: {
     position: 'absolute',
@@ -847,24 +1081,27 @@ const styles = StyleSheet.create({
     color: '#cccccc',
     lineHeight: 20,
   },
+  descriptionScrollView: {
+    maxHeight: CARD_HEIGHT * 0.4, // Máximo 40% de la altura del cartel
+  },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'center',
     paddingHorizontal: 40,
     paddingVertical: 30,
-    gap: 60,
+    gap: 80,
   },
   actionButtonCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#2a2a2a',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonImage: {
-    width: 50,
-    height: 50,
+    width: 90,
+    height: 90,
   },
   loadingContainer: {
     flex: 1,

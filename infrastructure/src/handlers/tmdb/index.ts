@@ -39,8 +39,10 @@ interface MovieCandidate {
 }
 
 interface TMDBEvent {
-  mediaType: 'MOVIE' | 'TV';
+  mediaType: 'MOVIE' | 'TV' | 'BOTH';
   genreIds?: number[];
+  yearRange?: { min: number; max: number };
+  platformIds?: number[];
   page?: number;
 }
 
@@ -104,12 +106,17 @@ class TMDBClient {
    * 4. Fetch from random pages to ensure variety
    * 5. Shuffle final results for maximum randomness
    */
-  async discoverContent(mediaType: 'MOVIE' | 'TV', genreIds?: number[]): Promise<MovieCandidate[]> {
+  async discoverContent(
+    mediaType: 'MOVIE' | 'TV', 
+    genreIds?: number[], 
+    yearRange?: { min: number; max: number }, 
+    platformIds?: number[]
+  ): Promise<MovieCandidate[]> {
     const candidatesMap = new Map<number, MovieCandidate>(); // Use Map to prevent duplicates
     const MIN_RESULTS_THRESHOLD = 50; // Minimum results to use strict AND logic
     
     try {
-      console.log(`Starting Smart Random Discovery for ${mediaType} with genres: ${genreIds?.join(',') || 'none'}`);
+      console.log(`Starting Smart Random Discovery for ${mediaType} with genres: ${genreIds?.join(',') || 'none'}, years: ${yearRange ? `${yearRange.min}-${yearRange.max}` : 'all'}, platforms: ${platformIds?.join(',') || 'all'}`);
 
       let useStrictLogic = false;
       let totalAvailableResults = 0;
@@ -123,7 +130,9 @@ class TMDBClient {
         const checkResponse = await this.fetchFromTmdbWithMetadata(mediaType, {
           genreIds,
           logicType: 'AND',
-          page: 1
+          page: 1,
+          yearRange,
+          platformIds
         });
         
         totalAvailableResults = checkResponse.total_results;
@@ -155,7 +164,9 @@ class TMDBClient {
         const metadataResponse = await this.fetchFromTmdbWithMetadata(mediaType, {
           genreIds,
           logicType: 'AND',
-          page: 1
+          page: 1,
+          yearRange,
+          platformIds
         });
         
         totalAvailablePages = Math.min(metadataResponse.total_pages, 500); // TMDB limits to 500 pages
@@ -171,10 +182,12 @@ class TMDBClient {
           const results = await this.fetchFromTmdb(mediaType, {
             genreIds,
             logicType: 'AND',
-            page: randomPage
+            page: randomPage,
+            yearRange,
+            platformIds
           });
           
-          const filtered = this.applyBaseFilters(results, mediaType);
+          const filtered = this.applyBaseFilters(results, mediaType, yearRange);
           filtered.forEach(candidate => {
             if (candidatesMap.size < this.TARGET_COUNT) {
               candidatesMap.set(candidate.id, candidate);
@@ -188,7 +201,9 @@ class TMDBClient {
         const metadataResponse = await this.fetchFromTmdbWithMetadata(mediaType, {
           genreIds,
           logicType: 'OR',
-          page: 1
+          page: 1,
+          yearRange,
+          platformIds
         });
         
         totalAvailablePages = Math.min(metadataResponse.total_pages, 500);
@@ -204,10 +219,12 @@ class TMDBClient {
           const results = await this.fetchFromTmdb(mediaType, {
             genreIds,
             logicType: 'OR',
-            page: randomPage
+            page: randomPage,
+            yearRange,
+            platformIds
           });
           
-          const filtered = this.applyBaseFilters(results, mediaType);
+          const filtered = this.applyBaseFilters(results, mediaType, yearRange);
           
           // When using OR logic, prioritize movies that match ALL genres
           const prioritized = this.prioritizeMultiGenreMatches(filtered, genreIds);
@@ -222,15 +239,26 @@ class TMDBClient {
         }
       } else {
         // No genres or single genre - standard fetch
-        const randomPage = Math.floor(Math.random() * 50) + 1;
-        console.log(`  → Fetching page ${randomPage} (no genre filter or single genre)`);
+        // First, get metadata to know how many pages are available
+        const metadataResponse = await this.fetchFromTmdbWithMetadata(mediaType, {
+          genreIds,
+          page: 1,
+          yearRange,
+          platformIds
+        });
+        
+        totalAvailablePages = Math.min(metadataResponse.total_pages, 500);
+        const randomPage = Math.floor(Math.random() * totalAvailablePages) + 1;
+        console.log(`  → Fetching page ${randomPage} of ${totalAvailablePages} available (no genre filter or single genre)`);
         
         const results = await this.fetchFromTmdb(mediaType, {
           genreIds,
-          page: randomPage
+          page: randomPage,
+          yearRange,
+          platformIds
         });
         
-        const filtered = this.applyBaseFilters(results, mediaType);
+        const filtered = this.applyBaseFilters(results, mediaType, yearRange);
         filtered.forEach(candidate => candidatesMap.set(candidate.id, candidate));
         
         console.log(`  → Added ${filtered.length} candidates`);
@@ -245,14 +273,33 @@ class TMDBClient {
         const needed = this.TARGET_COUNT - candidatesMap.size;
         console.log(`PHASE 3 (Attempt ${fetchAttempts}): Need ${needed} more candidates`);
         
-        const randomPage = Math.floor(Math.random() * 50) + 1;
+        // Get metadata to know available pages
+        const metadataResponse = await this.fetchFromTmdbWithMetadata(mediaType, {
+          genreIds: genreIds && genreIds.length > 0 ? genreIds : undefined,
+          logicType: genreIds && genreIds.length > 1 ? logicType : undefined,
+          page: 1,
+          yearRange,
+          platformIds
+        });
+        
+        const availablePages = Math.min(metadataResponse.total_pages, 500);
+        if (availablePages === 0) {
+          console.log(`  → No pages available, stopping additional fetches`);
+          break;
+        }
+        
+        const randomPage = Math.floor(Math.random() * availablePages) + 1;
+        console.log(`  → Fetching page ${randomPage} of ${availablePages} available`);
+        
         const results = await this.fetchFromTmdb(mediaType, {
           genreIds: genreIds && genreIds.length > 0 ? genreIds : undefined,
           logicType: genreIds && genreIds.length > 1 ? logicType : undefined,
-          page: randomPage
+          page: randomPage,
+          yearRange,
+          platformIds
         });
         
-        const filtered = this.applyBaseFilters(results, mediaType);
+        const filtered = this.applyBaseFilters(results, mediaType, yearRange);
         
         let addedCount = 0;
         filtered.forEach(candidate => {
@@ -321,6 +368,8 @@ class TMDBClient {
       genreIds?: number[];
       logicType?: 'AND' | 'OR';
       page?: number;
+      yearRange?: { min: number; max: number };
+      platformIds?: number[];
     } = {}
   ): Promise<TMDBMovieResponse[]> {
     const response = await this.fetchFromTmdbWithMetadata(mediaType, options);
@@ -336,9 +385,11 @@ class TMDBClient {
       genreIds?: number[];
       logicType?: 'AND' | 'OR';
       page?: number;
+      yearRange?: { min: number; max: number };
+      platformIds?: number[];
     } = {}
   ): Promise<{ results: TMDBMovieResponse[]; total_results: number; total_pages: number }> {
-    const { genreIds, logicType, page = 1 } = options;
+    const { genreIds, logicType, page = 1, yearRange, platformIds } = options;
     const endpoint = mediaType === 'MOVIE' ? '/discover/movie' : '/discover/tv';
     
     const params: TMDBDiscoveryParams = {
@@ -347,7 +398,7 @@ class TMDBClient {
       sort_by: 'popularity.desc',
       include_adult: false,
       with_original_language: 'en|es|fr|it|de|pt', // Western languages only
-      'vote_count.gte': 50, // Minimum 50 votes to avoid garbage content while allowing more variety
+      'vote_count.gte': platformIds && platformIds.length > 0 ? 20 : 50, // Lower threshold when filtering by platform
     };
 
     // Add genre filter based on logic type
@@ -357,6 +408,23 @@ class TMDBClient {
       } else {
         params.with_genres = genreIds.join(','); // AND logic: all genres must match
       }
+    }
+
+    // Add year range filter
+    if (yearRange) {
+      if (mediaType === 'MOVIE') {
+        (params as any)['primary_release_date.gte'] = `${yearRange.min}-01-01`;
+        (params as any)['primary_release_date.lte'] = `${yearRange.max}-12-31`;
+      } else {
+        (params as any)['first_air_date.gte'] = `${yearRange.min}-01-01`;
+        (params as any)['first_air_date.lte'] = `${yearRange.max}-12-31`;
+      }
+    }
+
+    // Add platform filter (streaming providers)
+    if (platformIds && platformIds.length > 0) {
+      (params as any).with_watch_providers = platformIds.join('|'); // OR logic for platforms
+      (params as any).watch_region = 'ES'; // Spain region
     }
 
     console.log(`Fetching from TMDB ${endpoint} with params:`, JSON.stringify(params));
@@ -435,7 +503,7 @@ class TMDBClient {
   /**
    * Apply base quality filters to TMDB results
    */
-  private applyBaseFilters(results: TMDBMovieResponse[], mediaType: 'MOVIE' | 'TV'): MovieCandidate[] {
+  private applyBaseFilters(results: TMDBMovieResponse[], mediaType: 'MOVIE' | 'TV', yearRange?: { min: number; max: number }): MovieCandidate[] {
     const candidates: MovieCandidate[] = [];
 
     for (const item of results) {
@@ -456,7 +524,7 @@ class TMDBClient {
         }
 
         // Vote count filter (additional safety check)
-        if (item.vote_count && item.vote_count < 50) {
+        if (item.vote_count && item.vote_count < 20) {
           console.log(`Filtered out low-vote item: "${title}" (${item.vote_count} votes)`);
           continue;
         }
@@ -476,6 +544,15 @@ class TMDBClient {
 
         // Extract release date
         const releaseDate = item.release_date || item.first_air_date || '';
+        
+        // Year range filter - validate release date is within range
+        if (yearRange && releaseDate) {
+          const releaseYear = parseInt(releaseDate.split('-')[0]);
+          if (!isNaN(releaseYear) && (releaseYear < yearRange.min || releaseYear > yearRange.max)) {
+            console.log(`Filtered out item outside year range: "${title}" (${releaseYear}, expected ${yearRange.min}-${yearRange.max})`);
+            continue;
+          }
+        }
         
         // Transform to our format
         const candidate: MovieCandidate = {
@@ -514,7 +591,28 @@ class TMDBClient {
   // Legacy method for backward compatibility (deprecated)
   async discoverContentLegacy(mediaType: 'MOVIE' | 'TV', genreIds?: number[], page = 1): Promise<MovieCandidate[]> {
     console.warn('Using legacy discoverContentLegacy method - consider upgrading to discoverContent');
-    return this.discoverContent(mediaType, genreIds);
+    return this.discoverContent(mediaType, genreIds, undefined, undefined);
+  }
+
+  /**
+   * Discover mixed content (both movies and TV shows)
+   */
+  async discoverContentMixed(genreIds?: number[], yearRange?: { min: number; max: number }, platformIds?: number[]): Promise<MovieCandidate[]> {
+    console.log('Discovering mixed content (MOVIE + TV)');
+    
+    // Fetch both movies and TV shows in parallel
+    const [movieCandidates, tvCandidates] = await Promise.all([
+      this.discoverContent('MOVIE', genreIds, yearRange, platformIds),
+      this.discoverContent('TV', genreIds, yearRange, platformIds)
+    ]);
+    
+    // Combine and shuffle
+    const allCandidates = [...movieCandidates, ...tvCandidates];
+    const shuffled = this.shuffleArray(allCandidates);
+    
+    console.log(`Mixed content discovery: ${movieCandidates.length} movies + ${tvCandidates.length} TV shows = ${shuffled.length} total`);
+    
+    return shuffled.slice(0, this.TARGET_COUNT);
   }
 }
 
@@ -523,12 +621,12 @@ export const handler: Handler<TMDBEvent, TMDBResponse> = async (event) => {
   console.log('TMDB Lambda received event:', JSON.stringify(event));
 
   try {
-    const { mediaType, genreIds } = event;
+    const { mediaType, genreIds, yearRange, platformIds } = event;
 
     // Validate input
-    if (!mediaType || !['MOVIE', 'TV'].includes(mediaType)) {
+    if (!mediaType || !['MOVIE', 'TV', 'BOTH'].includes(mediaType)) {
       console.error('Invalid mediaType:', mediaType);
-      throw new Error('Invalid mediaType. Must be MOVIE or TV');
+      throw new Error('Invalid mediaType. Must be MOVIE, TV, or BOTH');
     }
 
     // Validate genre limit (max 2 as per master spec)
@@ -549,11 +647,19 @@ export const handler: Handler<TMDBEvent, TMDBResponse> = async (event) => {
 
     const tmdbClient = new TMDBClient();
     
-    // Use Smart Random Discovery algorithm
-    console.log('Using Smart Random Discovery algorithm');
-    const candidates = await tmdbClient.discoverContent(mediaType, genreIds);
+    let candidates: MovieCandidate[];
+    
+    // Handle BOTH media type (mixed content)
+    if (mediaType === 'BOTH') {
+      console.log('Using Mixed Content Discovery for BOTH');
+      candidates = await tmdbClient.discoverContentMixed(genreIds, yearRange, platformIds);
+    } else {
+      // Use Smart Random Discovery algorithm for single media type
+      console.log(`Using Smart Random Discovery algorithm for ${mediaType}`);
+      candidates = await tmdbClient.discoverContent(mediaType, genreIds, yearRange, platformIds);
+    }
 
-    console.log(`Smart Random Discovery returned ${candidates.length} candidates`);
+    console.log(`Discovery returned ${candidates.length} candidates`);
 
     return {
       statusCode: 200,

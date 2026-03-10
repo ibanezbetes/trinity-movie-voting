@@ -13,7 +13,7 @@ interface Match {
   movieId: number;
   title: string;
   posterPath?: string;
-  mediaType: 'MOVIE' | 'TV';
+  mediaType: 'MOVIE' | 'TV' | 'BOTH';
   matchedUsers: string[];
   timestamp: string;
 }

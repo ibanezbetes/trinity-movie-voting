@@ -901,7 +901,34 @@ Partition Key: username (String)
 
 ## 📦 Deployment
 
-### Deploy Stack
+### Quick Start
+
+For complete deployment instructions, see [LAMBDA_DEPLOYMENT.md](./LAMBDA_DEPLOYMENT.md).
+
+**Automated Deployment** (Recommended):
+```powershell
+cd scripts
+./deploy-lambdas.ps1
+```
+
+This script handles the entire deployment process:
+1. Compiles TypeScript
+2. Creates Lambda ZIPs
+3. Updates all Lambda functions in AWS
+4. Verifies deployment status
+
+### Verify Deployment
+
+```powershell
+cd scripts
+./verify-deployment.ps1
+```
+
+Shows status of all Lambda functions and identifies key functions for room creation.
+
+### Manual Deployment
+
+#### Deploy Stack
 
 ```bash
 # Synthesize CloudFormation template
@@ -916,6 +943,26 @@ cdk deploy
 # Deploy with approval
 cdk deploy --require-approval never
 ```
+
+#### Update Lambda Functions Only
+
+After making code changes to Lambda handlers:
+
+```powershell
+# 1. Build TypeScript
+npm run build
+
+# 2. Create ZIPs
+./create-zips.ps1
+
+# 3. Update specific function
+aws lambda update-function-code \
+  --function-name [FUNCTION_NAME] \
+  --region eu-west-1 \
+  --zip-file fileb://lambda-zips/[handler].zip
+```
+
+**Important**: Always use AWS CLI to update Lambda code, not the AWS Console. The console may cache old code.
 
 ### Deploy Specific Resources
 

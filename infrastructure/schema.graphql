@@ -7,6 +7,13 @@ type Room @aws_iam @aws_cognito_user_pools {
   candidates: [MovieCandidate!]!
   createdAt: AWSDateTime!
   maxParticipants: Int!
+  yearRange: YearRange
+  platformIds: [Int!]
+}
+
+type YearRange @aws_iam @aws_cognito_user_pools {
+  min: Int!
+  max: Int!
 }
 
 type MovieCandidate @aws_iam @aws_cognito_user_pools {
@@ -39,6 +46,7 @@ type Vote @aws_iam @aws_cognito_user_pools {
 enum MediaType {
   MOVIE
   TV
+  BOTH
 }
 
 type Mutation {
@@ -94,6 +102,13 @@ input CreateRoomInput {
   mediaType: MediaType!
   genreIds: [Int!]!
   maxParticipants: Int!
+  yearRange: YearRangeInput
+  platformIds: [Int!]
+}
+
+input YearRangeInput {
+  min: Int!
+  max: Int!
 }
 
 input VoteInput {

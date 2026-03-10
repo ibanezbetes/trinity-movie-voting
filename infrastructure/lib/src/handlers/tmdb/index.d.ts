@@ -10,8 +10,13 @@ interface MovieCandidate {
     trailerKey?: string;
 }
 interface TMDBEvent {
-    mediaType: 'MOVIE' | 'TV';
+    mediaType: 'MOVIE' | 'TV' | 'BOTH';
     genreIds?: number[];
+    yearRange?: {
+        min: number;
+        max: number;
+    };
+    platformIds?: number[];
     page?: number;
 }
 interface TMDBResponse {

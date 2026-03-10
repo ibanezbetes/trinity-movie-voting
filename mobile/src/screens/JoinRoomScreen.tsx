@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 import { getClient, verifyAuthStatus, getAuthMode } from '../services/amplify';
@@ -23,6 +23,7 @@ type JoinRoomNavigationProp = StackNavigationProp<RootStackParamList, 'JoinRoom'
 
 export default function JoinRoomScreen() {
   const navigation = useNavigation<JoinRoomNavigationProp>();
+  const route = useRoute<RouteProp<RootStackParamList, 'JoinRoom'>>();
   const [roomCode, setRoomCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{
@@ -39,13 +40,28 @@ export default function JoinRoomScreen() {
 
   logger.userAction('Screen loaded: JoinRoom');
 
-  const handleJoinRoom = async () => {
-    logger.userAction('Join room button pressed', { roomCode });
+  // Handle initial room code from deep link
+  React.useEffect(() => {
+    const initialRoomCode = route.params?.initialRoomCode;
+    if (initialRoomCode) {
+      logger.userAction('Initial room code received from deep link', { roomCode: initialRoomCode });
+      setRoomCode(initialRoomCode);
+      
+      // Auto-join the room after a short delay
+      setTimeout(() => {
+        handleJoinRoom(initialRoomCode);
+      }, 500);
+    }
+  }, [route.params?.initialRoomCode]);
 
-    if (roomCode.length !== 6) {
+  const handleJoinRoom = async (codeToJoin?: string) => {
+    const code = codeToJoin || roomCode;
+    logger.userAction('Join room button pressed', { roomCode: code });
+
+    if (code.length !== 6) {
       logger.userAction('Join room blocked - invalid code length', { 
-        roomCode, 
-        length: roomCode.length,
+        roomCode: code, 
+        length: code.length,
         required: 6 
       });
       setAlertConfig({
@@ -59,7 +75,7 @@ export default function JoinRoomScreen() {
     
     setIsJoining(true);
     logger.room('Starting room join process', {
-      roomCode,
+      roomCode: code,
       timestamp: new Date().toISOString()
     });
     
@@ -84,7 +100,7 @@ export default function JoinRoomScreen() {
         hasTokens: !!authStatus.session?.tokens
       });
 
-      logger.apiRequest('joinRoom mutation', { code: roomCode });
+      logger.apiRequest('joinRoom mutation', { code: code });
 
       // Get the appropriate auth mode based on login type
       const authMode = await getAuthMode();
@@ -122,7 +138,7 @@ export default function JoinRoomScreen() {
       const response = await dynamicClient.graphql({
         query: JOIN_ROOM,
         variables: {
-          code: roomCode,
+          code: code,
         },
       });
 
@@ -164,7 +180,7 @@ export default function JoinRoomScreen() {
       }
     } catch (error: any) {
       logger.roomError('Room join failed', error, {
-        roomCode,
+        roomCode: code,
         timestamp: new Date().toISOString()
       });
       

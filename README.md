@@ -1,21 +1,28 @@
-# 🎬 Trinity - Movie Chining App
+# 🎬 Trinity - Movie Matching App
 
-**Version**: 1.0.6  
+**Version**: 1.0.8  
 **Status**: ✅ Production Ready  
-**Last Updated**: 2026-02-09
+**Last Updated**: 2026-03-10
 
-Trinity is a real-time movie chining application that helps groups of friends decide what to watch together. Stop endless scrolling and reach consensus in seconds with our innovative voting system.
+Trinity is a real-time movie matching application that helps groups of friends decide what to watch together. Stop endless scrolling and reach consensus in seconds with our innovative voting system.
 
 ## 🌟 Features
 
 ### Core Functionality
-- **Smart Room Creation**: Create voting rooms with customizable genres and media types
+- **Smart Room Creation**: Create voting rooms with customizable genres, years, and streaming platforms
 - **Real-Time Voting**: Swipe-style voting interface with instant synchronization
-- **Chin Detection**: Automatic detection when all participants agree on a movie
+- **Match Detection**: Automatic detection when all participants agree on a movie
+- **Deep Linking**: Share room links that open directly in the app
 - **Google Sign-In**: Seamless authentication with Google OAuth
-- **Live Notifications**: Real-time chin notifications via GraphQL subscriptions
-- **Room Management**: Track your active rooms and past chines
-- **Sound Effects**: Immersive audio feedback for votes and chines
+- **Live Notifications**: Real-time match notifications via GraphQL subscriptions
+- **Room Management**: Track your active rooms and past matches
+- **Sound Effects**: Immersive audio feedback for votes and matches
+
+### Advanced Filters
+- **Genre Selection**: Choose up to 2 genres or use "Any Genre" for variety
+- **Year Range**: Filter by release year (1950-2024) with intuitive sliders
+- **Streaming Platforms**: Filter by 7 major platforms in Spain (Netflix, Prime Video, Disney+, Max, Movistar+, Apple TV+, Filmin)
+- **Media Type**: Movies, TV shows, or both
 
 ### Technical Highlights
 - **Serverless Architecture**: Built on AWS with auto-scaling capabilities
@@ -23,7 +30,7 @@ Trinity is a real-time movie chining application that helps groups of friends de
 - **Real-Time Sync**: WebSocket-based subscriptions for instant updates
 - **Smart Discovery**: Intelligent movie recommendation algorithm with genre prioritization
 - **Secure Authentication**: AWS Cognito with social provider integration
-- **Cross-Platform**: React Native app for iOS and Android
+- **Cross-Platform**: React Native app for Android (iOS coming soon)
 
 ## 🏗️ Architecture
 
@@ -43,15 +50,17 @@ Trinity uses a modern serverless architecture:
                   │
                   ├─── Room Handler
                   ├─── Vote Handler
-                  ├─── Chin Handler
+                  ├─── Match Handler
                   ├─── TMDB Handler
-                  └─── Username Handler
+                  ├─── Username Handler
+                  └─── Cognito Triggers
                   │
                   └─── Amazon DynamoDB
                            │
                            ├─── trinity-rooms
                            ├─── trinity-votes
-                           └─── trinity-chines
+                           ├─── trinity-matches
+                           └─── trinity-usernames
 ```
 
 ## 📁 Project Structure
@@ -217,8 +226,13 @@ This is implemented in:
   id: string;           // UUID
   code: string;         // 6-character room code
   hostId: string;       // Creator's user ID
-  mediaType: 'MOVIE' | 'TV';
-  genreIds: number[];   // Max 2 genres
+  mediaType: 'MOVIE' | 'TV' | 'BOTH';
+  genreIds: number[];   // Max 2 genres (or -2 for "Any Genre")
+  yearRange?: {         // Optional year filter
+    min: number;        // 1950-2024
+    max: number;
+  };
+  platformIds?: number[]; // Optional streaming platforms
   candidates: Movie[];  // 50 movie candidates
   createdAt: string;    // ISO timestamp
   ttl: number;          // Expiration (24h)
@@ -237,44 +251,55 @@ This is implemented in:
 }
 ```
 
-### Chines
+### Matches
 ```typescript
 {
   roomId: string;       // Partition key
   movieId: number;      // Sort key
-  chinId: string;      // UUID
+  matchId: string;      // UUID
   title: string;
   posterPath?: string;
-  chinedUsers: string[];
+  matchedUsers: string[];
   timestamp: string;
 }
 ```
 
 ## 🎯 Key Flows
 
-### 1. Create Room
-1. User selects media type (Movie/TV) and up to 2 genres
-2. System generates unique 6-character room code
-3. TMDB Handler fetches 50 movie candidates using Smart Discovery algorithm
-4. Room is created with 24-hour TTL
-5. Host automatically joins the room
+### 1. Create Room (6-Step Wizard)
+1. **Step 1**: Select number of participants (2-6)
+2. **Step 2**: Choose media type (Movies, TV Shows, or Both)
+3. **Step 3**: Select up to 2 genres or "Any Genre"
+4. **Step 4**: Set year range with sliders (1950-2024)
+5. **Step 5**: Choose streaming platforms (optional)
+6. **Step 6**: Review and confirm
+7. System generates unique 6-character room code
+8. TMDB Handler fetches 50 candidates using Smart Discovery
+9. Room is created with 24-hour TTL
+10. Host automatically joins the room
 
 ### 2. Join Room
-1. User enters 6-character room code
+1. User enters 6-character room code OR clicks deep link
 2. System validates room exists and is active
 3. User is added to room participants
 4. Voting screen loads with movie candidates
 
-### 3. Vote
+### 3. Share Room
+1. User clicks share button in room header
+2. Modal shows two options: "Copy code" or "Share link"
+3. Share link format: `https://trinity-app.es/room/{CODE}`
+4. Link opens app automatically and joins room
+
+### 4. Vote
 1. User swipes right (yes) or left (no) on movies
 2. Vote is recorded in DynamoDB
-3. System checks for chines after each vote
-4. If all participants vote yes on same movie → Chin!
+3. System checks for matches after each vote
+4. If all participants vote yes on same movie → Match!
 
-### 4. Chin Detection
+### 5. Match Detection
 1. Vote Handler checks if all active users voted yes
-2. Chin record created in DynamoDB
-3. GraphQL subscription publishes chin event
+2. Match record created in DynamoDB
+3. GraphQL subscription publishes match event
 4. All participants receive real-time notification
 5. Celebration screen displays with confetti
 

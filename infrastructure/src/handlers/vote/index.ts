@@ -28,7 +28,7 @@ interface Match {
   movieId: number;
   title: string;
   posterPath?: string;
-  mediaType: 'MOVIE' | 'TV';
+  mediaType: 'MOVIE' | 'TV' | 'BOTH';
   matchedUsers: string[];
   timestamp: string;
 }
@@ -37,7 +37,7 @@ interface Room {
   id: string;
   code: string;
   hostId: string;
-  mediaType: 'MOVIE' | 'TV';
+  mediaType: 'MOVIE' | 'TV' | 'BOTH';
   genreIds: number[];
   candidates: MovieCandidate[];
   createdAt: string;
@@ -51,7 +51,7 @@ interface MovieCandidate {
   overview: string;
   posterPath: string | null;
   releaseDate: string;
-  mediaType: 'MOVIE' | 'TV';
+  mediaType: 'MOVIE' | 'TV' | 'BOTH';
 }
 
 interface VoteEvent {

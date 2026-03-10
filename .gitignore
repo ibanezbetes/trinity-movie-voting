@@ -60,13 +60,13 @@ pids
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
+# Coverage directory
 coverage/
 
 # Dependency directories
 jspm_packages/
 
-# Optional npm cache directory
+# Optional npm cache
 .npm
 
 # Optional REPL history
@@ -78,15 +78,14 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variables file
-.env.test
-
 # Kiro specific
 .kiro/
 
 # Temporary files
 *.tmp
 *.temp
+*.bak
+*.backup
 
 # Test files and responses
 *-test*.json
@@ -94,6 +93,13 @@ jspm_packages/
 test-*.json
 response*.json
 *-payload*.json
+
+# Archive files (except lambda-zips)
+*.zip
+*.rar
+*.7z
+*.tar.gz
+!infrastructure/lambda-zips/*.zip
 
 # Documentation temporal files
 *_SOLUTION*.md
@@ -152,7 +158,20 @@ PROJECT_STATUS_*.md
 ROOM_CAPACITY_*.md
 MATCH_NOTIFICATION_*.md
 BACKUP_INFO*.md
-test-*.md
+ROLLBACK_*.md
+DEPLOYMENT_STATUS*.md
+LAMBDA_ZIPS_STATUS*.md
+AUTO_CLEANUP_*.md
+NOTIFICATION_FIX_*.md
+VOTE_HANDLER_FIX*.md
+KIRO_PROMPT_*.md
+UPLOAD_LAMBDAS_*.md
+README_DEPLOYMENT_*.md
+GUIA_*.md
+SOLUCION_*.md
+INICIO_*.txt
+COMO_*.md
+COMANDOS_*.md
 
 # Build scripts temporales
 build-*.bat
@@ -164,7 +183,10 @@ install-*.sh
 install-*.ps1
 verify-*.bat
 verify-*.sh
+verify-*.ps1
 test-*.js
+test-*.ps1
+test-*.sh
 deploy-*.bat
 deploy-*.js
 deploy-*.ps1
@@ -172,14 +194,17 @@ deploy-*.sh
 check-*.bat
 check-*.js
 check-*.sh
+check-*.ps1
 create-*.js
 create-*.bat
 create-*.sh
 get-*.bat
 get-*.sh
+get-*.ps1
 update-*.js
 update-*.bat
 update-*.sh
+update-*.ps1
 upload-*.ps1
 upload-*.sh
 reload-*.ps1
@@ -188,113 +213,23 @@ capturar-*.ps1
 analizar-*.ps1
 ver-*.ps1
 fix-*.ps1
+capture-*.ps1
+debug-*.ps1
+monitor-*.ps1
+cleanup-*.ps1
+download-*.ps1
+sync-*.ps1
+list-*.ps1
 
 # Mantener scripts oficiales
-!cleanup.ps1
 !infrastructure/create-zips.ps1
+!infrastructure/deploy-schema-update.ps1
 !infrastructure/scripts/*.ps1
 !infrastructure/scripts/*.js
 !infrastructure/scripts/*.sh
 
-# Archive files
-*.zip
-*.rar
-*.7z
-*.tar.gz
-
-# Exclude lambda-zips (needed for deployment)
-!infrastructure/lambda-zips/*.zip
-
-# Backup files
-*.bak
-*.backup
-*~
-
-# Lambda fixes folder (temporal)
-lambda-fixes/
-
-# Generated reports and sync files
-infrastructure/sync-report.json
-infrastructure/*.report.json
-
-# Backup directories (if created locally)
-*_backup_*/
-*.backup/
-
-# Additional temporary documentation patterns
-*_TEMP*.md
-*_WIP*.md
-*_DRAFT*.md
-*_NOTES*.md
-*_CELEBRATION*.md
-*_INSTALACION*.md
-
-# Duplicate documentation folders
-docu_trinity/
-docs_backup/
-
-# Sync and download scripts (temporary)
-**/download-from-aws.ps1
-**/sync-lambda-code.ps1
-**/sync-from-aws.js
-
-# CDK cache
-infrastructure/cdk.out/.cache/
-
-# Android build artifacts
-mobile/android/app/build/
-mobile/android/app/.cxx/
-mobile/android/build/
-mobile/android/.gradle/
-mobile/android/.kotlin/
-
-# Expo build artifacts
-mobile/.expo/
-mobile/dist/
-mobile/web-build/
-
-# APK and AAB files (builds)
-*.apk
-*.aab
-
-# Except specific release APKs (optional - uncomment to track releases)
-# !trinity-v*.apk
-
-# Native debug symbols
-native-debug-symbols.zip
-**/native-debug-symbols.zip
-
-# Cleanup script (keep only the main one)
-cleanup-project.ps1
-
-# Quick start guides (versioned)
-QUICK_START_*.md
-SYNC_FROM_AWS_*.md
-RESUMEN_*.md
-GUIA_*.md
-SOLUCION_*.md
-INICIO_*.txt
-COMO_*.md
-COMANDOS_*.md
-
-# Rollback and deployment status files
-ROLLBACK_*.md
-DEPLOYMENT_STATUS*.md
-LAMBDA_ZIPS_STATUS*.md
-AUTO_CLEANUP_*.md
-NOTIFICATION_FIX_*.md
-VOTE_HANDLER_FIX*.md
-KIRO_PROMPT_*.md
-UPLOAD_LAMBDAS_*.md
-README_DEPLOYMENT_*.md
-PROJECT_STATUS_*.md
-ROOM_CAPACITY_*.md
-MATCH_NOTIFICATION_*.md
-BACKUP_INFO*.md
-
 # Log files
 logs_*.txt
-*.log
 *-logs-*.txt
 all-logs-*.txt
 lambda-logs-*.txt
@@ -304,18 +239,22 @@ recent-logs-*.txt
 google-match-test-*.txt
 match-notification-debug-*.txt
 
-# Debug and monitoring scripts (temporary)
-capture-*.ps1
-debug-*.ps1
-get-logs-*.ps1
-get-match-*.ps1
-get-recent-*.ps1
-monitor-*.ps1
-test-google-*.ps1
-test-v*.ps1
-test-vote-*.ps1
-list-lambda-*.ps1
+# Lambda fixes folder (temporal)
+lambda-fixes/
 
-# Keep only official scripts
-!cleanup.ps1
-!infrastructure/create-zips.ps1
+# Generated reports and sync files
+infrastructure/sync-report.json
+infrastructure/*.report.json
+
+# Backup directories
+*_backup_*/
+*.backup/
+docu_trinity/
+docs_backup/
+
+# CDK cache
+infrastructure/cdk.out/.cache/
+
+# Native debug symbols
+native-debug-symbols.zip
+**/native-debug-symbols.zip

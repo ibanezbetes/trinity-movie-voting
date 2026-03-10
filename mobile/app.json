@@ -2,7 +2,7 @@
   "expo": {
     "name": "Trinity",
     "slug": "trinity-app",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -46,6 +46,21 @@
             {
               "scheme": "myapp",
               "host": "signout"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "trinity-app.es",
+              "pathPrefix": "/room"
             }
           ],
           "category": [

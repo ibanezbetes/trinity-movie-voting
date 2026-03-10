@@ -16,6 +16,7 @@ import { SoundProvider, useSound } from './src/context/SoundContext';
 function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingRoomCode, setPendingRoomCode] = useState<string | null>(null);
   const { playSound } = useSound();
 
   logger.info('APP', 'Trinity app starting', {
@@ -26,16 +27,31 @@ function AppContent() {
   useEffect(() => {
     checkAuthStatus();
     
-    // Listen for OAuth callbacks
+    // Listen for OAuth callbacks and room deep links
     const handleUrl = async (event: { url: string }) => {
       logger.auth('Deep link received', { url: event.url });
       
+      // Handle OAuth callback
       if (event.url.includes('callback')) {
         logger.auth('OAuth callback detected, checking auth status');
         // Wait a bit for Amplify to process the OAuth callback
         setTimeout(() => {
           checkAuthStatus();
         }, 1000);
+        return;
+      }
+      
+      // Handle room deep link: https://trinity-app.es/room/{CODE}
+      const roomLinkMatch = event.url.match(/trinity-app\.es\/room\/([A-Z0-9]{6})/i);
+      if (roomLinkMatch) {
+        const roomCode = roomLinkMatch[1].toUpperCase();
+        logger.auth('Room deep link detected', { roomCode, url: event.url });
+        
+        // Store the room code to join after authentication check
+        const AsyncStorage = await import('@react-native-async-storage/async-storage');
+        await AsyncStorage.default.setItem('@trinity_pending_room_code', roomCode);
+        
+        logger.auth('Room code stored for pending join', { roomCode });
       }
     };
 
@@ -84,6 +100,25 @@ function AppContent() {
       playSound('inicioApp');
     }
   }, [isLoading]);
+
+  useEffect(() => {
+    // Check for pending room code after authentication
+    const checkPendingRoomCode = async () => {
+      if (isAuthenticated && !isLoading) {
+        const AsyncStorage = await import('@react-native-async-storage/async-storage');
+        const pendingCode = await AsyncStorage.default.getItem('@trinity_pending_room_code');
+        
+        if (pendingCode) {
+          logger.auth('Pending room code found after authentication', { roomCode: pendingCode });
+          setPendingRoomCode(pendingCode);
+          // Clear the pending code
+          await AsyncStorage.default.removeItem('@trinity_pending_room_code');
+        }
+      }
+    };
+    
+    checkPendingRoomCode();
+  }, [isAuthenticated, isLoading]);
 
   const checkAuthStatus = async () => {
     logger.auth('Checking authentication status');
@@ -187,7 +222,7 @@ function AppContent() {
     <>
       <StatusBar style="light" backgroundColor="#1a1a1a" />
       {isAuthenticated ? (
-        <AppNavigator onSignOut={handleSignOut} />
+        <AppNavigator onSignOut={handleSignOut} pendingRoomCode={pendingRoomCode} />
       ) : (
         <AuthScreen onAuthSuccess={handleAuthSuccess} />
       )}

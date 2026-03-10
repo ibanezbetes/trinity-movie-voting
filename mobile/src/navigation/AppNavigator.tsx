@@ -21,12 +21,25 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 interface AppNavigatorProps {
   onSignOut: () => void;
+  pendingRoomCode?: string | null;
 }
 
-export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
+export default function AppNavigator({ onSignOut, pendingRoomCode }: AppNavigatorProps) {
   const navigationRef = useRef<any>(null);
   
-  logger.info('NAVIGATION', 'AppNavigator initialized');
+  logger.info('NAVIGATION', 'AppNavigator initialized', { hasPendingRoomCode: !!pendingRoomCode });
+
+  // Handle pending room code navigation
+  React.useEffect(() => {
+    if (pendingRoomCode && navigationRef.current) {
+      logger.navigation('Navigating to JoinRoom with pending room code', { roomCode: pendingRoomCode });
+      
+      // Wait for navigation to be ready
+      setTimeout(() => {
+        navigationRef.current?.navigate('JoinRoom', { initialRoomCode: pendingRoomCode });
+      }, 500);
+    }
+  }, [pendingRoomCode]);
 
   const handleNavigateToHome = () => {
     if (navigationRef.current) {

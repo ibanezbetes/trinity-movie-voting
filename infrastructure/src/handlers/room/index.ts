@@ -16,28 +16,32 @@ interface MovieCandidate {
   overview: string;
   posterPath: string | null;
   releaseDate: string;
-  mediaType: 'MOVIE' | 'TV';
+  mediaType: 'MOVIE' | 'TV' | 'BOTH';
 }
 
 interface Room {
   id: string;
   code: string;
   hostId: string;
-  mediaType: 'MOVIE' | 'TV';
+  mediaType: 'MOVIE' | 'TV' | 'BOTH';
   genreIds: number[];
   candidates: MovieCandidate[];
   createdAt: string;
   ttl: number;
   maxParticipants: number;
+  yearRange?: { min: number; max: number };
+  platformIds?: number[];
 }
 
 interface CreateRoomEvent {
   operation: 'createRoom';
   userId: string;
   input: {
-    mediaType: 'MOVIE' | 'TV';
+    mediaType: 'MOVIE' | 'TV' | 'BOTH';
     genreIds: number[];
     maxParticipants: number;
+    yearRange?: { min: number; max: number };
+    platformIds?: number[];
   };
 }
 
@@ -121,11 +125,22 @@ class TMDBIntegration {
     }
   }
 
-  async fetchCandidates(mediaType: 'MOVIE' | 'TV', genreIds?: number[]): Promise<MovieCandidate[]> {
+  async fetchCandidates(mediaType: 'MOVIE' | 'TV' | 'BOTH', genreIds?: number[], yearRange?: { min: number; max: number }, platformIds?: number[]): Promise<MovieCandidate[]> {
     try {
+      // Process special genre IDs
+      let processedGenreIds = genreIds;
+      
+      // Check if "Todos los géneros" (-2) is selected
+      if (genreIds && genreIds.includes(-2)) {
+        console.log('Special genre "Todos los géneros" (-2) detected - removing genre filter');
+        processedGenreIds = undefined; // No genre filter
+      }
+      
       const payload = {
         mediaType,
-        genreIds,
+        genreIds: processedGenreIds,
+        yearRange,
+        platformIds,
         // Note: page parameter removed - Smart Random Discovery handles pagination internally
       };
 
@@ -173,10 +188,10 @@ class RoomService {
     this.tmdbIntegration = new TMDBIntegration();
   }
 
-  async createRoom(userId: string, mediaType: 'MOVIE' | 'TV', genreIds: number[], maxParticipants: number): Promise<Room> {
+  async createRoom(userId: string, mediaType: 'MOVIE' | 'TV' | 'BOTH', genreIds: number[], maxParticipants: number, yearRange?: { min: number; max: number }, platformIds?: number[]): Promise<Room> {
     // Validate input
-    if (!mediaType || !['MOVIE', 'TV'].includes(mediaType)) {
-      throw new Error('Invalid mediaType. Must be MOVIE or TV');
+    if (!mediaType || !['MOVIE', 'TV', 'BOTH'].includes(mediaType)) {
+      throw new Error('Invalid mediaType. Must be MOVIE, TV, or BOTH');
     }
 
     // Validate maxParticipants
@@ -197,8 +212,8 @@ class RoomService {
     const code = await RoomCodeGenerator.generateUnique(docClient, this.tableName);
     
     // Fetch movie candidates from TMDB
-    console.log(`Fetching ${mediaType} candidates for genres: ${genreIds.join(',')}`);
-    const candidates = await this.tmdbIntegration.fetchCandidates(mediaType, genreIds);
+    console.log(`Fetching ${mediaType} candidates for genres: ${genreIds.join(',')} with year range: ${yearRange ? `${yearRange.min}-${yearRange.max}` : 'all'} and platforms: ${platformIds && platformIds.length > 0 ? platformIds.join(',') : 'all'}`);
+    const candidates = await this.tmdbIntegration.fetchCandidates(mediaType, genreIds, yearRange, platformIds);
     
     if (candidates.length === 0) {
       console.warn('No candidates returned from TMDB - proceeding with empty list');
@@ -219,6 +234,8 @@ class RoomService {
       createdAt: now,
       ttl,
       maxParticipants,
+      yearRange,
+      platformIds,
     };
 
     // Store in DynamoDB
@@ -553,7 +570,7 @@ class RoomService {
 
       // 3. Filter out expired rooms and rooms with matches
       const now = Math.floor(Date.now() / 1000);
-      const activeRooms = allRooms.filter(room => !room.ttl || room.ttl >= now);
+      const activeRooms = allRooms.filter(room => room && (!room.ttl || room.ttl >= now));
       console.log(`Found ${activeRooms.length} active rooms after filtering expired`);
 
       // 4. Check for matches and filter out rooms with matches
@@ -662,9 +679,9 @@ export const handler: Handler = async (event) => {
       case 'createRoom': {
         console.log('Processing createRoom mutation');
         const { input } = event.arguments;
-        const { mediaType, genreIds, maxParticipants } = input;
+        const { mediaType, genreIds, maxParticipants, yearRange, platformIds } = input;
 
-        const room = await roomService.createRoom(userId, mediaType, genreIds, maxParticipants);
+        const room = await roomService.createRoom(userId, mediaType, genreIds, maxParticipants, yearRange, platformIds);
         return room;
       }
 
