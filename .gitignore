@@ -227,6 +227,7 @@ list-*.ps1
 !infrastructure/scripts/*.ps1
 !infrastructure/scripts/*.js
 !infrastructure/scripts/*.sh
+!web/deploy-aws.ps1
 
 # Log files
 logs_*.txt
