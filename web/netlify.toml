@@ -6,6 +6,11 @@
 
 # Redirect rules for clean URLs
 [[redirects]]
+  from = "/room/:code"
+  to = "/room.html"
+  status = 200
+
+[[redirects]]
   from = "/privacy"
   to = "/privacy.html"
   status = 200

@@ -37,6 +37,10 @@
   ],
   "rewrites": [
     {
+      "source": "/room/:code",
+      "destination": "/room.html"
+    },
+    {
       "source": "/privacy",
       "destination": "/privacy.html"
     },
