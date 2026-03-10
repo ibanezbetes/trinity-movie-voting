@@ -10,15 +10,17 @@ web/
 ├── privacy.html        # Política de privacidad
 ├── terms.html          # Términos de uso
 ├── faqs.html          # Preguntas frecuentes
+├── delete-account.html # Eliminación de cuenta
+├── room.html          # Deep linking - Unirse a sala
 ├── 404.html           # Página de error
 ├── styles.css         # Estilos globales
-├── .htaccess          # Configuración Apache (URLs limpias)
+├── .htaccess          # Configuración Apache (URLs limpias + deep linking)
 ├── netlify.toml       # Configuración Netlify
 ├── vercel.json        # Configuración Vercel
 ├── robots.txt         # SEO robots
 ├── sitemap.xml        # SEO sitemap
-├── deploy.ps1         # Script de deployment (Windows)
-├── deploy.sh          # Script de deployment (Linux/Mac)
+├── .well-known/       # Android App Links
+│   └── assetlinks.json
 └── README.md          # Este archivo
 ```
 
@@ -198,6 +200,8 @@ server {
 - **Privacidad**: `https://trinity-app.es/privacy`
 - **Términos**: `https://trinity-app.es/terms`
 - **FAQs**: `https://trinity-app.es/faqs`
+- **Eliminar cuenta**: `https://trinity-app.es/delete-account`
+- **Unirse a sala**: `https://trinity-app.es/room/{CODE}` (deep linking)
 
 ## 📱 Responsive Breakpoints
 

@@ -3,6 +3,9 @@
 # Enable Rewrite Engine
 RewriteEngine On
 
+# Deep linking - Redirect /room/* to room.html
+RewriteRule ^room/([A-Z0-9]{6})$ /room.html [L,QSA]
+
 # Remove .html extension from URLs
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
