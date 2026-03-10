@@ -134,24 +134,36 @@
         if (roomCode && roomCode !== 'room') {
             document.getElementById('roomCode').textContent = roomCode.toUpperCase();
             
-            // Construir deep link
-            const deepLink = `https://trinity-app.es/room/${roomCode.toUpperCase()}`;
-            const intentLink = `intent://trinity-app.es/room/${roomCode.toUpperCase()}#Intent;scheme=https;package=com.trinityapp.mobile;end`;
+            // Construir deep link usando el custom scheme
+            const customSchemeLink = `myapp://room/${roomCode.toUpperCase()}`;
+            const httpsLink = `https://trinity-app.es/room/${roomCode.toUpperCase()}`;
+            const intentLink = `intent://room/${roomCode.toUpperCase()}#Intent;scheme=myapp;package=com.trinityapp.mobile;S.browser_fallback_url=https://play.google.com/store/apps/details?id=com.trinityapp.mobile;end`;
+            
+            // Función para intentar abrir la app
+            function tryOpenApp() {
+                // Crear un iframe oculto para intentar abrir la app sin redirigir
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = customSchemeLink;
+                document.body.appendChild(iframe);
+                
+                // Después de 500ms, si seguimos aquí, intentar con intent
+                setTimeout(() => {
+                    if (!document.hidden) {
+                        window.location.href = intentLink;
+                    }
+                }, 500);
+            }
             
             // Actualizar botón
-            document.getElementById('openApp').href = intentLink;
+            const openAppBtn = document.getElementById('openApp');
+            openAppBtn.onclick = function(e) {
+                e.preventDefault();
+                tryOpenApp();
+            };
             
-            // Intentar abrir la app automáticamente
-            setTimeout(() => {
-                // Primero intentar con intent
-                window.location.href = intentLink;
-                
-                // Fallback después de 2 segundos
-                setTimeout(() => {
-                    document.getElementById('status').innerHTML = 
-                        '<p>¿No tienes la app instalada?</p>';
-                }, 2000);
-            }, 500);
+            // Intentar abrir automáticamente después de cargar
+            setTimeout(tryOpenApp, 800);
         } else {
             document.getElementById('roomCode').textContent = 'Código inválido';
             document.getElementById('status').innerHTML = 

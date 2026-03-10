@@ -41,8 +41,8 @@ function AppContent() {
         return;
       }
       
-      // Handle room deep link: https://trinity-app.es/room/{CODE}
-      const roomLinkMatch = event.url.match(/trinity-app\.es\/room\/([A-Z0-9]{6})/i);
+      // Handle room deep link: https://trinity-app.es/room/{CODE} or myapp://room/{CODE}
+      const roomLinkMatch = event.url.match(/(?:trinity-app\.es|myapp:)\/room\/([A-Z0-9]{6})/i);
       if (roomLinkMatch) {
         const roomCode = roomLinkMatch[1].toUpperCase();
         logger.auth('Room deep link detected', { roomCode, url: event.url });

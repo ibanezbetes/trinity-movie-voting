@@ -60,7 +60,7 @@
             {
               "scheme": "https",
               "host": "trinity-app.es",
-              "pathPrefix": "/room"
+              "pathPattern": "/room/.*"
             }
           ],
           "category": [
