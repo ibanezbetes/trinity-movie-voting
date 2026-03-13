@@ -557,6 +557,10 @@ export default function VotingRoomScreen() {
 
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gestureState) => {
+      // Si la descripción está expandida, NO capturar gestos (permitir scroll)
+      if (isDescriptionExpanded) {
+        return false;
+      }
       // Más sensible: detectar gestos con solo 5 píxeles de movimiento
       return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
     },
@@ -766,6 +770,13 @@ export default function VotingRoomScreen() {
 
       {/* Movie Card */}
       <View style={styles.cardContainer}>
+        {isDescriptionExpanded && (
+          <View style={styles.swipeDisabledBanner}>
+            <Text style={styles.swipeDisabledText}>
+              💬 Leyendo descripción - Cierra para deslizar
+            </Text>
+          </View>
+        )}
         <Animated.View
           style={[
             styles.card,
@@ -839,36 +850,53 @@ export default function VotingRoomScreen() {
               <Text style={styles.movieYear}>
                 {new Date(currentMovie.releaseDate).getFullYear()}
               </Text>
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => {
-                  setIsDescriptionExpanded(!isDescriptionExpanded);
-                  logger.userAction('Description toggled', {
-                    expanded: !isDescriptionExpanded,
-                    movieTitle: currentMovie.title
-                  });
-                }}
-              >
+              <View>
                 {isDescriptionExpanded ? (
-                  <ScrollView 
-                    style={styles.descriptionScrollView}
-                    showsVerticalScrollIndicator={true}
-                    nestedScrollEnabled={true}
+                  <View style={styles.expandedDescriptionContainer}>
+                    <ScrollView 
+                      style={styles.descriptionScrollView}
+                      showsVerticalScrollIndicator={true}
+                      nestedScrollEnabled={true}
+                      scrollEnabled={true}
+                    >
+                      <Text style={styles.movieDescription}>
+                        {currentMovie.overview}
+                      </Text>
+                    </ScrollView>
+                    <TouchableOpacity
+                      style={styles.collapseButton}
+                      onPress={() => {
+                        setIsDescriptionExpanded(false);
+                        logger.userAction('Description collapsed', {
+                          movieTitle: currentMovie.title
+                        });
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.collapseButtonText}>Cerrar ▲</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => {
+                      setIsDescriptionExpanded(true);
+                      logger.userAction('Description expanded', {
+                        movieTitle: currentMovie.title
+                      });
+                    }}
                   >
-                    <Text style={styles.movieDescription}>
+                    <Text 
+                      style={styles.movieDescription}
+                      numberOfLines={2}
+                      ellipsizeMode="tail"
+                    >
                       {currentMovie.overview}
                     </Text>
-                  </ScrollView>
-                ) : (
-                  <Text 
-                    style={styles.movieDescription}
-                    numberOfLines={2}
-                    ellipsizeMode="tail"
-                  >
-                    {currentMovie.overview}
-                  </Text>
+                    <Text style={styles.expandHint}>Toca para leer más ▼</Text>
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
+              </View>
             </View>
           </LinearGradient>
         </Animated.View>
@@ -1012,6 +1040,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 20,
   },
+  swipeDisabledBanner: {
+    position: 'absolute',
+    top: 10,
+    backgroundColor: 'rgba(156, 39, 176, 0.9)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    zIndex: 100,
+  },
+  swipeDisabledText: {
+    fontSize: 12,
+    color: '#ffffff',
+    fontWeight: '600',
+  },
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
@@ -1081,8 +1123,32 @@ const styles = StyleSheet.create({
     color: '#cccccc',
     lineHeight: 20,
   },
+  expandHint: {
+    fontSize: 12,
+    color: '#9C27B0',
+    marginTop: 5,
+    fontWeight: '500',
+  },
+  expandedDescriptionContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 8,
+    padding: 10,
+  },
   descriptionScrollView: {
-    maxHeight: CARD_HEIGHT * 0.4, // Máximo 40% de la altura del cartel
+    maxHeight: CARD_HEIGHT * 0.35, // Máximo 35% de la altura del cartel
+  },
+  collapseButton: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(156, 39, 176, 0.3)',
+    borderRadius: 20,
+    alignSelf: 'center',
+  },
+  collapseButtonText: {
+    fontSize: 12,
+    color: '#9C27B0',
+    fontWeight: '600',
   },
   actionButtons: {
     flexDirection: 'row',

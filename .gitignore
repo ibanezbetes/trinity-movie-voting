@@ -225,6 +225,8 @@ cleanup-*.ps1
 download-*.ps1
 sync-*.ps1
 list-*.ps1
+find-*.ps1
+find-*.sh
 
 # Mantener scripts oficiales
 !infrastructure/create-zips.ps1
@@ -232,7 +234,7 @@ list-*.ps1
 !infrastructure/scripts/*.ps1
 !infrastructure/scripts/*.js
 !infrastructure/scripts/*.sh
-!web/deploy-aws.ps1
+!scripts/backup-keystore.ps1
 
 # Log files
 logs_*.txt

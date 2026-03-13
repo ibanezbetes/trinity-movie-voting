@@ -943,5 +943,5 @@ See main [README.md](../README.md) for contribution guidelines.
 
 ---
 
-**Version**: 1.0.6  
-**Last Updated**: 2026-02-09
+**Version**: 1.0.11  
+**Last Updated**: 2026-03-13
